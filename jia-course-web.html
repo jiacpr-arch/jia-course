@@ -44,7 +44,7 @@ const BADGE_COLORS = [
   "bg-sky-100 text-sky-700","bg-purple-100 text-purple-700","bg-teal-100 text-teal-700",
   "bg-emerald-100 text-emerald-700","bg-amber-100 text-amber-700","bg-gray-100 text-gray-700",
 ];
-const TABS = ["แดชบอร์ด", "จองคอร์ส", "ลูกค้า", "ตารางเรียน", "ตั้งค่าคอร์ส"];
+const TABS = ["แดชบอร์ด", "จองคอร์ส", "ลูกค้า", "ตารางเรียน", "ปฏิทิน", "ตั้งค่าคอร์ส"];
 
 // ─── JSONP helpers ───
 const jsonp = (url) =>
@@ -247,7 +247,8 @@ function App() {
             toggleSession={toggleSession} updateSessionDate={updateSessionDate}
             updateBooking={updateBooking} deleteBooking={deleteBooking} enrolled={enrolled} cfg={cfg} courseKeys={courseKeys} staff={staff} courses={courses} />
         )}
-        {tab === 4 && <CourseSettings courses={courses} saveCourses={saveCourses} staff={staff} saveStaff={saveStaff} enrolled={enrolled} />}
+        {tab === 4 && <CalendarView sessions={sessions} bookings={bookings} courses={courses} cfg={cfg} />}
+        {tab === 5 && <CourseSettings courses={courses} saveCourses={saveCourses} staff={staff} saveStaff={saveStaff} enrolled={enrolled} />}
       </main>
 
       {showSetup && (
@@ -313,18 +314,25 @@ function Dashboard({ stats, bookings, customers, enrolled, courses, cfg, courseK
           <table className="w-full text-sm">
             <thead><tr className="text-left text-gray-400 border-b text-xs">
               <th className="pb-2">ลูกค้า</th><th className="pb-2">คอร์ส</th>
-              <th className="pb-2">รอบเวลา</th><th className="pb-2">จำนวนคน</th><th className="pb-2">วันที่จอง</th>
+              <th className="pb-2">รอบเวลา</th><th className="pb-2">ผู้สอน</th><th className="pb-2">จำนวนคน</th><th className="pb-2">ชำระเงิน</th><th className="pb-2">วันที่จอง</th>
             </tr></thead>
             <tbody>
               {recent.map(bk => {
                 const c = customers.find(x => x.id === bk.customerId);
                 const bc = cfg(bk.courseType);
+                const paid = bk.paymentStatus === "โอนแล้ว";
                 return (
                   <tr key={bk.id} className="border-b last:border-0">
                     <td className="py-2 font-medium">{c?.name || "-"}</td>
                     <td className="py-2"><span className={`text-xs px-2 py-0.5 rounded-full ${bc.color}`}>{bc.label}</span></td>
                     <td className="py-2 text-xs text-gray-500">{bk.timeSlot || "-"}</td>
+                    <td className="py-2 text-xs text-gray-500">{bk.instructors?.length > 0 ? bk.instructors.join(", ") : "-"}</td>
                     <td className="py-2">{bk.totalPeople || "-"}</td>
+                    <td className="py-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${paid ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-600"}`}>
+                        {bk.paymentStatus || "ยังไม่ได้โอน"}
+                      </span>
+                    </td>
                     <td className="py-2 text-gray-400">{fmt(bk.createdAt)}</td>
                   </tr>
                 );
@@ -386,6 +394,29 @@ function StaffPicker({ selected, onChange, staff }) {
   );
 }
 
+// ─── Payment Picker ───
+function PaymentPicker({ value, onChange }) {
+  const options = ["โอนแล้ว", "ยังไม่ได้โอน"];
+  return (
+    <div className="flex gap-2">
+      {options.map(opt => {
+        const active = value === opt;
+        const isTransferred = opt === "โอนแล้ว";
+        return (
+          <button key={opt} type="button" onClick={() => onChange(opt)}
+            className={`flex-1 py-1.5 rounded-lg text-sm border transition font-medium ${
+              active
+                ? isTransferred
+                  ? "bg-green-500 text-white border-green-500"
+                  : "bg-orange-400 text-white border-orange-400"
+                : "border-gray-300 text-gray-600 hover:border-blue-400"
+            }`}>{opt}</button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Time Slot Picker ───
 function TimeSlotPicker({ value, onChange }) {
   return (
@@ -407,7 +438,7 @@ function TimeSlotPicker({ value, onChange }) {
 function BookingForm({ customers, addCustomer, addBooking, enrolled, courses, cfg, courseKeys, staff }) {
   const [isNew, setIsNew] = useState(true);
   const [selCust, setSelCust] = useState("");
-  const blank = { name: "", phone: "", courseType: courseKeys[0] || "Full", totalPeople: 1, teachers: [], timeSlot: TIME_SLOTS[0], startDate: today(), cash: "", note: "" };
+  const blank = { name: "", phone: "", courseType: courseKeys[0] || "Full", totalPeople: 1, teachers: [], instructors: ["", "", ""], timeSlot: TIME_SLOTS[0], startDate: today(), paymentStatus: "ยังไม่ได้โอน", note: "" };
   const [form, setForm] = useState(blank);
   const [saved, setSaved] = useState(false);
 
@@ -431,8 +462,9 @@ function BookingForm({ customers, addCustomer, addBooking, enrolled, courses, cf
       customerId: custId, courseType: form.courseType,
       totalPeople: Number(form.totalPeople),
       teachers: form.teachers,
+      instructors: (form.instructors || []).filter(n => n.trim()),
       timeSlot: form.timeSlot,
-      startDate: form.startDate, cash: form.cash, note: form.note
+      startDate: form.startDate, paymentStatus: form.paymentStatus, note: form.note
     });
     setSaved(true);
     setForm({ ...blank, courseType: courseKeys[0] || "Full" }); setSelCust("");
@@ -504,14 +536,33 @@ function BookingForm({ customers, addCustomer, addBooking, enrolled, courses, cf
         </div>
 
         <div>
-          <label className="text-sm text-gray-600 block mb-2">เซลล์/ผู้สอน</label>
+          <label className="text-sm text-gray-600 block mb-2">เซลล์</label>
           <StaffPicker selected={form.teachers} onChange={v => set("teachers", v)} staff={staff} />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="เงินสด (บาท)" type="number" value={form.cash} onChange={v => set("cash", v)} />
-          <Field label="หมายเหตุ" value={form.note} onChange={v => set("note", v)} />
+        <div>
+          <label className="text-sm text-gray-600 block mb-2">ผู้สอน</label>
+          <div className="space-y-2">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="text-xs text-gray-400 w-20 shrink-0">คนที่ {i + 1}</span>
+                <input value={(form.instructors || ["", "", ""])[i] || ""} onChange={e => {
+                  const next = [...(form.instructors || ["", "", ""])];
+                  next[i] = e.target.value;
+                  set("instructors", next);
+                }} placeholder="ชื่อผู้สอน..."
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
+              </div>
+            ))}
+          </div>
         </div>
+
+        <div>
+          <label className="text-sm text-gray-600 block mb-2">การชำระเงิน</label>
+          <PaymentPicker value={form.paymentStatus} onChange={v => set("paymentStatus", v)} />
+        </div>
+
+        <Field label="หมายเหตุ" value={form.note} onChange={v => set("note", v)} />
 
         <button type="submit"
           className="w-full text-white py-2.5 rounded-lg font-medium transition"
@@ -602,10 +653,15 @@ function CustomerList({ customers, bookings, sessions, updateCustomer, deleteCus
                                 {bk.timeSlot && <span className="text-xs text-gray-400">{bk.timeSlot}</span>}
                                 <span className="text-xs text-gray-400">{bkDone}/{bkSe.length} ครั้ง</span>
                                 {bk.teachers?.length > 0 && <span className="text-xs text-gray-400">เซลล์: {bk.teachers.join(", ")}</span>}
-                                {bk.cash && <span className="text-xs text-green-600">{bk.cash} บ.</span>}
+                                {bk.instructors?.length > 0 && <span className="text-xs text-purple-500">ผู้สอน: {bk.instructors.join(", ")}</span>}
+                                {bk.paymentStatus && (
+                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${bk.paymentStatus === "โอนแล้ว" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-600"}`}>
+                                    {bk.paymentStatus}
+                                  </span>
+                                )}
                               </div>
                               <div className="flex gap-1 shrink-0">
-                                <button onClick={() => setEditBk({ ...bk, teachers: bk.teachers || [] })}
+                                <button onClick={() => setEditBk({ ...bk, teachers: bk.teachers || [], instructors: bk.instructors || ["", "", ""] })}
                                   className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100">แก้ไข</button>
                                 <button onClick={() => confirmDelete(bc.label, () => deleteBooking(bk.id))}
                                   className="text-xs px-2 py-1 bg-red-50 text-red-500 rounded hover:bg-red-100">ลบ</button>
@@ -640,8 +696,9 @@ function CustomerList({ customers, bookings, sessions, updateCustomer, deleteCus
             updateBooking(editBk.id, {
               courseType: editBk.courseType, totalPeople: Number(editBk.totalPeople),
               teachers: editBk.teachers || [],
+              instructors: (editBk.instructors || []).filter(n => n.trim()),
               timeSlot: editBk.timeSlot,
-              cash: editBk.cash, note: editBk.note, startDate: editBk.startDate
+              paymentStatus: editBk.paymentStatus, note: editBk.note, startDate: editBk.startDate
             });
             setEditBk(null);
           }}
@@ -669,13 +726,34 @@ function BookingEditModal({ bk, setBk, enrolled, courses, staff, onSave, onClose
           <Field label="วันที่เริ่ม" type="date" value={bk.startDate || ""} onChange={v => setBk(b => ({ ...b, startDate: v }))} />
         </div>
         <div>
-          <label className="text-sm text-gray-600 block mb-2">เซลล์/ผู้สอน</label>
+          <label className="text-sm text-gray-600 block mb-2">เซลล์</label>
           <StaffPicker selected={bk.teachers || []} onChange={v => setBk(b => ({ ...b, teachers: v }))} staff={staff} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="เงินสด (บาท)" type="number" value={bk.cash || ""} onChange={v => setBk(b => ({ ...b, cash: v }))} />
-          <Field label="หมายเหตุ" value={bk.note || ""} onChange={v => setBk(b => ({ ...b, note: v }))} />
+        <div>
+          <label className="text-sm text-gray-600 block mb-2">ผู้สอน</label>
+          <div className="space-y-2">
+            {[0, 1, 2].map(i => {
+              const insts = bk.instructors || ["", "", ""];
+              return (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 w-20 shrink-0">คนที่ {i + 1}</span>
+                  <input value={insts[i] || ""} onChange={e => {
+                    const next = [...insts];
+                    while (next.length < 3) next.push("");
+                    next[i] = e.target.value;
+                    setBk(b => ({ ...b, instructors: next }));
+                  }} placeholder="ชื่อผู้สอน..."
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
+                </div>
+              );
+            })}
+          </div>
         </div>
+        <div>
+          <label className="text-sm text-gray-600 block mb-2">การชำระเงิน</label>
+          <PaymentPicker value={bk.paymentStatus || "ยังไม่ได้โอน"} onChange={v => setBk(b => ({ ...b, paymentStatus: v }))} />
+        </div>
+        <Field label="หมายเหตุ" value={bk.note || ""} onChange={v => setBk(b => ({ ...b, note: v }))} />
       </div>
     </EditModal>
   );
@@ -751,7 +829,7 @@ function Schedule({ sessions, bookings, customers, toggleSession, updateSessionD
                     <td className="px-4 py-2.5">
                       {s.sessionNo === 1 && bk && (
                         <div className="flex gap-1">
-                          <button onClick={() => setEditBk({ ...bk, teachers: bk.teachers || [] })}
+                          <button onClick={() => setEditBk({ ...bk, teachers: bk.teachers || [], instructors: bk.instructors || ["", "", ""] })}
                             className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100">แก้ไข</button>
                           <button onClick={() => confirmDelete(bc.label, () => deleteBooking(bk.id))}
                             className="text-xs px-2 py-1 bg-red-50 text-red-500 rounded hover:bg-red-100">ลบ</button>
@@ -773,12 +851,190 @@ function Schedule({ sessions, bookings, customers, toggleSession, updateSessionD
             updateBooking(editBk.id, {
               courseType: editBk.courseType, totalPeople: Number(editBk.totalPeople),
               teachers: editBk.teachers || [],
+              instructors: (editBk.instructors || []).filter(n => n.trim()),
               timeSlot: editBk.timeSlot,
-              cash: editBk.cash, note: editBk.note, startDate: editBk.startDate
+              paymentStatus: editBk.paymentStatus, note: editBk.note, startDate: editBk.startDate
             });
             setEditBk(null);
           }}
           onClose={() => setEditBk(null)} />
+      )}
+    </div>
+  );
+}
+
+// ─── Calendar View (ปฏิทิน ว่าง/ไม่ว่าง) ───
+function CalendarView({ sessions, bookings, courses, cfg }) {
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth());
+  const [selectedDate, setSelectedDate] = useState(null);
+
+  const prevMonth = () => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); };
+  const nextMonth = () => { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); };
+  const goToday = () => { setYear(now.getFullYear()); setMonth(now.getMonth()); };
+
+  const MONTH_NAMES = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+  const DAY_NAMES = ["อา","จ","อ","พ","พฤ","ศ","ส"];
+
+  const occupancy = useMemo(() => {
+    const map = {};
+    sessions.forEach(s => {
+      if (!s.date) return;
+      const bk = bookings.find(b => b.id === s.bookingId);
+      if (!bk) return;
+      const key = s.date;
+      if (!map[key]) map[key] = {};
+      const ct = bk.courseType;
+      if (!map[key][ct]) map[key][ct] = {};
+      const ts = bk.timeSlot || "ไม่ระบุ";
+      map[key][ct][ts] = (map[key][ct][ts] || 0) + 1;
+    });
+    return map;
+  }, [sessions, bookings]);
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const weeks = [];
+  let week = Array(firstDay).fill(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    week.push(d);
+    if (week.length === 7) { weeks.push(week); week = []; }
+  }
+  if (week.length > 0) { while (week.length < 7) week.push(null); weeks.push(week); }
+
+  const todayStr = today();
+  const activeCourses = courses.filter(c => c.max < 999);
+
+  const getStatus = (dateStr, courseType) => {
+    const dayData = occupancy[dateStr];
+    if (!dayData || !dayData[courseType]) return "available";
+    const c = cfg(courseType);
+    let total = 0;
+    Object.values(dayData[courseType]).forEach(n => { total += n; });
+    if (total >= c.max) return "full";
+    return "partial";
+  };
+
+  const getDateStr = (d) => {
+    const mm = String(month + 1).padStart(2, "0");
+    const dd = String(d).padStart(2, "0");
+    return `${year}-${mm}-${dd}`;
+  };
+
+  const selectedDetail = useMemo(() => {
+    if (!selectedDate) return null;
+    const dayData = occupancy[selectedDate] || {};
+    return courses.map(c => {
+      const slots = dayData[c.key] || {};
+      let total = 0;
+      Object.values(slots).forEach(n => { total += n; });
+      const remaining = Math.max(0, (c.max < 999 ? c.max : 999) - total);
+      const status = total === 0 ? "available" : total >= c.max && c.max < 999 ? "full" : "partial";
+      const slotDetail = {};
+      TIME_SLOTS.forEach(ts => { slotDetail[ts] = slots[ts] || 0; });
+      return { ...c, total, remaining, status, slotDetail };
+    });
+  }, [selectedDate, occupancy, courses, cfg]);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-blue-100 p-4">
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={prevMonth} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 text-sm font-medium">◀ ก่อนหน้า</button>
+          <div className="text-center">
+            <h2 className="text-lg font-bold text-blue-800">{MONTH_NAMES[month]} {year + 543}</h2>
+            <button onClick={goToday} className="text-xs text-blue-500 hover:underline">วันนี้</button>
+          </div>
+          <button onClick={nextMonth} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 text-sm font-medium">ถัดไป ▶</button>
+        </div>
+
+        <div className="flex flex-wrap gap-3 mb-4 text-xs">
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-400"></span> ว่าง</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-amber-400"></span> มีจองบางส่วน</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-400"></span> เต็ม</span>
+        </div>
+
+        <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-lg overflow-hidden">
+          {DAY_NAMES.map(d => (
+            <div key={d} className="bg-blue-50 text-center py-2 text-xs font-medium text-blue-600">{d}</div>
+          ))}
+          {weeks.flat().map((d, idx) => {
+            if (d === null) return <div key={"e" + idx} className="bg-white p-1 min-h-[64px]"></div>;
+            const dateStr = getDateStr(d);
+            const isToday = dateStr === todayStr;
+            const isSelected = dateStr === selectedDate;
+
+            const dots = activeCourses.map(c => ({
+              key: c.key,
+              status: getStatus(dateStr, c.key),
+              color: getStatus(dateStr, c.key) === "available" ? "bg-green-400" :
+                     getStatus(dateStr, c.key) === "full" ? "bg-red-400" : "bg-amber-400"
+            }));
+
+            return (
+              <button key={d} onClick={() => setSelectedDate(dateStr === selectedDate ? null : dateStr)}
+                className={`bg-white p-1 min-h-[64px] text-left hover:bg-blue-50 transition relative ${
+                  isSelected ? "ring-2 ring-blue-500 z-10" : ""
+                }`}>
+                <span className={`text-xs font-medium block mb-1 ${
+                  isToday ? "bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center" : "text-gray-700 pl-1"
+                }`}>{d}</span>
+                <div className="flex flex-wrap gap-0.5 px-0.5">
+                  {dots.map(dot => (
+                    <span key={dot.key} className={`w-2.5 h-2.5 rounded-full ${dot.color}`} title={cfg(dot.key).label}></span>
+                  ))}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {selectedDate && selectedDetail && (
+        <div className="bg-white rounded-xl border border-blue-100 p-5">
+          <h3 className="font-semibold text-blue-800 mb-3">
+            {new Date(selectedDate).toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+          </h3>
+          <div className="space-y-2">
+            {selectedDetail.map(c => {
+              const statusColor = c.status === "available" ? "bg-green-50 border-green-200" :
+                                  c.status === "full" ? "bg-red-50 border-red-200" : "bg-amber-50 border-amber-200";
+              const statusText = c.status === "available" ? "ว่าง" :
+                                 c.status === "full" ? "เต็ม" : "มีจองบางส่วน";
+              const statusBadge = c.status === "available" ? "bg-green-100 text-green-700" :
+                                  c.status === "full" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700";
+              return (
+                <div key={c.key} className={`rounded-lg border p-3 ${statusColor}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.color}`}>{c.label}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge}`}>{statusText}</span>
+                    </div>
+                    {c.max < 999 && (
+                      <span className="text-xs text-gray-500">
+                        จอง {c.total} / {c.max} คน {c.remaining > 0 && <span className="text-green-600 font-medium">(เหลือ {c.remaining})</span>}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {TIME_SLOTS.map(ts => {
+                      const count = c.slotDetail[ts] || 0;
+                      return (
+                        <div key={ts} className="flex items-center gap-1 bg-white/60 rounded px-2 py-1">
+                          <span className="text-xs text-gray-500">{ts}</span>
+                          <span className={`text-xs font-medium ${count > 0 ? "text-blue-600" : "text-gray-400"}`}>
+                            {count > 0 ? count + " คน" : "ว่าง"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -863,7 +1119,7 @@ function CourseSettings({ courses, saveCourses, staff, saveStaff, enrolled }) {
       </div>
 
       <div className="bg-white rounded-xl border border-blue-100 p-5">
-        <h2 className="font-semibold text-blue-800 mb-4">เซลล์/ผู้สอน</h2>
+        <h2 className="font-semibold text-blue-800 mb-4">เซลล์</h2>
         <div className="flex gap-2 mb-3">
           <input value={newStaff} onChange={e => setNewStaff(e.target.value)}
             onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addStaffMember())}
