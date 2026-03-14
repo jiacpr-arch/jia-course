@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JIA Course — ลงทะเบียนผู้เรียน</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --primary: #253A8D;
+    --primary-light: #3757D3;
+    --accent: #5C91FF;
+    --bg: #f0f4ff;
+    --card: #ffffff;
+    --text: #1a1a2e;
+    --muted: #6b7194;
+    --border: #dce3f5;
+    --success: #0F6E56;
+    --success-bg: #E1F5EE;
+    --error: #c0392b;
+    --error-bg: #fdecea;
+  }
+  body {
+    font-family: 'Noto Sans Thai', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .hero {
+    width: 100%;
+    background: linear-gradient(135deg, #1a2a6c 0%, var(--primary) 40%, var(--primary-light) 100%);
+    padding: 32px 16px 48px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 32px;
+    background: var(--bg);
+    border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  }
+  .hero h1 { font-size: 28px; font-weight: 700; color: #fff; letter-spacing: 1px; }
+  .hero p { font-size: 13px; color: #a8b8e8; margin-top: 4px; }
+  .hero .sub { font-size: 15px; color: #d0dbff; margin-top: 12px; font-weight: 500; }
+
+  .form-card {
+    width: 100%;
+    max-width: 480px;
+    background: var(--card);
+    border-radius: 20px;
+    box-shadow: 0 4px 24px rgba(37,58,141,0.08);
+    margin: -24px 16px 24px;
+    padding: 28px 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .step-indicator {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+  .step-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: all 0.3s;
+  }
+  .step-dot.active { background: var(--primary); width: 28px; border-radius: 5px; }
+  .step-dot.done { background: var(--success); }
+
+  .form-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--primary);
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  .field { margin-bottom: 16px; }
+  .field label {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .field label .req { color: var(--error); }
+  .field input, .field select {
+    width: 100%;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 15px;
+    font-family: inherit;
+    color: var(--text);
+    background: #fafbff;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+  .field input:focus, .field select:focus {
+    border-color: var(--accent);
+    background: #fff;
+  }
+  .field input.error, .field select.error { border-color: var(--error); }
+  .field .error-msg { font-size: 12px; color: var(--error); margin-top: 4px; }
+
+  .course-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .course-btn {
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 12px;
+    background: #fafbff;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .course-btn:hover { border-color: var(--accent); background: #f0f4ff; }
+  .course-btn.selected {
+    border-color: var(--primary);
+    background: linear-gradient(135deg, #eef2ff 0%, #dce6ff 100%);
+    color: var(--primary);
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(55,87,211,0.12);
+  }
+  .course-btn .range { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .course-btn.selected .range { color: var(--primary-light); }
+
+  .timeslot-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .timeslot-btn {
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 16px;
+    background: #fafbff;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--text);
+    transition: all 0.2s;
+  }
+  .timeslot-btn:hover { border-color: var(--accent); }
+  .timeslot-btn.selected {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #fff;
+    font-weight: 500;
+  }
+
+  .consent-box {
+    background: #f7f9ff;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .consent-box h4 { font-size: 14px; font-weight: 600; color: var(--primary); margin-bottom: 8px; }
+  .consent-box p { font-size: 12px; color: var(--muted); line-height: 1.7; margin-bottom: 12px; }
+  .consent-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    cursor: pointer;
+  }
+  .consent-check input[type="checkbox"] {
+    width: 20px; height: 20px;
+    margin-top: 2px;
+    accent-color: var(--primary);
+    flex-shrink: 0;
+  }
+  .consent-check span { font-size: 13px; color: var(--text); line-height: 1.5; }
+
+  .btn-primary {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+  .btn-primary:hover { opacity: 0.92; }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-secondary {
+    width: 100%;
+    padding: 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    background: #fff;
+    color: var(--muted);
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: all 0.2s;
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--primary); }
+
+  .success-screen {
+    text-align: center;
+    padding: 20px 0;
+  }
+  .success-icon {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    background: var(--success-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    font-size: 32px;
+  }
+  .success-screen h3 { font-size: 20px; font-weight: 600; color: var(--success); margin-bottom: 8px; }
+  .success-screen p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+  .success-detail {
+    background: #f7f9ff;
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+    text-align: left;
+  }
+  .success-detail .row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 13px;
+  }
+  .success-detail .row .label { color: var(--muted); }
+  .success-detail .row .value { font-weight: 500; color: var(--text); }
+
+  .footer {
+    text-align: center;
+    padding: 16px;
+    font-size: 11px;
+    color: #a0a8c4;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeIn 0.4s ease; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>JIA Course</h1>
+  <p>เจี๋ยรักษา — ฝึกสอน CPR / AED</p>
+  <div class="sub">ลงทะเบียนผู้เรียน</div>
+</div>
+
+<div class="form-card" id="formCard">
+  <div class="step-indicator" id="stepIndicator">
+    <div class="step-dot active"></div>
+    <div class="step-dot"></div>
+    <div class="step-dot"></div>
+  </div>
+  <div id="stepContent"></div>
+</div>
+
+<div class="footer">JIA Course v2.0 — www.JIA1669.com — Power by JiaLuckSa</div>
+
+<script>
+const GS_URL = localStorage.getItem("jia_gs_url") || "";
+const COURSES = [
+  { key: "Full",    label: "Full Course",    range: "10-15 คน" },
+  { key: "Join",    label: "Join Course",    range: "5-7 คน" },
+  { key: "Mini",    label: "Mini Course",    range: "5-7 คน" },
+  { key: "Private", label: "Private Course", range: "5-7 คน" },
+];
+const TIME_SLOTS = ["11:00-13:00", "14:00-16:00", "17:00-19:00"];
+
+let currentStep = 1;
+let formData = { bookingCode: "", name: "", phone: "", email: "", courseType: "", timeSlot: "", consent: false };
+
+// Read booking code from URL if present
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get("code")) { formData.bookingCode = urlParams.get("code"); }
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+function today() { return new Date().toISOString().slice(0, 10); }
+function b64(obj) { return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))); }
+
+function jsonp(url) {
+  return new Promise((resolve, reject) => {
+    const name = "jia_cb_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+    const s = document.createElement("script");
+    let done = false;
+    const cleanup = () => { done = true; delete window[name]; if (s.parentNode) s.parentNode.removeChild(s); };
+    window[name] = (data) => { cleanup(); resolve(data); };
+    s.onerror = () => { cleanup(); reject(new Error("JSONP failed")); };
+    s.src = url + (url.includes("?") ? "&" : "?") + "callback=" + name;
+    setTimeout(() => { if (!done) { cleanup(); reject(new Error("timeout")); } }, 10000);
+    document.head.appendChild(s);
+  });
+}
+
+function gsAction(params) {
+  if (!GS_URL) return Promise.resolve({});
+  const qs = Object.entries(params).map(([k,v]) => encodeURIComponent(k) + "=" + encodeURIComponent(v)).join("&");
+  return jsonp(GS_URL + "?" + qs);
+}
+
+function updateSteps() {
+  const dots = document.querySelectorAll('.step-dot');
+  dots.forEach((d, i) => {
+    d.className = 'step-dot';
+    if (i + 1 === currentStep) d.classList.add('active');
+    else if (i + 1 < currentStep) d.classList.add('done');
+  });
+}
+
+function renderStep() {
+  updateSteps();
+  const el = document.getElementById('stepContent');
+  el.className = 'fade-in';
+  
+  if (currentStep === 1) {
+    el.innerHTML = `
+      <div class="form-title">ข้อมูลผู้เรียน</div>
+      <div class="field">
+        <label>รหัสจอง (ได้จากเซลล์)</label>
+        <input type="text" id="f-code" value="${formData.bookingCode}" placeholder="เช่น JIA-A3X7" style="font-family:monospace;letter-spacing:2px;text-transform:uppercase;">
+      </div>
+      <div class="field">
+        <label>ชื่อ-นามสกุล <span class="req">*</span></label>
+        <input type="text" id="f-name" value="${formData.name}" placeholder="กรอกชื่อ-นามสกุล" autocomplete="name">
+      </div>
+      <div class="field">
+        <label>เบอร์โทร <span class="req">*</span></label>
+        <input type="tel" id="f-phone" value="${formData.phone}" placeholder="0xx-xxx-xxxx" autocomplete="tel">
+      </div>
+      <div class="field">
+        <label>อีเมล</label>
+        <input type="email" id="f-email" value="${formData.email}" placeholder="email@example.com" autocomplete="email">
+      </div>
+      <button class="btn-primary" onclick="nextStep1()">ถัดไป</button>
+    `;
+  }
+  else if (currentStep === 2) {
+    const courseHtml = COURSES.map(c => `
+      <div class="course-btn ${formData.courseType === c.key ? 'selected' : ''}" onclick="selectCourse('${c.key}')">
+        <div>${c.label}</div>
+        ${c.range ? '<div class="range">' + c.range + '</div>' : ''}
+      </div>
+    `).join('');
+    
+    const slotHtml = TIME_SLOTS.map(s => `
+      <div class="timeslot-btn ${formData.timeSlot === s ? 'selected' : ''}" onclick="selectTimeSlot('${s}')">${s}</div>
+    `).join('');
+
+    el.innerHTML = `
+      <div class="form-title">เลือกคอร์สเรียน</div>
+      <div class="field">
+        <label>ประเภทคอร์ส <span class="req">*</span></label>
+        <div class="course-grid" id="courseGrid">${courseHtml}</div>
+      </div>
+      <div class="field">
+        <label>รอบเวลาที่สะดวก</label>
+        <div class="timeslot-grid" id="slotGrid">${slotHtml}</div>
+      </div>
+      <button class="btn-primary" onclick="nextStep2()">ถัดไป</button>
+      <button class="btn-secondary" onclick="prevStep()">← ย้อนกลับ</button>
+    `;
+  }
+  else if (currentStep === 3) {
+    const course = COURSES.find(c => c.key === formData.courseType);
+    el.innerHTML = `
+      <div class="form-title">ยืนยันข้อมูล</div>
+      <div class="success-detail">
+        ${formData.bookingCode ? '<div class="row"><span class="label">รหัสจอง</span><span class="value" style="font-family:monospace;color:#253A8D;font-weight:600;">' + formData.bookingCode + '</span></div>' : ''}
+        <div class="row"><span class="label">ชื่อ-นามสกุล</span><span class="value">${formData.name}</span></div>
+        <div class="row"><span class="label">เบอร์โทร</span><span class="value">${formData.phone}</span></div>
+        ${formData.email ? '<div class="row"><span class="label">อีเมล</span><span class="value">' + formData.email + '</span></div>' : ''}
+        <div class="row"><span class="label">คอร์ส</span><span class="value">${course ? course.label : '-'}</span></div>
+        ${formData.timeSlot ? '<div class="row"><span class="label">รอบเวลา</span><span class="value">' + formData.timeSlot + '</span></div>' : ''}
+      </div>
+      <div class="consent-box">
+        <h4>ความยินยอมตาม PDPA</h4>
+        <p>บริษัท เจี๋ยรักษา จำกัด จะเก็บรวบรวม ใช้ และเปิดเผยข้อมูลส่วนบุคคลของท่าน (ชื่อ-นามสกุล เบอร์โทร อีเมล) เพื่อวัตถุประสงค์ในการจัดการเรียนการสอน การออกใบรับรอง และการติดต่อสื่อสารเกี่ยวกับคอร์สเรียน โดยจะเก็บรักษาข้อมูลเป็นระยะเวลา 2 ปีนับจากวันที่เรียนจบ ท่านสามารถถอนความยินยอมได้ตลอดเวลาโดยแจ้งทางอีเมลหรือโทรศัพท์</p>
+        <label class="consent-check">
+          <input type="checkbox" id="f-consent" ${formData.consent ? 'checked' : ''} onchange="formData.consent=this.checked">
+          <span>ข้าพเจ้ายินยอมให้เก็บรวบรวม ใช้ และเปิดเผยข้อมูลส่วนบุคคลตามวัตถุประสงค์ข้างต้น</span>
+        </label>
+      </div>
+      <button class="btn-primary" id="submitBtn" onclick="submitForm()">ลงทะเบียน</button>
+      <button class="btn-secondary" onclick="prevStep()">← ย้อนกลับ</button>
+    `;
+  }
+  else if (currentStep === 4) {
+    const course = COURSES.find(c => c.key === formData.courseType);
+    el.innerHTML = `
+      <div class="success-screen">
+        <div class="success-icon">✓</div>
+        <h3>ลงทะเบียนสำเร็จ!</h3>
+        <p>ขอบคุณที่ลงทะเบียนกับ JIA Course<br>ทีมงานจะติดต่อกลับเพื่อยืนยันนัดเรียน</p>
+        <div class="success-detail">
+          <div class="row"><span class="label">ชื่อ</span><span class="value">${formData.name}</span></div>
+          <div class="row"><span class="label">คอร์ส</span><span class="value">${course ? course.label : '-'}</span></div>
+          ${formData.timeSlot ? '<div class="row"><span class="label">รอบเวลา</span><span class="value">' + formData.timeSlot + '</span></div>' : ''}
+          <div class="row"><span class="label">วันที่ลงทะเบียน</span><span class="value">${new Date().toLocaleDateString('th-TH', { day:'numeric', month:'long', year:'numeric' })}</span></div>
+        </div>
+        <button class="btn-primary" onclick="resetForm()">ลงทะเบียนคนถัดไป</button>
+      </div>
+    `;
+    document.getElementById('stepIndicator').style.display = 'none';
+  }
+}
+
+function selectCourse(key) {
+  formData.courseType = key;
+  document.querySelectorAll('.course-btn').forEach(b => b.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+}
+
+function selectTimeSlot(slot) {
+  formData.timeSlot = slot;
+  document.querySelectorAll('.timeslot-btn').forEach(b => b.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+}
+
+function clearErrors() {
+  document.querySelectorAll('.error').forEach(e => e.classList.remove('error'));
+  document.querySelectorAll('.error-msg').forEach(e => e.remove());
+}
+
+function showError(inputId, msg) {
+  const input = document.getElementById(inputId);
+  if (input) {
+    input.classList.add('error');
+    const div = document.createElement('div');
+    div.className = 'error-msg';
+    div.textContent = msg;
+    input.parentNode.appendChild(div);
+  }
+}
+
+function nextStep1() {
+  clearErrors();
+  formData.bookingCode = (document.getElementById('f-code').value || "").trim().toUpperCase();
+  formData.name = document.getElementById('f-name').value.trim();
+  formData.phone = document.getElementById('f-phone').value.trim();
+  formData.email = document.getElementById('f-email').value.trim();
+  
+  let valid = true;
+  if (!formData.name) { showError('f-name', 'กรุณากรอกชื่อ-นามสกุล'); valid = false; }
+  if (!formData.phone) { showError('f-phone', 'กรุณากรอกเบอร์โทร'); valid = false; }
+  else if (!/^[0-9\-]{9,13}$/.test(formData.phone.replace(/\s/g,''))) { showError('f-phone', 'เบอร์โทรไม่ถูกต้อง'); valid = false; }
+  if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) { showError('f-email', 'อีเมลไม่ถูกต้อง'); valid = false; }
+  
+  if (valid) { currentStep = 2; renderStep(); }
+}
+
+function nextStep2() {
+  if (!formData.courseType) { alert('กรุณาเลือกคอร์สเรียน'); return; }
+  currentStep = 3;
+  renderStep();
+}
+
+function prevStep() {
+  currentStep--;
+  renderStep();
+}
+
+async function submitForm() {
+  if (!formData.consent) { alert('กรุณาติ๊กยินยอม PDPA ก่อนลงทะเบียน'); return; }
+  
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'กำลังบันทึก...';
+  
+  const custId = uid();
+  const bookId = uid();
+  const course = COURSES.find(c => c.key === formData.courseType);
+  
+  try {
+    // Save to localStorage (same format as main app)
+    const customers = JSON.parse(localStorage.getItem("jia_customers") || "[]");
+    const cust = {
+      id: custId,
+      name: formData.name,
+      phone: formData.phone,
+      email: formData.email,
+      qrCode: "",
+      bookingCode: formData.bookingCode,
+      createdAt: today(),
+      consentPDPA: true,
+      consentDate: today()
+    };
+    customers.push(cust);
+    localStorage.setItem("jia_customers", JSON.stringify(customers));
+    
+    const bookings = JSON.parse(localStorage.getItem("jia_bookings") || "[]");
+    // Try to link to existing booking by code
+    const existingBk = formData.bookingCode ? bookings.find(b => b.bookingCode === formData.bookingCode) : null;
+    const bk = {
+      id: existingBk ? existingBk.id : bookId,
+      customerId: custId,
+      bookingCode: formData.bookingCode || "",
+      courseType: existingBk ? existingBk.courseType : formData.courseType,
+      totalPeople: existingBk ? existingBk.totalPeople : 1,
+      instructors: existingBk ? existingBk.instructors : [],
+      timeSlot: existingBk ? existingBk.timeSlot : formData.timeSlot,
+      startDate: existingBk ? existingBk.startDate : "",
+      paymentStatus: existingBk ? existingBk.paymentStatus : "ยังไม่ได้โอน",
+      note: "ลงทะเบียนออนไลน์" + (formData.bookingCode ? " (รหัส " + formData.bookingCode + ")" : ""),
+      createdAt: existingBk ? existingBk.createdAt : today()
+    };
+    if (!existingBk) {
+      bookings.push(bk);
+    } else {
+      // Update registeredCount
+      const idx = bookings.findIndex(b => b.id === existingBk.id);
+      if (idx >= 0) bookings[idx].registeredCount = (bookings[idx].registeredCount || 0) + 1;
+    }
+    localStorage.setItem("jia_bookings", JSON.stringify(bookings));
+    
+    const sessions = JSON.parse(localStorage.getItem("jia_sessions") || "[]");
+    const sess = { id: uid(), bookingId: bookId, customerId: custId, sessionNo: 1, done: false, date: "", note: "" };
+    sessions.push(sess);
+    localStorage.setItem("jia_sessions", JSON.stringify(sessions));
+    
+    // Sync to Google Sheets
+    if (GS_URL) {
+      await gsAction({ action: "addCustomer", data: b64(cust) }).catch(() => {});
+      await gsAction({
+        action: "addBooking",
+        data: b64({
+          ...bk,
+          customerName: formData.name,
+          courseName: course ? course.label : formData.courseType,
+          totalSessions: 1,
+          instructor1: "", instructor2: "", instructor3: "",
+          cash: "ยังไม่ได้โอน",
+          notes: "ลงทะเบียนออนไลน์"
+        })
+      }).catch(() => {});
+      await gsAction({ action: "addSession", data: b64(sess) }).catch(() => {});
+    }
+    
+    currentStep = 4;
+    renderStep();
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'ลงทะเบียน';
+    alert('เกิดข้อผิดพลาด: ' + e.message);
+  }
+}
+
+function resetForm() {
+  formData = { name: "", phone: "", email: "", courseType: "", timeSlot: "", consent: false };
+  currentStep = 1;
+  document.getElementById('stepIndicator').style.display = 'flex';
+  renderStep();
+}
+
+// Init
+renderStep();
+</script>
+</body>
+</html>
