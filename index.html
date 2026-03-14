@@ -89,7 +89,7 @@ function App() {
   const [opsStaff, setOpsStaff] = useState([]);
   const [instructorList, setInstructorList] = useState([]);
   const [timeSlots, setTimeSlots] = useState([]);
-  const [gsUrl, setGsUrl] = useState(() => localStorage.getItem("jia_gs_url") || "");
+  const [gsUrl, setGsUrl] = useState(() => localStorage.getItem("jia_gs_url") || "https://script.google.com/macros/s/AKfycbw-dsaXvMsamXHybSrnzu-JMcnBvQqbW19vAVMwNjlpnwXwWtYmw6oaYoy42PizLrvU/exec");
   const [showSetup, setShowSetup] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
