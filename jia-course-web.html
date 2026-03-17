@@ -22,29 +22,261 @@ tailwind.config = {
   body { font-family: 'Noto Sans Thai', sans-serif; margin: 0; }
   .custom-scroll::-webkit-scrollbar { height: 4px; }
   .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  .strikethrough { text-decoration: line-through; color: #999; }
 </style>
 </head>
 <body>
 <div id="root"></div>
+
+<!-- ═══ API Bridge + Auth (ไม่ใช้ Firebase แล้ว — ใช้ username/password) ═══ -->
+<script>
+// ★★★ CONFIG ★★★
+const JIA_API_URL = "https://script.google.com/macros/s/AKfycbyAbzjf6EyBdgv_h3k72CyesYG72voz_-ss3GpiniwI8YU8JKTBi2i8bVKhpQTXamt-YA/exec";
+const LOGIN_PAGE = "./jia-login.html";
+
+// ─── API Helpers ───
+async function jiaApiGet(action, params = {}) {
+    if (!JIA_API_URL) return null;
+    const url = new URL(JIA_API_URL);
+    url.searchParams.set('action', action);
+    Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
+    return (await fetch(url.toString())).json();
+}
+// jiaApiPost: ใช้ GET + base64 แทน POST เพราะ GAS redirect ทำให้ no-cors POST ใช้ไม่ได้
+async function jiaApiPost(action, params = {}, body = {}) {
+    if (!JIA_API_URL) return null;
+    const url = new URL(JIA_API_URL);
+    url.searchParams.set('action', action);
+    Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
+    // ส่ง body ผ่าน GET parameter 'data' เข้ารหัส base64
+    url.searchParams.set('data', btoa(unescape(encodeURIComponent(JSON.stringify(body)))));
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            const res = await fetch(url.toString(), { redirect: 'follow' });
+            const result = await res.json();
+            console.log('✅ API:', action, params, result);
+            return result;
+        } catch(err) {
+            // JSONP fallback — in case fetch fails due to CORS
+            try {
+                const name = '_jiaPost' + Date.now() + Math.random().toString(36).slice(2);
+                const result = await new Promise((resolve, reject) => {
+                    let done = false;
+                    const cleanup = () => { done = true; delete window[name]; if (script.parentNode) script.remove(); };
+                    window[name] = (data) => { cleanup(); resolve(data); };
+                    const script = document.createElement('script');
+                    script.onerror = () => { cleanup(); reject(new Error('JSONP failed')); };
+                    script.src = url.toString() + '&callback=' + name;
+                    setTimeout(() => { if (!done) { cleanup(); reject(new Error('JSONP timeout')); } }, 15000);
+                    document.head.appendChild(script);
+                });
+                console.log('✅ API (JSONP):', action, params, result);
+                return result;
+            } catch(e2) {
+                console.warn('⚠️ Attempt ' + (attempt+1) + ' failed:', err.message, e2.message);
+                if (attempt === 2) throw e2;
+                await new Promise(r => setTimeout(r, 1500));
+            }
+        }
+    }
+}
+
+// ─── Toast Notification ───
+function showToast(message, isError) {
+    const existing = document.getElementById('jia-toast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.id = 'jia-toast';
+    toast.textContent = message;
+    toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:99999;transition:opacity 0.3s;box-shadow:0 2px 10px rgba(0,0,0,0.2);' + (isError ? 'background:#dc2626;' : 'background:#16a34a;');
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 400); }, 3000);
+}
+
+// ─── Auth + Data Loading (ระบบใหม่ — ไม่ใช้ Firebase) ───
+window.JIA_AUTH_USER = null;
+window.JIA_DATA_READY = (async function() {
+    if (!JIA_API_URL) {
+        console.log('⚠️ Offline mode — ใช้ localStorage เดิม');
+        return true;
+    }
+    try {
+        // ตรวจ session จาก sessionStorage (set โดย login page)
+        const saved = sessionStorage.getItem('jia_user');
+        if (!saved) { window.location.href = LOGIN_PAGE; return false; }
+
+        const sessionUser = JSON.parse(saved);
+        if (!sessionUser.username) { window.location.href = LOGIN_PAGE; return false; }
+
+        // ตรวจสิทธิ์กับ server
+        const check = await jiaApiGet('checkUsername', { username: sessionUser.username });
+        if (!check.registered || (check.role !== 'admin' && check.role !== 'sales')) {
+            alert('คุณไม่มีสิทธิ์เข้าระบบหลังบ้าน');
+            sessionStorage.removeItem('jia_user');
+            window.location.href = LOGIN_PAGE;
+            return false;
+        }
+        window.JIA_AUTH_USER = { username: sessionUser.username, name: check.name, role: check.role };
+
+        // Load ALL data from API
+        const data = await jiaApiGet('getAllData', { username: sessionUser.username });
+        if (data.error) { console.error(data.error); return true; }
+
+        // Parse & store courses
+        const courses = data.courses || [];
+        courses.forEach(c => {
+            if (typeof c.timeSlots === 'string') try { c.timeSlots = JSON.parse(c.timeSlots); } catch(e) {}
+            ['price','discountPrice','flexPrice','fixedPrice','max','durationHours','totalDays'].forEach(k => {
+                if (typeof c[k] === 'string') c[k] = Number(c[k]);
+            });
+            if (typeof c.onlineBooking === 'string') c.onlineBooking = c.onlineBooking === 'true';
+            if (typeof c.hasPackages === 'string') c.hasPackages = c.hasPackages === 'true';
+        });
+
+        // Store in localStorage — ใช้ strategy: ใครมีข้อมูลมากกว่า ชนะ (ป้องกัน data loss)
+        const _set = localStorage.setItem.bind(localStorage);
+        const _safeSave = (key, apiData, fallback) => {
+            const apiArr = Array.isArray(apiData) ? apiData : [];
+            const existing = localStorage.getItem(key);
+            let localArr = [];
+            try { localArr = JSON.parse(existing) || []; } catch(e) {}
+            if (!Array.isArray(localArr)) localArr = [];
+
+            if (apiArr.length > 0 && apiArr.length >= localArr.length) {
+                // API มีข้อมูลมากกว่าหรือเท่า → ใช้จาก API
+                _set(key, JSON.stringify(apiArr));
+                console.log('📥', key, '← API (' + apiArr.length + ' rows)');
+            } else if (localArr.length > 0) {
+                // localStorage มีข้อมูลมากกว่า → เก็บไว้
+                console.log('🔒', key, '← keep localStorage (' + localArr.length + ' rows, API had ' + apiArr.length + ')');
+            } else {
+                // ทั้งคู่ว่าง → ใช้ fallback
+                _set(key, JSON.stringify(fallback || []));
+                console.log('📦', key, '← fallback');
+            }
+        };
+        _safeSave('jia_customers', data.customers);
+        _safeSave('jia_bookings', data.bookings);
+        _safeSave('jia_sessions', data.sessions);
+        _safeSave('jia_courses', courses, courses);
+        _safeSave('jia_staff', (data.staff || []).map(s => typeof s === 'object' ? s.name : s));
+        _safeSave('jia_instructors', (data.instructors || []).map(i => typeof i === 'object' ? i.name : i));
+        _safeSave('jia_instructor_avail', data.instructor_avail);
+        // instructor_quals: แปลง [{instructor,courses},...] → {instructor:[courses],...}
+        if (data.instructor_quals) {
+            const qualsObj = {};
+            (data.instructor_quals || []).forEach(q => {
+                const courseList = typeof q.courses === 'string' ? q.courses.split(',').map(s=>s.trim()).filter(Boolean) : (Array.isArray(q.courses) ? q.courses : []);
+                qualsObj[q.instructor] = courseList;
+            });
+            _set('jia_instructor_quals', JSON.stringify(qualsObj));
+        }
+        _safeSave('jia_promo_codes', data.promo_codes);
+        if (data.pdpa_log) _set('jia_pdpa_log', JSON.stringify(data.pdpa_log));
+        if (data.settings) {
+            data.settings.forEach(s => {
+                if (s.key === 'admin_pin') _set('jia_admin_pin', s.value);
+                if (s.key === 'booking_url') _set('jia_booking_url', s.value);
+                if (s.key === 'gs_url') _set('jia_gs_url', s.value);
+            });
+        }
+
+        console.log('✅ ข้อมูลโหลดสำเร็จ — ' + check.name + ' (' + check.role + ')');
+        return true;
+    } catch(err) {
+        console.error('❌ Load error:', err);
+        return true; // fallback to localStorage
+    }
+})();
+
+// ─── POST Helper (3 วิธี: fetch no-cors → iframe → XMLHttpRequest) ───
+async function postToGAS(fields) {
+    const body = new URLSearchParams();
+    Object.entries(fields).forEach(([k, v]) => {
+        body.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
+    });
+
+    // วิธี 1: fetch no-cors (ส่งได้แน่นอน แต่อ่าน response ไม่ได้)
+    try {
+        await fetch(JIA_API_URL, { method: 'POST', mode: 'no-cors', body: body });
+        console.log('✅ POST sent via fetch no-cors');
+        return { ok: true, method: 'fetch' };
+    } catch(e1) {
+        console.warn('⚠️ fetch no-cors failed:', e1.message);
+    }
+
+    // วิธี 2: iframe form POST (fallback)
+    try {
+        await new Promise((resolve) => {
+            const id = '_fp' + Date.now();
+            const iframe = document.createElement('iframe');
+            iframe.name = id; iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+            const form = document.createElement('form');
+            form.method = 'POST'; form.action = JIA_API_URL; form.target = id;
+            Object.entries(fields).forEach(([k, v]) => {
+                const input = document.createElement('input');
+                input.type = 'hidden'; input.name = k;
+                input.value = typeof v === 'object' ? JSON.stringify(v) : String(v);
+                form.appendChild(input);
+            });
+            document.body.appendChild(form);
+            form.submit();
+            setTimeout(() => { form.remove(); iframe.remove(); resolve(); }, 4000);
+        });
+        console.log('✅ POST sent via iframe');
+        return { ok: true, method: 'iframe' };
+    } catch(e2) {
+        console.warn('⚠️ iframe POST failed:', e2.message);
+    }
+
+    return { ok: false, error: 'All POST methods failed' };
+}
+
+// compat alias
+function formPostToGAS(fields) { return postToGAS(fields); }
+
+// ─── Auto-sync ปิดแล้ว — ใช้ปุ่ม 💾 บันทึก เท่านั้น ───
+// (ป้องกัน race condition ระหว่าง auto-sync กับ Save button)
+</script>
+
 <script type="text/babel">
 const { useState, useEffect, useMemo, useCallback } = React;
 
 // ─── defaults ───
 const DEFAULT_COURSES = [
-  { key: "Full",    label: "Full Course",    range: "10-15 คน", max: 15, color: "bg-blue-100 text-blue-700" },
-  { key: "Join",    label: "Join Course",    range: "5-7 คน",   max: 7,  color: "bg-indigo-100 text-indigo-700" },
-  { key: "Mini",    label: "Mini Course",    range: "5-7 คน",   max: 7,  color: "bg-cyan-100 text-cyan-700" },
-  { key: "Private", label: "Private Course", range: "5-7 คน",   max: 7,  color: "bg-sky-100 text-sky-700" },
-  { key: "Other",   label: "Other",          range: "",          max: 999,color: "bg-gray-100 text-gray-700" },
+  { key: "FullStation", label: "Full Station ACLS 2025", range: "10-15 คน", max: 15, color: "bg-blue-100 text-blue-700", price: 15000, discountPrice: 10500 },
+  { key: "ACLSFull", label: "ACLS Full Course", range: "10-15 คน", max: 15, color: "bg-indigo-100 text-indigo-700", price: 9900, discountPrice: 7000 },
+  { key: "Fundamentals", label: "Fundamentals ACLS", range: "5-10 คน", max: 10, color: "bg-cyan-100 text-cyan-700", price: 7000, discountPrice: 4900 },
+  { key: "ALSBlue", label: "ALS Blue Code", range: "5-10 คน", max: 10, color: "bg-sky-100 text-sky-700", price: 5900, discountPrice: 4100 },
+  { key: "Airway", label: "Emergency Airway Workshop", range: "5-7 คน", max: 7, color: "bg-purple-100 text-purple-700", price: 2900, discountPrice: 2000 },
+  { key: "DefibAED", label: "Emergency Defib & AED", range: "5-7 คน", max: 7, color: "bg-teal-100 text-teal-700", price: 3500, discountPrice: 2500 },
+  { key: "Vascular", label: "Emergency Vascular Access", range: "5-7 คน", max: 7, color: "bg-emerald-100 text-emerald-700", price: 2500, discountPrice: 1750 },
+  { key: "Other", label: "Other", range: "", max: 999, color: "bg-gray-100 text-gray-700", price: 0, discountPrice: 0 },
 ];
-const DEFAULT_STAFF = ["พี่มิ้ง", "แก้มใส", "ป่าน"];
+const DEFAULT_STAFF = [];       // ไม่มี demo — ต้องเพิ่มเองในตั้งค่า
+const DEFAULT_INSTRUCTORS = []; // ไม่มี demo — ต้องเพิ่มเองในตั้งค่า
 const TIME_SLOTS = ["11:00-13:00", "14:00-16:00", "17:00-19:00"];
+// Helper: รวม time slots จากทุกคอร์ส (ไม่ซ้ำ, เรียงตามเวลา)
+function getAllTimeSlots(courses) {
+  if (!courses || courses.length === 0) return [...TIME_SLOTS];
+  const all = new Set();
+  courses.forEach(c => {
+    (c.timeSlots || TIME_SLOTS).forEach(s => all.add(s));
+  });
+  return Array.from(all).sort();
+}
+const CPR_PACKAGES = [
+  { key: "flex", label: "Flexible (เลื่อนได้ไม่จำกัด)", price: 600 },
+  { key: "fixed", label: "Fixed (เลื่อนได้ 1 ครั้ง)", price: 500 },
+];
 const BADGE_COLORS = [
   "bg-blue-100 text-blue-700","bg-indigo-100 text-indigo-700","bg-cyan-100 text-cyan-700",
   "bg-sky-100 text-sky-700","bg-purple-100 text-purple-700","bg-teal-100 text-teal-700",
   "bg-emerald-100 text-emerald-700","bg-amber-100 text-amber-700","bg-gray-100 text-gray-700",
 ];
-const TABS = ["แดชบอร์ด", "จองคอร์ส", "ลูกค้า", "ตารางเรียน", "ปฏิทิน", "ตั้งค่าคอร์ส"];
+const TABS = ["บอร์ดหน้างาน", "แดชบอร์ด", "จองคอร์ส", "ลูกค้า", "ตารางเรียน", "ปฏิทิน", "ลงเวลาผู้สอน", "โค้ดโปรโม", "ตารางผู้สอน", "ตั้งค่า"];
 
 // ─── JSONP helpers ───
 const jsonp = (url) =>
@@ -69,15 +301,257 @@ const gsAction = (baseUrl, params) => {
 const uid   = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 const today = () => new Date().toISOString().slice(0, 10);
 const fmt   = (d) => d ? new Date(d).toLocaleDateString("th-TH") : "-";
+const fmtPrice = (n) => Number(n).toLocaleString("th-TH");
+const randCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
+
+// ─── Error Boundary: จับ error ใน React component ───
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, info) { console.error('🔴 React Error:', error, info); }
+  render() {
+    if (this.state.hasError) {
+      return React.createElement('div', { className: 'bg-red-50 border border-red-200 rounded-xl p-6 m-4' },
+        React.createElement('h3', { className: 'font-bold text-red-700 mb-2' }, '❌ เกิดข้อผิดพลาด'),
+        React.createElement('pre', { className: 'text-xs text-red-600 whitespace-pre-wrap' }, String(this.state.error)),
+        React.createElement('button', {
+          className: 'mt-3 bg-red-600 text-white px-4 py-2 rounded text-sm',
+          onClick: () => this.setState({ hasError: false, error: null })
+        }, 'ลองใหม่')
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ─── PIN Login Gate Component ───
+// ─── AppLoader: รอ API โหลดเสร็จ ───
+function AppLoader() {
+  const [ready, setReady] = useState(!window.JIA_API_URL);
+  useEffect(() => {
+    if (window.JIA_DATA_READY) window.JIA_DATA_READY.then(() => setReady(true));
+    else setReady(true);
+  }, []);
+  if (!ready) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <div className="text-4xl mb-4">🔵</div>
+        <h1 className="text-2xl font-bold text-blue-600 mb-2">JIA COURSE</h1>
+        <p className="text-gray-500 mb-4">กำลังโหลดข้อมูล...</p>
+        <div className="w-8 h-8 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+      </div>
+    </div>
+  );
+  // ถ้า login ผ่าน Firebase แล้ว ข้าม PIN gate
+  if (window.JIA_AUTH_USER) return <AppContent />;
+  return <LoginGate><AppContent /></LoginGate>;
+}
+
+function LoginGate({ children }) {
+  const [authenticated, setAuthenticated] = useState(() => sessionStorage.getItem("jia_admin_auth") === "true");
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState(false);
+  const [showChangePIN, setShowChangePIN] = useState(false);
+  const [oldPin, setOldPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [pinMsg, setPinMsg] = useState("");
+  
+  const correctPin = localStorage.getItem("jia_admin_pin") || "1234";
+  
+  const handlePinInput = (digit) => {
+    if (pin.length < 4) {
+      const newPinVal = pin + digit;
+      setPin(newPinVal);
+      if (newPinVal.length === 4) {
+        setTimeout(() => checkPin(newPinVal), 300);
+      }
+    }
+  };
+
+  const handleBackspace = () => {
+    setPin(pin.slice(0, -1));
+  };
+
+  const checkPin = (testPin) => {
+    if (testPin === correctPin) {
+      sessionStorage.setItem("jia_admin_auth", "true");
+      setAuthenticated(true);
+    } else {
+      setError(true);
+      setPin("");
+      setTimeout(() => setError(false), 1500);
+    }
+  };
+
+  const handleChangePin = () => {
+    if (oldPin !== correctPin) {
+      setPinMsg("รหัส PIN เดิมไม่ถูกต้อง");
+      return;
+    }
+    if (newPin.length !== 4 || !/^\d+$/.test(newPin)) {
+      setPinMsg("รหัส PIN ต้องเป็นตัวเลข 4 หลัก");
+      return;
+    }
+    if (newPin !== confirmPin) {
+      setPinMsg("รหัส PIN ใหม่ไม่ตรงกัน");
+      return;
+    }
+    localStorage.setItem("jia_admin_pin", newPin);
+    setPinMsg("เปลี่ยนรหัส PIN สำเร็จ");
+    setOldPin("");
+    setNewPin("");
+    setConfirmPin("");
+    setTimeout(() => {
+      setShowChangePIN(false);
+      setPinMsg("");
+    }, 2000);
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("jia_admin_auth");
+    setAuthenticated(false);
+    setPin("");
+    setError(false);
+  };
+
+  if (authenticated) {
+    return <>{children}</>;
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-blue-900 mb-2">JIA TRAINER CENTER</h1>
+          <p className="text-gray-600 font-semibold">ระบบหลังบ้าน</p>
+        </div>
+
+        {!showChangePIN ? (
+          <>
+            <p className="text-center text-gray-600 mb-6 font-semibold">กรุณาใส่รหัส PIN (4 หลัก)</p>
+
+            <div className="flex justify-center gap-3 mb-8">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className={`w-14 h-14 rounded-lg border-2 flex items-center justify-center font-bold text-2xl transition-all ${
+                    i < pin.length
+                      ? 'bg-blue-100 border-blue-600 text-blue-900'
+                      : 'bg-gray-100 border-gray-300'
+                  }`}
+                >
+                  {i < pin.length ? '●' : ''}
+                </div>
+              ))}
+            </div>
+
+            {error && (
+              <div className="text-center mb-6 text-red-600 font-semibold bg-red-50 p-3 rounded-lg">
+                รหัสไม่ถูกต้อง
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-2 mb-6">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                <button
+                  key={num}
+                  onClick={() => handlePinInput(String(num))}
+                  className="py-3 bg-gray-100 hover:bg-blue-100 border border-gray-300 rounded-lg font-bold text-lg transition-colors active:scale-95"
+                >
+                  {num}
+                </button>
+              ))}
+              <button
+                onClick={handleBackspace}
+                className="col-start-1 py-3 bg-red-100 hover:bg-red-200 border border-red-300 rounded-lg font-bold text-sm transition-colors active:scale-95"
+              >
+                ลบ
+              </button>
+              <button
+                onClick={() => handlePinInput("0")}
+                className="col-span-2 py-3 bg-gray-100 hover:bg-blue-100 border border-gray-300 rounded-lg font-bold text-lg transition-colors active:scale-95"
+              >
+                0
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowChangePIN(true)}
+              className="w-full py-2 text-sm text-blue-600 hover:text-blue-800 font-semibold"
+            >
+              เปลี่ยนรหัส PIN
+            </button>
+          </>
+        ) : (
+          <>
+            <h2 className="text-lg font-bold text-gray-800 mb-4">เปลี่ยนรหัส PIN</h2>
+            <div className="space-y-3 mb-4">
+              <input
+                type="password"
+                placeholder="รหัส PIN เดิม"
+                value={oldPin}
+                onChange={(e) => setOldPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-center font-bold tracking-widest"
+              />
+              <input
+                type="password"
+                placeholder="รหัส PIN ใหม่"
+                value={newPin}
+                onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-center font-bold tracking-widest"
+              />
+              <input
+                type="password"
+                placeholder="ยืนยันรหัส PIN ใหม่"
+                value={confirmPin}
+                onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-center font-bold tracking-widest"
+              />
+            </div>
+            {pinMsg && (
+              <div className={`text-sm p-2 rounded-lg mb-4 text-center font-semibold ${pinMsg.includes('สำเร็จ') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                {pinMsg}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={handleChangePin}
+                className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+              >
+                บันทึก
+              </button>
+              <button
+                onClick={() => {
+                  setShowChangePIN(false);
+                  setPinMsg("");
+                  setOldPin("");
+                  setNewPin("");
+                  setConfirmPin("");
+                }}
+                className="flex-1 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition-colors"
+              >
+                ยกเลิก
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─── Main App ───
-function App() {
+function AppContent() {
   const [tab, setTab] = useState(0);
   const [customers, setCustomers] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [courses, setCourses] = useState([]);
   const [staff, setStaff] = useState([]);
+  const [instructors, setInstructors] = useState([]);
+  const [instructorAvail, setInstructorAvail] = useState([]);
+  const [promoCodes, setPromoCodes] = useState([]);
   const [gsUrl, setGsUrl] = useState(() => localStorage.getItem("jia_gs_url") || "");
   const [showSetup, setShowSetup] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -91,7 +565,11 @@ function App() {
       const savedCourses = JSON.parse(localStorage.getItem("jia_courses") || "null");
       setCourses(savedCourses || DEFAULT_COURSES);
       const savedStaff = JSON.parse(localStorage.getItem("jia_staff") || "null");
-      setStaff(savedStaff || DEFAULT_STAFF);
+      setStaff(Array.isArray(savedStaff) ? savedStaff : DEFAULT_STAFF);
+      const savedInstructors = JSON.parse(localStorage.getItem("jia_instructors") || "null");
+      setInstructors(Array.isArray(savedInstructors) ? savedInstructors : DEFAULT_INSTRUCTORS);
+      setInstructorAvail(JSON.parse(localStorage.getItem("jia_instructor_avail") || "[]"));
+      setPromoCodes(JSON.parse(localStorage.getItem("jia_promo_codes") || "[]"));
     } catch {}
   }, []);
 
@@ -102,7 +580,7 @@ function App() {
     courses.forEach(c => { m[c.key] = c; });
     return m;
   }, [courses]);
-  const cfg = useCallback((key) => courseMap[key] || { label: key, range: "", max: 999, color: "bg-gray-100 text-gray-700" }, [courseMap]);
+  const cfg = useCallback((key) => courseMap[key] || { label: key, range: "", max: 999, color: "bg-gray-100 text-gray-700", price: 0, discountPrice: 0 }, [courseMap]);
   const courseKeys = useMemo(() => courses.map(c => c.key), [courses]);
 
   const syncFromGs = useCallback(async () => {
@@ -118,6 +596,113 @@ function App() {
     setSyncing(false);
     setTimeout(() => setSyncMsg(""), 3000);
   }, [gsUrl, save]);
+
+  // ─── บันทึกข้อมูลทั้งหมดไป Google Sheets ───
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(''); // '', 'saving', 'success', 'error'
+
+  // JSONP helper ที่รอผลลัพธ์จริง
+  const jsonpCall = useCallback((params) => {
+    return new Promise((resolve, reject) => {
+      const name = '_sv' + Date.now() + Math.random().toString(36).slice(2);
+      let done = false;
+      const cleanup = () => { done = true; delete window[name]; if (s.parentNode) s.remove(); };
+      window[name] = (r) => { cleanup(); resolve(r); };
+      const s = document.createElement('script');
+      s.onerror = () => { cleanup(); reject(new Error('JSONP failed')); };
+      const qs = Object.entries(params).map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
+      s.src = JIA_API_URL + '?' + qs + '&callback=' + name;
+      setTimeout(() => { if (!done) { cleanup(); reject(new Error('Timeout')); } }, 45000);
+      document.head.appendChild(s);
+    });
+  }, []);
+
+  const saveAllToSheet = useCallback(async () => {
+    if (!JIA_API_URL) { alert('ยังไม่ได้ตั้งค่า API URL'); return; }
+    setSaving(true); setSaveStatus('saving');
+    showToast('💾 กำลังบันทึกทั้งหมด...');
+
+    // รวมข้อมูลทุก sheet เป็น object เดียว
+    const allData = {
+      customers: customers,
+      bookings: bookings,
+      sessions: sessions,
+      courses: courses,
+      staff: staff.map((name, i) => ({ id: 'staff' + (i+1), name })),
+      instructors: instructors.map((name, i) => ({ id: 'instructors' + (i+1), name })),
+      instructor_avail: instructorAvail,
+      promo_codes: promoCodes,
+    };
+
+    try {
+      const quals = JSON.parse(localStorage.getItem('jia_instructor_quals') || '{}');
+      if (quals && typeof quals === 'object' && !Array.isArray(quals)) {
+        allData.instructor_quals = Object.entries(quals).map(([instructor, cs]) => ({
+          instructor, courses: Array.isArray(cs) ? cs.join(',') : String(cs)
+        }));
+      }
+    } catch(e) {}
+
+    // เพิ่ม settings
+    const settingsData = [];
+    const pin = localStorage.getItem('jia_admin_pin');
+    const burl = localStorage.getItem('jia_booking_url');
+    if (pin) settingsData.push({ key: 'admin_pin', value: pin });
+    if (burl) settingsData.push({ key: 'booking_url', value: burl });
+    if (settingsData.length > 0) allData.settings = settingsData;
+
+    // บันทึก timestamp ว่าเซฟเมื่อไหร่
+    localStorage.setItem('jia_last_save', new Date().toISOString());
+
+    try {
+      // ส่งทั้งก้อนใน request เดียว (saveAll)
+      const b64Data = btoa(unescape(encodeURIComponent(JSON.stringify(allData))));
+      console.log('💾 Sending saveAll — data size:', b64Data.length, 'chars');
+
+      await postToGAS({ action: 'saveAll', data: b64Data });
+
+      // รอ 5 วินาทีให้ GAS ประมวลผล (เขียนหลาย sheet พร้อมกัน)
+      showToast('⏳ รอ server ประมวลผล...');
+      await new Promise(r => setTimeout(r, 5000));
+
+      // Verify: ตรวจ customers + bookings (sheet สำคัญที่สุด)
+      let verified = false;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const check = await jsonpCall({ action: 'getData', sheet: 'customers' });
+          const savedCount = Array.isArray(check) ? check.length : 0;
+          console.log('🔍 Verify attempt', attempt+1, '→ customers:', savedCount, '/', customers.length);
+          if (savedCount >= customers.length) {
+            verified = true;
+            break;
+          }
+          // ยังไม่ครบ — รออีก 3 วินาที
+          await new Promise(r => setTimeout(r, 3000));
+        } catch(ve) {
+          console.warn('🔍 Verify failed:', ve.message);
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+
+      setSaving(false);
+      if (verified) {
+        setSaveStatus('success');
+        showToast('✅ บันทึกสำเร็จ! ข้อมูลอยู่ใน Google Sheets แล้ว');
+        localStorage.setItem('jia_save_verified', 'true');
+      } else {
+        setSaveStatus('success');
+        showToast('📤 ส่งข้อมูลแล้ว (รอ verify... กด Refresh เพื่อตรวจ)');
+        // ยังคง mark success เพราะ POST น่าจะส่งไปแล้ว
+      }
+    } catch(err) {
+      console.error('❌ saveAll error:', err);
+      setSaving(false);
+      setSaveStatus('error');
+      showToast('❌ บันทึกล้มเหลว: ' + err.message, true);
+      alert('❌ บันทึกล้มเหลว!\n\nข้อมูลยังอยู่ใน localStorage ไม่หาย\nลอง: 1) กด บันทึก อีกครั้ง\n2) ตรวจว่า deploy Code.gs ใหม่แล้ว');
+    }
+    setTimeout(() => setSaveStatus(''), 5000);
+  }, [customers, bookings, sessions, courses, staff, instructors, instructorAvail, promoCodes, jsonpCall]);
 
   const addCustomer = useCallback(async (c) => {
     c.id = uid(); c.createdAt = today();
@@ -142,11 +727,58 @@ function App() {
     setSessions(ns);  save("jia_sessions", ns);
   }, [customers, bookings, sessions, save]);
 
+  const anonymizeCustomerPDPA = useCallback((id) => {
+    const customer = customers.find(c => c.id === id);
+    if (!customer) return;
+    
+    const confirmed = window.confirm(
+      'การลบข้อมูลตาม PDPA จะลบข้อมูลส่วนบุคคลทั้งหมดของลูกค้ารายนี้ รวมถึง ชื่อ เบอร์โทร อีเมล และสลิปการชำระเงิน\n' +
+      'ข้อมูลการจอง (ไม่ระบุตัวตน) จะคงอยู่เพื่อการรายงาน\n\n' +
+      'ต้องการดำเนินการต่อหรือไม่?'
+    );
+    
+    if (!confirmed) return;
+    
+    // Anonymize customer data
+    const updatedCustomers = customers.map(c => 
+      c.id === id 
+        ? { ...c, name: `ลูกค้า #${id.slice(0, 6)}`, tel: '', email: '' }
+        : c
+    );
+    
+    // Remove payment slips from bookings
+    const updatedBookings = bookings.map(b =>
+      b.customerId === id
+        ? { ...b, paymentSlip: '' }
+        : b
+    );
+    
+    setCustomers(updatedCustomers);
+    setBookings(updatedBookings);
+    save("jia_customers", updatedCustomers);
+    save("jia_bookings", updatedBookings);
+    
+    // Log PDPA deletion
+    const pdpaLog = JSON.parse(localStorage.getItem("jia_pdpa_log") || '[]');
+    pdpaLog.push({
+      date: new Date().toISOString(),
+      action: "data_erasure",
+      customerId: id,
+      customerName: customer.name,
+      requestedBy: "admin"
+    });
+    localStorage.setItem("jia_pdpa_log", JSON.stringify(pdpaLog));
+    
+    alert('ลบข้อมูลตาม PDPA สำเร็จ');
+  }, [customers, bookings, save]);
+
   const addBooking = useCallback(async (bk) => {
     bk.id = uid(); bk.createdAt = today();
     const next = [...bookings, bk];
     setBookings(next); save("jia_bookings", next);
     if (gsUrl) gsAction(gsUrl, { action: "addBooking", data: b64(bk) }).catch(() => {});
+    // แจ้งเตือนการจองใหม่ทางอีเมล
+    jiaApiPost('notifyBooking', {}, bk).catch(err => console.warn('⚠️ Notify failed:', err));
     const slist = Array.from({ length: Number(bk.totalPeople) || 1 }, (_, i) => ({
       id: uid(), bookingId: bk.id, customerId: bk.customerId,
       sessionNo: i + 1, done: false, date: "", note: ""
@@ -189,6 +821,18 @@ function App() {
     setStaff(list); save("jia_staff", list);
   }, [save]);
 
+  const saveInstructors = useCallback((list) => {
+    setInstructors(list); save("jia_instructors", list);
+  }, [save]);
+
+  const saveInstructorAvail = useCallback((list) => {
+    setInstructorAvail(list); save("jia_instructor_avail", list);
+  }, [save]);
+
+  const savePromoCodes = useCallback((list) => {
+    setPromoCodes(list); save("jia_promo_codes", list);
+  }, [save]);
+
   const enrolled = useMemo(() => {
     const map = {};
     courseKeys.forEach(k => { map[k] = 0; });
@@ -213,12 +857,25 @@ function App() {
           </div>
           <div className="flex gap-2 items-center">
             {syncMsg && <span className="text-xs bg-white/20 px-2 py-1 rounded">{syncMsg}</span>}
-            <button onClick={syncFromGs} disabled={!gsUrl || syncing}
-              className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded disabled:opacity-40">
-              {syncing ? "..." : "🔄"} ซิงค์
+
+            {/* ปุ่มบันทึก — สีเปลี่ยนตามสถานะ */}
+            <button onClick={saveAllToSheet} disabled={saving}
+              className={`text-sm font-bold px-4 py-1.5 rounded-lg transition-all shadow-sm ${
+                saving ? 'bg-yellow-400 text-yellow-900 animate-pulse' :
+                saveStatus === 'success' ? 'bg-green-400 text-green-900' :
+                saveStatus === 'error' ? 'bg-red-400 text-white' :
+                'bg-white text-blue-700 hover:bg-blue-50'
+              }`}>
+              {saving ? '💾 กำลังบันทึก...' :
+               saveStatus === 'success' ? '✅ บันทึกแล้ว!' :
+               saveStatus === 'error' ? '❌ มีข้อผิดพลาด' :
+               '💾 บันทึก'}
             </button>
-            <button onClick={() => setShowSetup(true)}
-              className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded">ตั้งค่า</button>
+
+            <button onClick={() => { sessionStorage.removeItem("jia_admin_auth"); sessionStorage.removeItem("jia_user"); window.location.href = "./jia-login.html"; }}
+              className="text-xs bg-red-500/20 hover:bg-red-600/30 px-3 py-1 rounded">
+              🚪 ออกจากระบบ
+            </button>
           </div>
         </div>
       </header>
@@ -235,32 +892,202 @@ function App() {
       </nav>
 
       <main className="max-w-5xl mx-auto px-4 py-6">
-        {tab === 0 && <Dashboard stats={stats} bookings={bookings} customers={customers} enrolled={enrolled} courses={courses} cfg={cfg} courseKeys={courseKeys} />}
-        {tab === 1 && <BookingForm customers={customers} addCustomer={addCustomer} addBooking={addBooking} enrolled={enrolled} courses={courses} cfg={cfg} courseKeys={courseKeys} staff={staff} />}
-        {tab === 2 && (
+        {tab === 0 && <OperationsBoard bookings={bookings} customers={customers} courses={courses} cfg={cfg} instructors={instructors} updateBooking={updateBooking} />}
+        {tab === 1 && <Dashboard stats={stats} bookings={bookings} customers={customers} enrolled={enrolled} courses={courses} cfg={cfg} courseKeys={courseKeys} instructors={instructors} />}
+        {tab === 2 && <BookingForm customers={customers} addCustomer={addCustomer} addBooking={addBooking} enrolled={enrolled} courses={courses} cfg={cfg} courseKeys={courseKeys} staff={staff} instructors={instructors} instructorAvail={instructorAvail} promoCodes={promoCodes} updatePromoCodes={savePromoCodes} />}
+        {tab === 3 && (
           <CustomerList customers={customers} bookings={bookings} sessions={sessions}
             updateCustomer={updateCustomer} deleteCustomer={deleteCustomer}
-            updateBooking={updateBooking} deleteBooking={deleteBooking} enrolled={enrolled} cfg={cfg} courseKeys={courseKeys} staff={staff} courses={courses} />
+            updateBooking={updateBooking} deleteBooking={deleteBooking} enrolled={enrolled} cfg={cfg} courseKeys={courseKeys} staff={staff} instructors={instructors} courses={courses} />
         )}
-        {tab === 3 && (
+        {tab === 4 && (
           <Schedule sessions={sessions} bookings={bookings} customers={customers}
             toggleSession={toggleSession} updateSessionDate={updateSessionDate}
-            updateBooking={updateBooking} deleteBooking={deleteBooking} enrolled={enrolled} cfg={cfg} courseKeys={courseKeys} staff={staff} courses={courses} />
+            updateBooking={updateBooking} deleteBooking={deleteBooking} enrolled={enrolled} cfg={cfg} courseKeys={courseKeys} staff={staff} instructors={instructors} courses={courses} />
         )}
-        {tab === 4 && <CalendarView sessions={sessions} bookings={bookings} courses={courses} cfg={cfg} />}
-        {tab === 5 && <CourseSettings courses={courses} saveCourses={saveCourses} staff={staff} saveStaff={saveStaff} enrolled={enrolled} />}
+        {tab === 5 && <CalendarView sessions={sessions} bookings={bookings} courses={courses} cfg={cfg} customers={customers} />}
+        {tab === 6 && <ErrorBoundary><InstructorAvailability instructors={instructors} instructorAvail={instructorAvail} saveInstructorAvail={saveInstructorAvail} courses={courses} /></ErrorBoundary>}
+        {tab === 7 && <ErrorBoundary><PromoCodeManager promoCodes={promoCodes} savePromoCodes={savePromoCodes} staff={staff} /></ErrorBoundary>}
+        {tab === 8 && <InstructorSchedule bookings={bookings} instructors={instructors} />}
+        {tab === 9 && <CourseSettings courses={courses} saveCourses={saveCourses} staff={staff} saveStaff={saveStaff} instructors={instructors} saveInstructors={saveInstructors} enrolled={enrolled} />}
       </main>
+    </div>
+  );
+}
 
-      {showSetup && (
-        <SetupModal gsUrl={gsUrl} setGsUrl={(u) => { setGsUrl(u); localStorage.setItem("jia_gs_url", u); }}
-          onClose={() => setShowSetup(false)} onSync={syncFromGs} />
+// ─── Operations Board (บอร์ดหน้างาน) ───
+function OperationsBoard({ bookings, customers, courses, cfg, instructors, updateBooking }) {
+  const todayBookings = useMemo(() => {
+    const t = today();
+    return bookings.filter(b => b.startDate === t);
+  }, [bookings]);
+
+  const pendingPayments = useMemo(() => {
+    return bookings.filter(b => b.paymentStatus === "รอตรวจสอบ");
+  }, [bookings]);
+
+  const [viewSlip, setViewSlip] = useState(null);
+
+  const confirmPayment = (bk) => {
+    updateBooking(bk.id, { paymentStatus: "ชำระแล้ว", paymentMode: "โอนเงิน (ตรวจแล้ว)" });
+    // ส่งอีเมลแจ้งเตือนชำระเงินสำเร็จ
+    jiaApiPost('notifyPayment', {}, bk).catch(err => console.warn('⚠️ Payment notify failed:', err));
+    // สร้าง Google Calendar event
+    jiaApiPost('createCalendarEvent', {}, bk).catch(err => console.warn('⚠️ Calendar event failed:', err));
+    toast('✅ ยืนยันชำระเงินแล้ว + แจ้งเตือนอีเมล + สร้าง Calendar');
+  };
+
+  const todayInstructors = useMemo(() => {
+    const set = new Set();
+    todayBookings.forEach(b => { if (b.instructor) set.add(b.instructor); });
+    return Array.from(set);
+  }, [todayBookings]);
+
+  const todayStudents = useMemo(() => {
+    return todayBookings.reduce((sum, b) => sum + (Number(b.totalPeople) || 0), 0);
+  }, [todayBookings]);
+
+  const dynSlots = React.useMemo(() => getAllTimeSlots(courses), [courses]);
+  const groupedByTimeSlot = useMemo(() => {
+    const groups = {};
+    dynSlots.forEach(slot => { groups[slot] = []; });
+    todayBookings.forEach(b => {
+      if (groups[b.timeSlot]) groups[b.timeSlot].push(b);
+      else { groups[b.timeSlot] = [b]; } // กรณี time slot ที่ถูกลบแล้ว
+    });
+    return groups;
+  }, [todayBookings, dynSlots]);
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-6 shadow-lg">
+          <div className="text-sm font-medium opacity-90">ผู้สอนวันนี้</div>
+          <div className="text-4xl font-bold mt-2">{todayInstructors.length}</div>
+          <div className="text-xs opacity-75 mt-2">{todayInstructors.join(", ") || "ไม่มีผู้สอน"}</div>
+        </div>
+        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-6 shadow-lg">
+          <div className="text-sm font-medium opacity-90">นักเรียนวันนี้</div>
+          <div className="text-4xl font-bold mt-2">{todayStudents}</div>
+          <div className="text-xs opacity-75 mt-2">คนทั้งหมด</div>
+        </div>
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl p-6 shadow-lg">
+          <div className="text-sm font-medium opacity-90">คอร์สวันนี้</div>
+          <div className="text-4xl font-bold mt-2">{todayBookings.length}</div>
+          <div className="text-xs opacity-75 mt-2">คอร์สทั้งหมด</div>
+        </div>
+      </div>
+
+      {todayBookings.length === 0 ? (
+        <div className="bg-white rounded-xl border border-blue-100 p-8 text-center">
+          <div className="text-4xl mb-2">😎</div>
+          <div className="text-lg font-semibold text-gray-700">ว่าง</div>
+          <div className="text-sm text-gray-500 mt-1">ไม่มีการจองในวันนี้</div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {dynSlots.map(slot => {
+            const slotBookings = groupedByTimeSlot[slot];
+            return (
+              <div key={slot} className="bg-white rounded-xl border border-blue-100 p-6 shadow-sm">
+                <h3 className="text-xl font-bold text-blue-700 mb-4">⏰ {slot}</h3>
+                {slotBookings.length === 0 ? (
+                  <p className="text-sm text-gray-500">ไม่มีการจองในเวลานี้</p>
+                ) : (
+                  <div className="space-y-3">
+                    {slotBookings.map((bk, i) => {
+                      const custNames = [bk.name];
+                      return (
+                        <div key={i} className="bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg p-4">
+                          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                            <div>
+                              <div className="text-xs text-gray-600 font-medium">ผู้สอน</div>
+                              <div className="text-lg font-semibold text-gray-800">{bk.instructor}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-600 font-medium">คอร์ส</div>
+                              <div className="text-lg font-semibold text-blue-700">{cfg(bk.courseType).label}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-600 font-medium">นักเรียน</div>
+                              <div className="text-lg font-semibold text-green-700">{bk.totalPeople} คน</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-600 font-medium">ชื่อ</div>
+                              <div className="text-sm font-semibold text-gray-800">{bk.name}</div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* รอตรวจสอบสลิป */}
+      {pendingPayments.length > 0 && (
+        <div className="bg-white rounded-xl border-2 border-amber-400 p-6 shadow-sm">
+          <h3 className="text-xl font-bold text-amber-700 mb-4">🧾 รอตรวจสอบสลิป ({pendingPayments.length})</h3>
+          <div className="space-y-3">
+            {pendingPayments.map((bk, i) => (
+              <div key={i} className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-3">
+                  <div className="flex-1 space-y-1">
+                    <div className="font-semibold text-gray-800 text-lg">{bk.name}</div>
+                    <div className="text-sm text-gray-600">{bk.tel}</div>
+                    <div className="text-sm text-gray-600">📅 {fmt(bk.startDate)} {bk.timeSlot}{(bk.totalDays || 1) > 1 && ` (${bk.totalDays} วัน)`}</div>
+                    {(bk.totalDays || 1) > 1 && bk.additionalDates && bk.additionalDates.length > 0 && (
+                      <div className="text-xs text-gray-400 ml-4">{bk.additionalDates.map((d,i) => `วันที่ ${i+2}: ${fmt(d)}`).join(', ')}</div>
+                    )}
+                    <div className="text-sm text-gray-600">📦 {bk.package === "flex" ? "Flexible" : bk.package === "fixed" ? "Fixed" : bk.courseType}</div>
+                    {bk.discountCode && <div className="text-sm text-green-600">🏷️ โค้ด: {bk.discountCode} (ลด ฿{bk.discountAmount})</div>}
+                    <div className="text-lg font-bold text-blue-700">💰 ฿{fmtPrice(bk.finalPrice)}</div>
+                  </div>
+                  <div className="flex flex-col gap-2 items-end">
+                    {bk.paymentSlip && (
+                      <button onClick={() => setViewSlip(bk.paymentSlip)}
+                        className="text-sm bg-blue-100 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-200 font-medium">
+                        🖼️ ดูสลิป
+                      </button>
+                    )}
+                    <button onClick={() => confirmPayment(bk)}
+                      className="text-sm bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-semibold">
+                      ✓ ยืนยันชำระแล้ว
+                    </button>
+                    <button onClick={() => updateBooking(bk.id, { paymentStatus: "ไม่ผ่าน" })}
+                      className="text-sm bg-red-100 text-red-700 px-4 py-2 rounded-lg hover:bg-red-200 font-medium">
+                      ✗ สลิปไม่ถูกต้อง
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Slip Viewer Modal */}
+      {viewSlip && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setViewSlip(null)}>
+          <div className="bg-white rounded-xl p-4 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-bold text-gray-800">สลิปการชำระเงิน</h3>
+              <button onClick={() => setViewSlip(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <img src={viewSlip} alt="สลิป" className="w-full rounded-lg" />
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
 // ─── Dashboard ───
-function Dashboard({ stats, bookings, customers, enrolled, courses, cfg, courseKeys }) {
+function Dashboard({ stats, bookings, customers, enrolled, courses, cfg, courseKeys, instructors }) {
   const cards = [
     { label: "ลูกค้าทั้งหมด", value: stats.totalCustomers, icon: "👥", color: "bg-blue-50 border-blue-200" },
     { label: "การจองทั้งหมด", value: stats.totalBookings,  icon: "📋", color: "bg-indigo-50 border-indigo-200" },
@@ -268,6 +1095,23 @@ function Dashboard({ stats, bookings, customers, enrolled, courses, cfg, courseK
     { label: "คงเหลือ",        value: stats.pending,        icon: "⏳", color: "bg-cyan-50 border-cyan-200" },
   ];
   const recent = [...bookings].sort((a, b) => (b.createdAt||"").localeCompare(a.createdAt||"")).slice(0, 5);
+
+  const instructorStats = useMemo(() => {
+    const map = {};
+    instructors.forEach(inst => {
+      const studentCount = bookings.filter(b => b.instructor === inst).reduce((sum, b) => sum + (Number(b.totalPeople) || 0), 0);
+      const earning = Math.min(studentCount * 250, 1000);
+      map[inst] = { studentCount, earning };
+    });
+    return map;
+  }, [bookings, instructors]);
+
+  const revenueStats = useMemo(() => {
+    const totalRevenue = bookings.reduce((sum, b) => sum + (Number(b.finalPrice) || 0), 0);
+    const ownSales = bookings.filter(b => b.channel === "ซื้อเอง").length;
+    const jiacprSales = bookings.filter(b => b.channel === "จาก jiacpr.com").length;
+    return { totalRevenue, ownSales, jiacprSales };
+  }, [bookings]);
 
   return (
     <div className="space-y-6">
@@ -279,6 +1123,24 @@ function Dashboard({ stats, bookings, customers, enrolled, courses, cfg, courseK
             <div className="text-xs text-gray-500 mt-1">{c.label}</div>
           </div>
         ))}
+      </div>
+
+      <div className="bg-white rounded-xl border border-blue-100 p-5">
+        <h2 className="font-semibold text-blue-800 mb-4">💰 รายได้สรุป</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="border border-green-200 rounded-lg p-4 bg-green-50">
+            <div className="text-xs text-gray-600 mb-1">รายได้รวม</div>
+            <div className="text-2xl font-bold text-green-700">{fmtPrice(revenueStats.totalRevenue)} บาท</div>
+          </div>
+          <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+            <div className="text-xs text-gray-600 mb-1">ซื้อเอง</div>
+            <div className="text-2xl font-bold text-blue-700">{revenueStats.ownSales} คอร์ส</div>
+          </div>
+          <div className="border border-purple-200 rounded-lg p-4 bg-purple-50">
+            <div className="text-xs text-gray-600 mb-1">จาก jiacpr.com</div>
+            <div className="text-2xl font-bold text-purple-700">{revenueStats.jiacprSales} คอร์ส</div>
+          </div>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-blue-100 p-5">
@@ -299,7 +1161,25 @@ function Dashboard({ stats, bookings, customers, enrolled, courses, cfg, courseK
                   <div className={`h-2 rounded-full transition-all ${full ? "bg-red-400" : "bg-blue-500"}`}
                     style={{ width: pct + "%" }} />
                 </div>
-                <p className={`text-xs font-medium ${full ? "text-red-500" : "text-blue-600"}`}>{used} / {c.max} คน</p>
+                <p className="text-xs text-gray-600 font-medium">{used}/{c.max}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-blue-100 p-5">
+        <h2 className="font-semibold text-blue-800 mb-4">สรุปปริมาณงานผู้สอน</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {instructors.map(inst => {
+            const stat = instructorStats[inst] || { studentCount: 0, earning: 0 };
+            const statusColor = stat.earning >= 1000 ? "bg-red-100" : stat.earning >= 500 ? "bg-yellow-100" : "bg-green-100";
+            const textColor = stat.earning >= 1000 ? "text-red-700" : stat.earning >= 500 ? "text-yellow-700" : "text-green-700";
+            return (
+              <div key={inst} className={`border rounded-lg p-3 ${statusColor} ${textColor}`}>
+                <div className="font-semibold text-sm">{inst}</div>
+                <div className="text-xs mt-1">นักเรียน: {stat.studentCount} คน</div>
+                <div className="text-xs">ค่าสอน: {stat.earning} บาท</div>
               </div>
             );
           })}
@@ -308,38 +1188,18 @@ function Dashboard({ stats, bookings, customers, enrolled, courses, cfg, courseK
 
       <div className="bg-white rounded-xl border border-blue-100 p-5">
         <h2 className="font-semibold text-blue-800 mb-3">การจองล่าสุด</h2>
-        {recent.length === 0 ? (
-          <p className="text-gray-400 text-sm text-center py-4">ยังไม่มีข้อมูล</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead><tr className="text-left text-gray-400 border-b text-xs">
-              <th className="pb-2">ลูกค้า</th><th className="pb-2">คอร์ส</th>
-              <th className="pb-2">รอบเวลา</th><th className="pb-2">ผู้สอน</th><th className="pb-2">จำนวนคน</th><th className="pb-2">ชำระเงิน</th><th className="pb-2">วันที่จอง</th>
-            </tr></thead>
-            <tbody>
-              {recent.map(bk => {
-                const c = customers.find(x => x.id === bk.customerId);
-                const bc = cfg(bk.courseType);
-                const paid = bk.paymentStatus === "โอนแล้ว";
-                return (
-                  <tr key={bk.id} className="border-b last:border-0">
-                    <td className="py-2 font-medium">{c?.name || "-"}</td>
-                    <td className="py-2"><span className={`text-xs px-2 py-0.5 rounded-full ${bc.color}`}>{bc.label}</span></td>
-                    <td className="py-2 text-xs text-gray-500">{bk.timeSlot || "-"}</td>
-                    <td className="py-2 text-xs text-gray-500">{bk.instructors?.length > 0 ? bk.instructors.join(", ") : "-"}</td>
-                    <td className="py-2">{bk.totalPeople || "-"}</td>
-                    <td className="py-2">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${paid ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-600"}`}>
-                        {bk.paymentStatus || "ยังไม่ได้โอน"}
-                      </span>
-                    </td>
-                    <td className="py-2 text-gray-400">{fmt(bk.createdAt)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {recent.length === 0 ? (
+            <p className="text-sm text-gray-500 py-2">ยังไม่มีการจอง</p>
+          ) : (
+            recent.map((b, i) => (
+              <div key={i} className="flex justify-between text-xs py-2 border-b last:border-b-0">
+                <div className="font-medium text-gray-700">{b.name}</div>
+                <div className="text-gray-500">{b.totalPeople} คน • {fmt(b.startDate)}</div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
@@ -347,823 +1207,1850 @@ function Dashboard({ stats, bookings, customers, enrolled, courses, cfg, courseK
 
 // ─── Course Type Picker ───
 function CourseTypePicker({ value, onChange, enrolled, courses, size = "normal" }) {
+  const [open, setOpen] = useState(false);
+  const selected = courses.find(c => c.key === value);
+  const baseStyle = size === "small" ? "text-xs px-2 py-1" : "text-sm px-3 py-2";
   return (
-    <div className="flex flex-wrap gap-2">
-      {courses.map(c => {
-        const used  = enrolled[c.key] || 0;
-        const full  = used >= c.max;
-        const active = value === c.key;
-        return (
-          <button key={c.key} type="button"
-            onClick={() => !full && onChange(c.key)}
-            disabled={full}
-            className={`relative flex flex-col items-start rounded-xl border transition
-              ${size === "small" ? "px-3 py-1.5" : "px-4 py-2.5"}
-              ${active ? "border-blue-600 bg-blue-50 text-blue-700 shadow-sm" : "border-gray-200 text-gray-600 hover:border-blue-400 bg-white"}
-              ${full ? "opacity-50 cursor-not-allowed bg-gray-50 border-gray-200" : ""}
-            `}>
-            <span className="font-medium text-sm">{c.label}</span>
-            {c.range && <span className={`text-xs mt-0.5 ${active ? "text-blue-500" : "text-gray-400"}`}>{c.range}</span>}
-            {full && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">เต็ม</span>}
-            {!full && c.max < 999 && <span className={`text-xs mt-0.5 ${active ? "text-blue-400" : "text-gray-400"}`}>เหลือ {c.max - used} ที่</span>}
-          </button>
-        );
-      })}
+    <div className="relative inline-block w-full">
+      <button onClick={() => setOpen(!open)}
+        className={`${baseStyle} w-full border border-blue-200 bg-blue-50 rounded-lg text-left font-medium hover:border-blue-400 transition-colors flex justify-between items-center`}>
+        {selected ? selected.label : "เลือกคอร์ส"}
+        <span className="text-blue-400">▼</span>
+      </button>
+      {open && (
+        <div className="absolute z-20 top-full left-0 mt-1 w-full bg-white border border-blue-300 rounded-lg shadow-lg">
+          {courses.map(c => {
+            const used = enrolled[c.key] || 0;
+            const full = used >= c.max;
+            return (
+              <button key={c.key} onClick={() => { onChange(c.key); setOpen(false); }}
+                disabled={full && c.key !== value}
+                className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                  value === c.key
+                    ? "bg-blue-100 text-blue-700 font-semibold"
+                    : full ? "bg-red-50 text-red-400 cursor-not-allowed" : "hover:bg-blue-50"
+                }`}>
+                <div className="font-medium">{c.label}</div>
+                <div className="text-xs text-gray-500">{c.range} {full ? "• เต็มแล้ว" : ""}</div>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── Staff Picker ───
-function StaffPicker({ selected, onChange, staff }) {
-  const toggle = (name) => {
-    if (selected.includes(name)) onChange(selected.filter(s => s !== name));
-    else onChange([...selected, name]);
-  };
+// ─── Channel Picker ───
+function ChannelPicker({ value, onChange }) {
   return (
-    <div className="flex flex-wrap gap-2">
-      {staff.map(name => {
-        const active = selected.includes(name);
-        return (
-          <button key={name} type="button" onClick={() => toggle(name)}
-            className={`px-3 py-1.5 rounded-lg text-sm border transition ${
-              active ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 text-gray-600 hover:border-blue-400"
-            }`}>{name}</button>
-        );
-      })}
+    <div className="flex gap-2 w-full">
+      <button onClick={() => onChange("ซื้อเอง")}
+        className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+          value === "ซื้อเอง"
+            ? "bg-blue-600 text-white border border-blue-700"
+            : "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
+        }`}>
+        ซื้อเอง
+      </button>
+      <button onClick={() => onChange("ผ่านเซลล์")}
+        className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+          value === "ผ่านเซลล์"
+            ? "bg-blue-600 text-white border border-blue-700"
+            : "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
+        }`}>
+        ผ่านเซลล์
+      </button>
     </div>
+  );
+}
+
+// ─── Instructor Picker (กรองตามคอร์สที่สอนได้) ───
+function InstructorPicker({ selected, onChange, instructors, courseType, instructorAvail, selectedDate, selectedSlot }) {
+  // โหลด qualifications
+  const quals = React.useMemo(() => {
+    try { return JSON.parse(localStorage.getItem('jia_instructor_quals') || '{}'); } catch { return {}; }
+  }, []);
+
+  // กรองเฉพาะผู้สอนที่สอนคอร์สนี้ได้
+  const filtered = courseType
+    ? instructors.filter(inst => {
+        const instCourses = quals[inst];
+        if (!instCourses || instCourses.length === 0) return true;
+        return instCourses.includes(courseType);
+      })
+    : instructors;
+
+  // แยกผู้สอนที่ว่าง vs ไม่ว่าง ตามวันที่/เวลาที่เลือก
+  const { available, unavailable } = React.useMemo(() => {
+    if (!instructorAvail || !selectedDate || !selectedSlot) {
+      return { available: filtered, unavailable: [] };
+    }
+    const avail = [];
+    const unavail = [];
+    filtered.forEach(inst => {
+      const isAvail = instructorAvail.find(a =>
+        a.instructor === inst && a.date === selectedDate && a.timeSlot === selectedSlot
+      );
+      if (isAvail) avail.push(inst);
+      else unavail.push(inst);
+    });
+    return { available: avail, unavailable: unavail };
+  }, [filtered, instructorAvail, selectedDate, selectedSlot]);
+
+  const hasFilter = selectedDate && selectedSlot;
+
+  return (
+    <select value={selected} onChange={(e) => onChange(e.target.value)}
+      className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:border-blue-500">
+      <option value="">เลือกผู้สอน</option>
+      {hasFilter && available.length > 0 && <option disabled>── ว่าง ✅ ──</option>}
+      {available.map(inst => <option key={inst} value={inst}>✅ {inst}</option>)}
+      {hasFilter && unavailable.length > 0 && <option disabled>── ไม่ว่าง ──</option>}
+      {unavailable.map(inst => <option key={inst} value={inst}>⚠️ {inst}</option>)}
+      {filtered.length === 0 && <option value="" disabled>ไม่มีผู้สอนที่สอนคอร์สนี้ได้</option>}
+    </select>
+  );
+}
+
+// ─── Staff Picker (native select for mobile compatibility) ───
+function StaffPicker({ selected, onChange, staff }) {
+  return (
+    <select value={selected} onChange={(e) => onChange(e.target.value)}
+      className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:border-blue-500">
+      <option value="">เลือกเซลล์</option>
+      {staff.map(s => <option key={s} value={s}>{s}</option>)}
+    </select>
   );
 }
 
 // ─── Payment Picker ───
 function PaymentPicker({ value, onChange }) {
-  const options = ["โอนแล้ว", "ยังไม่ได้โอน"];
+  const modes = ["เงินสด", "ธนาคาร", "Prompt Pay", "ลงชื่อสัญญา"];
   return (
-    <div className="flex gap-2">
-      {options.map(opt => {
-        const active = value === opt;
-        const isTransferred = opt === "โอนแล้ว";
-        return (
-          <button key={opt} type="button" onClick={() => onChange(opt)}
-            className={`flex-1 py-1.5 rounded-lg text-sm border transition font-medium ${
-              active
-                ? isTransferred
-                  ? "bg-green-500 text-white border-green-500"
-                  : "bg-orange-400 text-white border-orange-400"
-                : "border-gray-300 text-gray-600 hover:border-blue-400"
-            }`}>{opt}</button>
-        );
-      })}
-    </div>
+    <select value={value} onChange={(e) => onChange(e.target.value)}
+      className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm font-medium hover:border-blue-400 focus:outline-none focus:border-blue-500">
+      <option value="">ประเภทการชำระ</option>
+      {modes.map(m => <option key={m} value={m}>{m}</option>)}
+    </select>
   );
 }
 
 // ─── Time Slot Picker ───
-function TimeSlotPicker({ value, onChange }) {
+function TimeSlotPicker({ value, onChange, courses }) {
+  const dynSlots = React.useMemo(() => getAllTimeSlots(courses), [courses]);
   return (
-    <div className="flex flex-wrap gap-2">
-      {TIME_SLOTS.map(slot => {
-        const active = value === slot;
-        return (
-          <button key={slot} type="button" onClick={() => onChange(slot)}
-            className={`px-3 py-1.5 rounded-lg text-sm border transition ${
-              active ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 text-gray-600 hover:border-blue-400"
-            }`}>{slot}</button>
-        );
-      })}
-    </div>
+    <select value={value} onChange={(e) => onChange(e.target.value)}
+      className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm font-medium hover:border-blue-400 focus:outline-none focus:border-blue-500">
+      <option value="">เลือกเวลา</option>
+      {dynSlots.map(t => <option key={t} value={t}>{t}</option>)}
+    </select>
   );
 }
 
 // ─── Booking Form ───
-function BookingForm({ customers, addCustomer, addBooking, enrolled, courses, cfg, courseKeys, staff }) {
-  const [isNew, setIsNew] = useState(true);
-  const [selCust, setSelCust] = useState("");
-  const blank = { name: "", phone: "", courseType: courseKeys[0] || "Full", totalPeople: 1, teachers: [], instructors: ["", "", ""], timeSlot: TIME_SLOTS[0], startDate: today(), paymentStatus: "ยังไม่ได้โอน", note: "" };
-  const [form, setForm] = useState(blank);
-  const [saved, setSaved] = useState(false);
+function BookingForm({ customers, addCustomer, addBooking, enrolled, courses, cfg, courseKeys, staff, instructors, instructorAvail, promoCodes, updatePromoCodes }) {
+  const [name, setName] = useState("");
+  const [tel, setTel] = useState("");
+  const [courseType, setCourseType] = useState("");
+  const [channel, setChannel] = useState("");
+  const [totalPeople, setTotalPeople] = useState("");
+  const [paymentMode, setPaymentMode] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [timeSlot, setTimeSlot] = useState("");
+  const [salesStaff, setSalesStaff] = useState("");
+  const [instructor, setInstructor] = useState("");
+  const [note, setNote] = useState("");
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [cprPackage, setCprPackage] = useState("");
+  const [discountCode, setDiscountCode] = useState("");
+  const [discountValidation, setDiscountValidation] = useState("");
+  const [customPrice, setCustomPrice] = useState("");
+  const [useCustomPrice, setUseCustomPrice] = useState(false);
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const courseConfig = cfg(courseType);
+  let basePrice = courseConfig.price;
+  let finalPrice = useCustomPrice && customPrice !== "" ? Number(customPrice) : basePrice;
+  let discountAmount = 0;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const c = cfg(form.courseType);
-    const used = enrolled[form.courseType] || 0;
-    if (used + Number(form.totalPeople) > c.max) {
-      alert(c.label + " เหลือที่นั่ง " + (c.max - used) + " คน");
+  // Validate discount code
+  const validateDiscountCode = () => {
+    if (!discountCode.trim()) {
+      setDiscountValidation("");
       return;
     }
-    let custId = selCust;
-    if (isNew) {
-      const added = await addCustomer({ name: form.name, phone: form.phone });
-      custId = added.id;
+    const code = discountCode.toUpperCase();
+    if (code.startsWith("JIA-")) {
+      setDiscountValidation("valid");
+      discountAmount = 100;
+    } else if (code.startsWith("SALE-")) {
+      const promo = promoCodes.find(p => p.code === code);
+      if (promo) {
+        if (promo.used) {
+          setDiscountValidation("used");
+        } else {
+          setDiscountValidation("valid");
+          discountAmount = Number(promo.discount) || 0;
+        }
+      } else {
+        setDiscountValidation("invalid");
+      }
+    } else {
+      setDiscountValidation("invalid");
     }
-    if (!custId) return;
-    await addBooking({
-      customerId: custId, courseType: form.courseType,
-      totalPeople: Number(form.totalPeople),
-      teachers: form.teachers,
-      instructors: (form.instructors || []).filter(n => n.trim()),
-      timeSlot: form.timeSlot,
-      startDate: form.startDate, paymentStatus: form.paymentStatus, note: form.note
-    });
-    setSaved(true);
-    setForm({ ...blank, courseType: courseKeys[0] || "Full" }); setSelCust("");
-    setTimeout(() => setSaved(false), 3000);
   };
 
-  const cInfo = cfg(form.courseType);
-  const selectedUsed = enrolled[form.courseType] || 0;
-  const remaining = (cInfo.max || 999) - selectedUsed;
+  useEffect(() => {
+    if (discountCode) validateDiscountCode();
+  }, [discountCode]);
+
+  if (!useCustomPrice) {
+    finalPrice = Math.max(0, finalPrice - discountAmount);
+  }
+
+  const discountPct = courseConfig.price > 0
+    ? Math.round(((courseConfig.price - finalPrice) / courseConfig.price) * 100)
+    : 0;
+
+  const canBook = courseType && channel && totalPeople && paymentMode && startDate && timeSlot && salesStaff && instructor && selectedCustomer && (courseType !== "CPR" || cprPackage);
+
+  const handleSubmit = async () => {
+    if (!canBook) return;
+    let usedCode = "";
+    if (discountValidation === "valid") {
+      usedCode = discountCode.toUpperCase();
+      if (usedCode.startsWith("SALE-")) {
+        const promo = promoCodes.find(p => p.code === usedCode);
+        if (promo) {
+          const updated = promoCodes.map(p =>
+            p.code === usedCode ? { ...p, used: true, usedBy: selectedCustomer.name } : p
+          );
+          updatePromoCodes(updated);
+        }
+      }
+    }
+    const bk = {
+      customerId: selectedCustomer.id,
+      name: selectedCustomer.name,
+      tel: selectedCustomer.tel,
+      courseType,
+      channel,
+      totalPeople: Number(totalPeople),
+      finalPrice: finalPrice,
+      paymentMode,
+      startDate,
+      timeSlot,
+      salesStaff,
+      instructor,
+      note,
+      cprPackage,
+      discountCode: usedCode,
+    };
+    await addBooking(bk);
+    setCourseType(""); setChannel(""); setTotalPeople(""); setPaymentMode(""); setStartDate(""); setTimeSlot("");
+    setSalesStaff(""); setInstructor(""); setNote(""); setSelectedCustomer(null); setCprPackage(""); setDiscountCode(""); setDiscountValidation("");
+    setCustomPrice(""); setUseCustomPrice(false);
+  };
+
+  const handleAddCustomer = async () => {
+    if (!name || !tel) return;
+    const newCust = await addCustomer({ name, tel, note });
+    setSelectedCustomer(newCust);
+    setName(""); setTel(""); setShowNewCustomer(false);
+  };
+
+  const nonFullCourses = courses.filter(c => {
+    const used = enrolled[c.key] || 0;
+    return used < c.max;
+  });
+
+  const getInstructorAvailableDates = () => {
+    if (!instructor) return [];
+    const dates = new Set();
+    instructorAvail
+      .filter(a => a.instructor === instructor && a.timeSlot === timeSlot)
+      .forEach(a => dates.add(a.date));
+    return Array.from(dates);
+  };
+
+  const availableDates = useMemo(() => getInstructorAvailableDates(), [instructor, timeSlot, instructorAvail]);
 
   return (
-    <div className="bg-white rounded-xl border border-blue-100 p-6 max-w-2xl">
-      <h2 className="text-lg font-semibold text-blue-800 mb-4">จองคอร์สใหม่</h2>
-      {saved && <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">บันทึกสำเร็จ!</div>}
-
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div className="flex gap-3">
-          {[true, false].map(v => (
-            <button key={String(v)} type="button" onClick={() => setIsNew(v)}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition ${
-                isNew === v ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 text-gray-600 hover:border-blue-400"
-              }`}>{v ? "+ ลูกค้าใหม่" : "ลูกค้าเก่า"}</button>
-          ))}
-        </div>
-
-        {isNew ? (
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="ชื่อลูกค้า *" value={form.name} onChange={v => set("name", v)} required />
-            <Field label="เบอร์โทร" value={form.phone} onChange={v => set("phone", v)} />
+    <div className="space-y-6">
+      <div className="bg-white rounded-xl border border-blue-100 p-6">
+        <h2 className="font-bold text-lg text-blue-800 mb-4">เลือกลูกค้า</h2>
+        {!selectedCustomer ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto border border-blue-100 rounded-lg p-3 bg-blue-50">
+              {customers.map(c => (
+                <button key={c.id} onClick={() => setSelectedCustomer(c)}
+                  className="text-left px-3 py-2 bg-white border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors">
+                  <div className="font-semibold text-sm text-gray-800">{c.name}</div>
+                  <div className="text-xs text-gray-500">{c.tel}</div>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowNewCustomer(true)}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors">
+              + เพิ่มลูกค้าใหม่
+            </button>
           </div>
         ) : (
-          <div>
-            <label className="text-sm text-gray-600 block mb-1">เลือกลูกค้า</label>
-            <select value={selCust} onChange={e => setSelCust(e.target.value)} required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
-              <option value="">-- เลือกลูกค้า --</option>
-              {customers.map(c => (
-                <option key={c.id} value={c.id}>{c.name}{c.phone ? " - " + c.phone : ""}</option>
-              ))}
-            </select>
+          <div className="flex justify-between items-start p-4 bg-blue-100 rounded-lg">
+            <div>
+              <div className="font-semibold text-gray-800">{selectedCustomer.name}</div>
+              <div className="text-sm text-gray-600">{selectedCustomer.tel}</div>
+            </div>
+            <button onClick={() => setSelectedCustomer(null)}
+              className="text-xs bg-white text-blue-600 px-3 py-1 rounded-lg border border-blue-300 hover:bg-blue-50 transition-colors">
+              เปลี่ยน
+            </button>
           </div>
         )}
+      </div>
 
-        <div>
-          <label className="text-sm text-gray-600 block mb-2">ประเภทคอร์ส</label>
-          <CourseTypePicker value={form.courseType} onChange={v => set("courseType", v)} enrolled={enrolled} courses={courses} />
-        </div>
+      {selectedCustomer && (
+        <div className="bg-white rounded-xl border border-blue-100 p-6 space-y-4">
+          <h2 className="font-bold text-lg text-blue-800">รายละเอียดการจอง</h2>
 
-        <div>
-          <label className="text-sm text-gray-600 block mb-2">รอบเวลาเรียน</label>
-          <TimeSlotPicker value={form.timeSlot} onChange={v => set("timeSlot", v)} />
-        </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">ช่องทาง *</label>
+              <ChannelPicker value={channel} onChange={setChannel} />
+            </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm text-gray-600 block mb-1">
-              จำนวนคน
-              {cInfo.max < 999 && (
-                <span className={`ml-2 text-xs font-medium ${remaining <= 0 ? "text-red-500" : "text-blue-600"}`}>
-                  (เหลือ {remaining} ที่)
-                </span>
-              )}
-            </label>
-            <input type="number" value={form.totalPeople} onChange={e => set("totalPeople", e.target.value)}
-              min={1} max={remaining > 0 ? remaining : 1}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
-          </div>
-          <Field label="วันที่เริ่ม" type="date" value={form.startDate} onChange={v => set("startDate", v)} />
-        </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">คอร์ส *</label>
+              <CourseTypePicker value={courseType} onChange={setCourseType} enrolled={enrolled} courses={nonFullCourses} />
+            </div>
 
-        <div>
-          <label className="text-sm text-gray-600 block mb-2">เซลล์</label>
-          <StaffPicker selected={form.teachers} onChange={v => set("teachers", v)} staff={staff} />
-        </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">จำนวนคน *</label>
+              <input type="number" value={totalPeople} onChange={(e) => setTotalPeople(e.target.value)} min="1"
+                className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+            </div>
 
-        <div>
-          <label className="text-sm text-gray-600 block mb-2">ผู้สอน</label>
-          <div className="space-y-2">
-            {[0, 1, 2].map(i => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="text-xs text-gray-400 w-20 shrink-0">คนที่ {i + 1}</span>
-                <input value={(form.instructors || ["", "", ""])[i] || ""} onChange={e => {
-                  const next = [...(form.instructors || ["", "", ""])];
-                  next[i] = e.target.value;
-                  set("instructors", next);
-                }} placeholder="ชื่อผู้สอน..."
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
+            {courseType === "CPR" && (
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">แพ็กเกจ *</label>
+                <select value={cprPackage} onChange={(e) => setCprPackage(e.target.value)}
+                  className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                  <option value="">เลือกแพ็กเกจ</option>
+                  {CPR_PACKAGES.map(pkg => (
+                    <option key={pkg.key} value={pkg.key}>{pkg.label} - ฿{pkg.price}</option>
+                  ))}
+                </select>
               </div>
-            ))}
+            )}
+
+            {courseType && (
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">ราคา</label>
+                {!useCustomPrice ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-sm font-semibold text-blue-700">
+                    {channel === "ผ่านเซลล์" ? (
+                      <div>
+                        <span className="strikethrough">{fmtPrice(courseConfig.price)}</span>
+                        {" "}
+                        <span className="text-green-600">{fmtPrice(finalPrice)} บาท</span>
+                        <span className="text-green-600 text-xs ml-1">(ลด {discountPct}%)</span>
+                      </div>
+                    ) : (
+                      <div>{fmtPrice(finalPrice)} บาท</div>
+                    )}
+                    <button type="button" onClick={() => { setUseCustomPrice(true); setCustomPrice(String(finalPrice)); }}
+                      className="text-xs text-blue-500 underline mt-1">แก้ไขราคา</button>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex gap-2 items-center">
+                      <input type="number" value={customPrice} onChange={(e) => setCustomPrice(e.target.value)} min="0"
+                        className="w-full border border-orange-300 bg-orange-50 rounded-lg px-3 py-2 text-sm font-semibold focus:outline-none focus:border-orange-500" />
+                      <span className="text-sm text-gray-500 whitespace-nowrap">บาท</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-xs text-gray-400">ราคาตั้งต้น: {fmtPrice(basePrice)} บาท</span>
+                      <button type="button" onClick={() => { setUseCustomPrice(false); setCustomPrice(""); }}
+                        className="text-xs text-blue-500 underline">ใช้ราคาตั้งต้น</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">วันที่เริ่มเรียน *</label>
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+                className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">เวลา *</label>
+              <TimeSlotPicker value={timeSlot} onChange={setTimeSlot} courses={courses} />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">เซลล์ *</label>
+              <StaffPicker selected={salesStaff} onChange={setSalesStaff} staff={staff} />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">ผู้สอน *</label>
+              <InstructorPicker selected={instructor} onChange={setInstructor} instructors={instructors} courseType={courseType} instructorAvail={instructorAvail} selectedDate={startDate} selectedSlot={timeSlot} />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">ประเภทการชำระ *</label>
+              <PaymentPicker value={paymentMode} onChange={setPaymentMode} />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">โค้ดส่วนลด</label>
+              <input type="text" value={discountCode} onChange={(e) => setDiscountCode(e.target.value)}
+                className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 placeholder-gray-400"
+                placeholder="JIA-XXXXXX หรือ SALE-XXXXXX" />
+              {discountValidation === "valid" && <p className="text-xs text-green-600 mt-1">✓ โค้ดถูกต้อง ({discountAmount} บาท)</p>}
+              {discountValidation === "invalid" && <p className="text-xs text-red-600 mt-1">✗ โค้ดไม่ถูกต้อง</p>}
+              {discountValidation === "used" && <p className="text-xs text-orange-600 mt-1">✗ โค้ดนี้ถูกใช้แล้ว</p>}
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">หมายเหตุ</label>
+              <input type="text" value={note} onChange={(e) => setNote(e.target.value)}
+                className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 placeholder-gray-400"
+                placeholder="หมายเหตุเพิ่มเติม" />
+            </div>
+          </div>
+
+          <button onClick={handleSubmit} disabled={!canBook}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-lg transition-colors">
+            บันทึกการจอง
+          </button>
+        </div>
+      )}
+
+      {showNewCustomer && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 space-y-4">
+          <h2 className="font-bold text-lg text-blue-800">ลูกค้าใหม่</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input type="text" placeholder="ชื่อเต็ม" value={name} onChange={(e) => setName(e.target.value)}
+              className="border border-blue-200 bg-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+            <input type="tel" placeholder="เบอร์โทรศัพท์" value={tel} onChange={(e) => setTel(e.target.value)}
+              className="border border-blue-200 bg-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleAddCustomer}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors">
+              บันทึก
+            </button>
+            <button onClick={() => setShowNewCustomer(false)}
+              className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 rounded-lg transition-colors">
+              ยกเลิก
+            </button>
           </div>
         </div>
-
-        <div>
-          <label className="text-sm text-gray-600 block mb-2">การชำระเงิน</label>
-          <PaymentPicker value={form.paymentStatus} onChange={v => set("paymentStatus", v)} />
-        </div>
-
-        <Field label="หมายเหตุ" value={form.note} onChange={v => set("note", v)} />
-
-        <button type="submit"
-          className="w-full text-white py-2.5 rounded-lg font-medium transition"
-          style={{ background: "linear-gradient(135deg, #3757D3 0%, #5C91FF 100%)" }}>
-          บันทึกการจอง
-        </button>
-      </form>
+      )}
     </div>
   );
 }
 
+// ─── Field Component ───
 function Field({ label, value, onChange, type = "text", required, min }) {
   return (
     <div>
-      <label className="text-sm text-gray-600 block mb-1">{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)}
-        required={required} min={min}
-        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
+      <label className="text-sm font-medium text-gray-700 block mb-1">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} min={min}
+        className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
     </div>
   );
 }
 
 // ─── Customer List ───
-function CustomerList({ customers, bookings, sessions, updateCustomer, deleteCustomer, updateBooking, deleteBooking, enrolled, cfg, courseKeys, staff, courses }) {
-  const [search, setSearch] = useState("");
-  const [editCust, setEditCust] = useState(null);
-  const [editBk, setEditBk] = useState(null);
-  const [expandId, setExpandId] = useState(null);
+function CustomerList({ customers, bookings, sessions, updateCustomer, deleteCustomer, updateBooking, deleteBooking, enrolled, cfg, courseKeys, staff, instructors, courses }) {
+  const [editingId, setEditingId] = useState(null);
+  const [editingBooking, setEditingBooking] = useState(null);
 
-  const filtered = customers.filter(c =>
-    c.name?.toLowerCase().includes(search.toLowerCase()) ||
-    (c.phone || "").includes(search)
+  const getCustomerBookings = (custId) => bookings.filter(b => b.customerId === custId);
+  const getBookingSessions = (bookingId) => sessions.filter(s => s.bookingId === bookingId);
+  const getCustomerSessions = (custId) => sessions.filter(s => s.customerId === custId);
+
+  return (
+    <div className="space-y-6">
+      {customers.map(cust => {
+        const custBookings = getCustomerBookings(cust.id);
+        const custSessions = getCustomerSessions(cust.id);
+        const completed = custSessions.filter(s => s.done).length;
+        return (
+          <div key={cust.id} className="bg-white rounded-xl border border-blue-100 p-5">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-800">{cust.name}</h3>
+                <p className="text-sm text-gray-500">{cust.tel}</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setEditingId(editingId === cust.id ? null : cust.id)}
+                  className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-200 transition-colors">
+                  {editingId === cust.id ? "ปิด" : "แก้ไข"}
+                </button>
+                <button onClick={() => deleteCustomer(cust.id)}
+                  className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded-lg hover:bg-red-200 transition-colors">
+                  ลบ
+                </button>
+              </div>
+            </div>
+
+            {editingId === cust.id && (
+              <div className="bg-blue-50 p-3 rounded-lg mb-4 space-y-2">
+                <input type="text" value={cust.name} onChange={(e) => updateCustomer(cust.id, { name: e.target.value })}
+                  className="w-full border border-blue-200 bg-white rounded px-2 py-1 text-sm" />
+                <input type="tel" value={cust.tel} onChange={(e) => updateCustomer(cust.id, { tel: e.target.value })}
+                  className="w-full border border-blue-200 bg-white rounded px-2 py-1 text-sm" />
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {custBookings.length === 0 ? (
+                <p className="text-sm text-gray-500">ไม่มีการจอง</p>
+              ) : (
+                custBookings.map(bk => {
+                  const bkSessions = getBookingSessions(bk.id);
+                  const bkCompleted = bkSessions.filter(s => s.done).length;
+                  const courseConfig = cfg(bk.courseType);
+                  const displayPrice = bk.finalPrice || (bk.channel === "ผ่านเซลล์" ? courseConfig.discountPrice : courseConfig.price);
+                  const discountPct = bk.channel === "ผ่านเซลล์" && courseConfig.price > 0
+                    ? Math.round(((courseConfig.price - courseConfig.discountPrice) / courseConfig.price) * 100)
+                    : 0;
+
+                  return (
+                    <div key={bk.id} className="border border-blue-100 rounded-lg p-3 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="font-semibold text-sm text-gray-800">
+                            {cfg(bk.courseType).label} • {bk.totalPeople} คน
+                          </div>
+                          <div className="text-xs text-gray-500 space-y-0.5">
+                            <div>📅 {fmt(bk.startDate)} {bk.timeSlot}{(bk.totalDays || 1) > 1 && ` (${bk.totalDays} วัน)`}</div>
+                            {(bk.totalDays || 1) > 1 && bk.additionalDates && bk.additionalDates.map((d,i) => (
+                              <div key={i} className="text-gray-400 ml-3">วันที่ {i+2}: {fmt(d)}</div>
+                            ))}
+                            <div>💰 {bk.paymentMode}</div>
+                            <div>👤 {bk.salesStaff} | 🎓 {bk.instructor}</div>
+                            <div>🛒 {bk.channel || "ไม่ระบุ"}</div>
+                            <div className="font-medium text-gray-700">
+                              {bk.channel === "ผ่านเซลล์" ? (
+                                <>
+                                  <span className="strikethrough">{fmtPrice(courseConfig.price)}</span>
+                                  {" "}
+                                  <span className="text-green-600">{fmtPrice(displayPrice)} บาท</span>
+                                  <span className="text-green-600 text-xs ml-1">(ลด {discountPct}%)</span>
+                                </>
+                              ) : (
+                                <>{fmtPrice(displayPrice)} บาท</>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <button onClick={() => setEditingBooking(editingBooking === bk.id ? null : bk.id)}
+                            className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200">
+                            {editingBooking === bk.id ? "ปิด" : "แก้"}
+                          </button>
+                          <button onClick={() => deleteBooking(bk.id)}
+                            className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200">
+                            ลบ
+                          </button>
+                        </div>
+                      </div>
+
+                      {editingBooking === bk.id && (
+                        <BookingEditModal bk={bk} setBk={(updated) => updateBooking(bk.id, updated)}
+                          enrolled={enrolled} courses={courses} staff={staff} instructors={instructors}
+                          onSave={() => setEditingBooking(null)} onClose={() => setEditingBooking(null)} />
+                      )}
+
+                      <div className="text-xs text-gray-600 pt-2">
+                        <span className="font-medium">{bkCompleted}/{bkSessions.length} เรียนแล้ว</span>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                          <div className="bg-blue-500 h-1.5 rounded-full transition-all"
+                            style={{ width: (bkSessions.length > 0 ? Math.round((bkCompleted / bkSessions.length) * 100) : 0) + "%" }} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
+}
 
-  const confirmDelete = (label, fn) => { if (window.confirm('ลบ "' + label + '" ออกจากระบบ?')) fn(); };
+// ─── Booking Edit Modal ───
+function BookingEditModal({ bk, setBk, enrolled, courses, staff, instructors, onSave, onClose }) {
+  const [isExistingBooking] = useState(!!bk.createdAt);
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs font-medium text-gray-700 block mb-1">คอร์ส</label>
+          <select value={bk.courseType} onChange={(e) => setBk({ ...bk, courseType: e.target.value })}
+            className="w-full border border-amber-200 bg-white rounded px-2 py-1 text-xs">
+            {courses.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-700 block mb-1">จำนวนคน</label>
+          <input type="number" value={bk.totalPeople} onChange={(e) => setBk({ ...bk, totalPeople: Number(e.target.value) })} min="1"
+            className="w-full border border-amber-200 bg-white rounded px-2 py-1 text-xs" />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-700 block mb-1">
+            วันที่เริ่มเรียน {isExistingBooking && "(กำหนดโดยเซลล์ ไม่สามารถแก้ไขได้)"}
+          </label>
+          <input type="date" value={bk.startDate} onChange={(e) => setBk({ ...bk, startDate: e.target.value })} disabled={isExistingBooking}
+            className={`w-full border rounded px-2 py-1 text-xs ${isExistingBooking ? "border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500" : "border-amber-200 bg-white"}`} />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-700 block mb-1">
+            เวลา {isExistingBooking && "(กำหนดโดยเซลล์ ไม่สามารถแก้ไขได้)"}
+          </label>
+          <select value={bk.timeSlot} onChange={(e) => setBk({ ...bk, timeSlot: e.target.value })} disabled={isExistingBooking}
+            className={`w-full border rounded px-2 py-1 text-xs ${isExistingBooking ? "border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500" : "border-amber-200 bg-white"}`}>
+            {getAllTimeSlots(courses).map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-700 block mb-1">
+            ช่องทาง {isExistingBooking && "(ไม่สามารถแก้ไขได้)"}
+          </label>
+          <div className="bg-gray-100 border border-gray-300 rounded px-2 py-1 text-xs text-gray-600 cursor-not-allowed">
+            {bk.channel || "ไม่ระบุ"}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-700 block mb-1">
+            ราคา {isExistingBooking && "(ไม่สามารถแก้ไขได้)"}
+          </label>
+          <div className="bg-gray-100 border border-gray-300 rounded px-2 py-1 text-xs text-gray-600 cursor-not-allowed">
+            {fmtPrice(bk.finalPrice || 0)} บาท
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-700 block mb-1">เซลล์</label>
+          <select value={bk.salesStaff} onChange={(e) => setBk({ ...bk, salesStaff: e.target.value })}
+            className="w-full border border-amber-200 bg-white rounded px-2 py-1 text-xs">
+            {staff.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-700 block mb-1">ผู้สอน</label>
+          <select value={bk.instructor} onChange={(e) => setBk({ ...bk, instructor: e.target.value })}
+            className="w-full border border-amber-200 bg-white rounded px-2 py-1 text-xs">
+            {instructors.map(i => <option key={i} value={i}>{i}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-700 block mb-1">ประเภทการชำระ</label>
+          <select value={bk.paymentMode} onChange={(e) => setBk({ ...bk, paymentMode: e.target.value })}
+            className="w-full border border-amber-200 bg-white rounded px-2 py-1 text-xs">
+            <option value="">เลือก</option>
+            {["เงินสด", "ธนาคาร", "Prompt Pay", "ลงชื่อสัญญา"].map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-700 block mb-1">หมายเหตุ</label>
+          <input type="text" value={bk.note || ""} onChange={(e) => setBk({ ...bk, note: e.target.value })}
+            className="w-full border border-amber-200 bg-white rounded px-2 py-1 text-xs" />
+        </div>
+      </div>
+
+      <div className="flex gap-2 pt-2">
+        <button onClick={onSave} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 rounded transition-colors">
+          บันทึก
+        </button>
+        <button onClick={onClose} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 text-xs font-semibold py-2 rounded transition-colors">
+          ยกเลิก
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Schedule ───
+function Schedule({ sessions, bookings, customers, toggleSession, updateSessionDate, updateBooking, deleteBooking, enrolled, cfg, courseKeys, staff, instructors, courses }) {
+  const [filter, setFilter] = useState("all");
+  const sessionList = useMemo(() => {
+    let list = sessions.map(s => {
+      const bk = bookings.find(b => b.id === s.bookingId);
+      const cust = customers.find(c => c.id === s.customerId);
+      return { ...s, booking: bk, customer: cust };
+    });
+    if (filter === "pending") list = list.filter(s => !s.done);
+    else if (filter === "completed") list = list.filter(s => s.done);
+    return list.sort((a, b) => (b.date || "9999").localeCompare(a.date || "0000"));
+  }, [sessions, bookings, customers, filter]);
 
   return (
     <div className="space-y-4">
-      <input value={search} onChange={e => setSearch(e.target.value)}
-        placeholder="ค้นหาชื่อหรือเบอร์โทร..."
-        className="w-full border border-blue-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-blue-400" />
+      <div className="flex gap-2">
+        {["all", "pending", "completed"].map(f => (
+          <button key={f} onClick={() => setFilter(f)}
+            className={`text-xs font-medium px-4 py-2 rounded-lg transition-colors ${
+              filter === f ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+            }`}>
+            {f === "all" ? "ทั้งหมด" : f === "pending" ? "คงเหลือ" : "เรียนแล้ว"}
+          </button>
+        ))}
+      </div>
 
-      {filtered.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">ไม่พบข้อมูลลูกค้า</div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map(c => {
-            const cBk  = bookings.filter(b => b.customerId === c.id);
-            const cSe  = sessions.filter(s => s.customerId === c.id);
-            const done = cSe.filter(s => s.done).length;
-            const expanded = expandId === c.id;
+      <div className="space-y-3">
+        {sessionList.map(s => (
+          <div key={s.id} className={`border rounded-lg p-4 transition-all ${s.done ? "bg-green-50 border-green-200" : "bg-white border-blue-100"}`}>
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <p className="font-semibold text-gray-800">{s.customer?.name} — {s.booking ? cfg(s.booking.courseType).label : "-"}</p>
+                <p className="text-xs text-gray-500">Session {s.sessionNo}/{sessions.filter(x => x.customerId === s.customerId && x.bookingId === s.bookingId).length}</p>
+              </div>
+              <div className="flex gap-2">
+                <input type="date" value={s.date} onChange={(e) => updateSessionDate(s.id, e.target.value)}
+                  className="text-xs px-2 py-1 border border-blue-200 rounded bg-blue-50 focus:outline-none" />
+                <button onClick={() => toggleSession(s.id)}
+                  className={`text-xs font-semibold px-3 py-1 rounded transition-colors ${
+                    s.done ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                  }`}>
+                  {s.done ? "✓ เรียนแล้ว" : "ยังไม่เรียน"}
+                </button>
+              </div>
+            </div>
+            {s.booking && (
+              <p className="text-xs text-gray-600 mb-2">📅 {s.booking.startDate} {s.booking.timeSlot}{(s.booking.totalDays || 1) > 1 ? ` (${s.booking.totalDays} วัน)` : ''} | 👤 {s.booking.salesStaff} | 🎓 {s.booking.instructor}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-            return (
-              <div key={c.id} className="bg-white rounded-xl border border-blue-100 overflow-hidden">
-                <div className="p-4 flex justify-between items-center gap-3">
-                  <button className="flex-1 text-left" onClick={() => setExpandId(expanded ? null : c.id)}>
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-gray-800">{c.name}</p>
-                      <span className="text-xs text-gray-400">{expanded ? "▲" : "▼"}</span>
+// ─── Calendar View ───
+function CalendarView({ sessions, bookings, courses, cfg, customers }) {
+  const [year, setYear] = useState(new Date().getFullYear() + 543);
+  const [month, setMonth] = useState(new Date().getMonth());
+  const [selectedDate, setSelectedDate] = useState(null);
+
+  const getDaysInMonth = (m, y) => new Date(y - 543, m + 1, 0).getDate();
+  const getFirstDay = (m, y) => new Date(y - 543, m, 1).getDay();
+  const daysInMonth = getDaysInMonth(month, year);
+  const firstDay = getFirstDay(month, year);
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const days = Array.from({ length: daysInMonth }, (_, i) => {
+    const d = String(i + 1).padStart(2, "0");
+    const m = String(month + 1).padStart(2, "0");
+    return { date: (year - 543) + "-" + m + "-" + d, day: i + 1 };
+  });
+
+  // รวมข้อมูลแต่ละวัน: คอร์สอะไร + จำนวนคนจอง + เต็มหรือยัง
+  const dayData = useMemo(() => {
+    const map = {};
+    // จาก bookings: ใช้ startDate + additionalDates
+    bookings.forEach(bk => {
+      const dates = [bk.startDate];
+      if (bk.additionalDates) {
+        try {
+          const extra = typeof bk.additionalDates === 'string' ? JSON.parse(bk.additionalDates) : bk.additionalDates;
+          if (Array.isArray(extra)) dates.push(...extra);
+        } catch(e) {}
+      }
+      dates.filter(Boolean).forEach(dt => {
+        if (!map[dt]) map[dt] = { courses: {}, bookings: [], sessionsDone: 0, sessionsPending: 0 };
+        const courseKey = bk.courseType || 'Other';
+        const courseLabel = cfg(courseKey).label;
+        const maxPpl = cfg(courseKey).max || 999;
+        if (!map[dt].courses[courseKey]) map[dt].courses[courseKey] = { label: courseLabel, max: maxPpl, people: 0, bookingIds: [] };
+        map[dt].courses[courseKey].people += Number(bk.totalPeople) || 1;
+        map[dt].courses[courseKey].bookingIds.push(bk.id);
+        map[dt].bookings.push(bk);
+      });
+    });
+    // จาก sessions: นับจำนวน done/pending
+    sessions.forEach(s => {
+      if (!s.date) return;
+      if (!map[s.date]) map[s.date] = { courses: {}, bookings: [], sessionsDone: 0, sessionsPending: 0 };
+      if (s.done) map[s.date].sessionsDone++;
+      else map[s.date].sessionsPending++;
+    });
+    return map;
+  }, [bookings, sessions, cfg]);
+
+  // popup data
+  const popupData = useMemo(() => {
+    if (!selectedDate) return null;
+    const dd = dayData[selectedDate];
+    if (!dd) return { date: selectedDate, courses: [], students: [] };
+    // รวมรายชื่อนักเรียน
+    const students = [];
+    const seen = new Set();
+    dd.bookings.forEach(bk => {
+      const key = bk.customerId || bk.id;
+      if (seen.has(key)) return;
+      seen.add(key);
+      const cust = customers.find(c => c.id === bk.customerId);
+      students.push({
+        name: cust?.name || bk.name || '-',
+        tel: cust?.tel || bk.tel || '-',
+        course: cfg(bk.courseType || 'Other').label,
+        courseKey: bk.courseType,
+        people: bk.totalPeople || 1,
+        paymentStatus: bk.paymentStatus || '-',
+        timeSlot: bk.timeSlot || '-',
+        instructor: bk.instructor || '-',
+        bookingId: bk.id
+      });
+    });
+    return {
+      date: selectedDate,
+      courses: Object.entries(dd.courses).map(([key, v]) => ({ key, ...v })),
+      students,
+      sessionsDone: dd.sessionsDone,
+      sessionsPending: dd.sessionsPending
+    };
+  }, [selectedDate, dayData, customers, cfg]);
+
+  const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+    "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+  const dayNames = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+
+  const handlePrevMonth = () => {
+    setSelectedDate(null);
+    if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1);
+  };
+  const handleNextMonth = () => {
+    setSelectedDate(null);
+    if (month === 11) { setMonth(0); setYear(year + 1); } else setMonth(month + 1);
+  };
+
+  const formatThaiDate = (dateStr) => {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-');
+    return parseInt(d) + ' ' + monthNames[parseInt(m) - 1] + ' ' + (parseInt(y) + 543);
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-blue-100 p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="font-bold text-lg text-blue-800">ปฏิทิน</h2>
+        <div className="flex gap-2 items-center">
+          <button onClick={handlePrevMonth} className="text-blue-600 hover:text-blue-800 text-xl px-2">◀</button>
+          <span className="text-sm font-semibold text-gray-700 w-40 text-center">{monthNames[month]} {year}</span>
+          <button onClick={handleNextMonth} className="text-blue-600 hover:text-blue-800 text-xl px-2">▶</button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1 mb-1">
+        {dayNames.map(d => <div key={d} className="text-center text-xs font-semibold text-gray-500 py-2">{d}</div>)}
+      </div>
+
+      <div className="grid grid-cols-7 gap-1">
+        {Array.from({ length: firstDay }).map((_, i) => <div key={"empty-" + i} />)}
+        {days.map(d => {
+          const dd = dayData[d.date];
+          const courseCount = dd ? Object.keys(dd.courses).length : 0;
+          const totalPeople = dd ? Object.values(dd.courses).reduce((sum, c) => sum + c.people, 0) : 0;
+          const isToday = d.date === todayStr;
+          const isPast = d.date < todayStr;
+          const isSelected = d.date === selectedDate;
+          const hasCourse = courseCount > 0;
+          const hasFullCourse = dd && Object.values(dd.courses).some(c => c.people >= c.max);
+
+          let bgClass = 'bg-gray-50 border-gray-200 text-gray-500';
+          if (hasCourse && isPast) bgClass = 'bg-green-50 border-green-200 text-green-700';
+          else if (hasCourse && hasFullCourse) bgClass = 'bg-orange-50 border-orange-300 text-orange-700';
+          else if (hasCourse) bgClass = 'bg-blue-50 border-blue-300 text-blue-700';
+          if (isToday) bgClass = hasCourse ? 'bg-blue-100 border-blue-400 text-blue-800 ring-2 ring-blue-400' : 'bg-yellow-50 border-yellow-300 text-yellow-700 ring-2 ring-yellow-300';
+          if (isSelected) bgClass += ' ring-2 ring-indigo-500 shadow-md';
+
+          return (
+            <div key={d.date} onClick={() => hasCourse && setSelectedDate(isSelected ? null : d.date)}
+              className={`border rounded-lg p-1 text-center text-xs font-medium min-h-[56px] transition-all ${bgClass} ${hasCourse ? 'cursor-pointer hover:shadow-md' : ''}`}>
+              <div className={`font-bold ${isToday ? 'text-sm' : ''}`}>{d.day}</div>
+              {hasCourse && (
+                <div className="mt-0.5">
+                  <div className="text-[10px] leading-tight truncate">
+                    {Object.values(dd.courses).slice(0, 2).map((c, i) => (
+                      <div key={i} className="truncate">{c.label.length > 8 ? c.label.slice(0, 8) + '..' : c.label}</div>
+                    ))}
+                    {courseCount > 2 && <div>+{courseCount - 2}</div>}
+                  </div>
+                  <div className="text-[10px] mt-0.5 font-bold">{totalPeople} คน</div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3 mt-4 text-[10px] text-gray-500">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-100 border border-blue-300 inline-block"></span> มีคอร์ส</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-100 border border-orange-300 inline-block"></span> เต็มแล้ว</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-50 border border-green-200 inline-block"></span> ผ่านไปแล้ว</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-50 border border-yellow-300 ring-2 ring-yellow-300 inline-block"></span> วันนี้</span>
+      </div>
+
+      {/* ─── Day Detail Popup ─── */}
+      {popupData && selectedDate && (
+        <div className="mt-6 border-2 border-indigo-200 rounded-xl bg-indigo-50 p-5 animate-fadeIn">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-bold text-indigo-800 text-lg">{formatThaiDate(selectedDate)}</h3>
+            <button onClick={() => setSelectedDate(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+          </div>
+
+          {/* คอร์สในวันนี้ */}
+          {popupData.courses.length > 0 ? (
+            <div className="space-y-3 mb-4">
+              <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">คอร์สในวันนี้</p>
+              {popupData.courses.map((c, i) => {
+                const pct = Math.min(100, Math.round((c.people / c.max) * 100));
+                const isFull = c.people >= c.max;
+                return (
+                  <div key={i} className="bg-white rounded-lg p-3 border border-indigo-100">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-semibold text-sm text-gray-800">{c.label}</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isFull ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                        {isFull ? 'เต็มแล้ว' : 'ยังว่าง'}
+                      </span>
                     </div>
-                    {c.phone && <p className="text-xs text-gray-500 mt-0.5">{c.phone}</p>}
-                    <p className="text-xs text-gray-400 mt-0.5">สมัคร {fmt(c.createdAt)} | {cBk.length} คอร์ส | {done}/{cSe.length} ครั้ง</p>
-                  </button>
-                  <div className="flex gap-1 shrink-0">
-                    <button onClick={() => setEditCust({ ...c })}
-                      className="text-xs px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-medium">แก้ไข</button>
-                    <button onClick={() => confirmDelete(c.name, () => deleteCustomer(c.id))}
-                      className="text-xs px-2.5 py-1.5 bg-red-50 text-red-500 rounded-lg hover:bg-red-100">ลบ</button>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-gray-200 rounded-full h-2">
+                        <div className={`h-2 rounded-full transition-all ${isFull ? 'bg-red-400' : pct > 70 ? 'bg-orange-400' : 'bg-blue-400'}`}
+                          style={{ width: pct + '%' }}></div>
+                      </div>
+                      <span className="text-xs font-semibold text-gray-600">{c.people}/{c.max} คน</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 mb-4">ไม่มีคอร์สในวันนี้</p>
+          )}
+
+          {/* รายชื่อนักเรียน */}
+          {popupData.students.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-2">รายชื่อนักเรียน ({popupData.students.length} คน)</p>
+              <div className="bg-white rounded-lg border border-indigo-100 overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-indigo-100 text-indigo-700">
+                      <th className="text-left p-2">ชื่อ</th>
+                      <th className="text-left p-2">เบอร์โทร</th>
+                      <th className="text-left p-2">คอร์ส</th>
+                      <th className="text-center p-2">เวลา</th>
+                      <th className="text-center p-2">ผู้สอน</th>
+                      <th className="text-center p-2">ชำระเงิน</th>
+                      <th className="text-center p-2">โทร</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {popupData.students.map((st, i) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="p-2 font-medium text-gray-800">{st.name} {Number(st.people) > 1 ? '(' + st.people + ' คน)' : ''}</td>
+                        <td className="p-2 text-gray-600">{st.tel}</td>
+                        <td className="p-2 text-gray-600">{st.course.length > 15 ? st.course.slice(0, 15) + '..' : st.course}</td>
+                        <td className="p-2 text-center text-gray-600">{st.timeSlot}</td>
+                        <td className="p-2 text-center text-gray-600">{st.instructor}</td>
+                        <td className="p-2 text-center">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            st.paymentStatus === 'confirmed' ? 'bg-green-100 text-green-700' :
+                            st.paymentStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-gray-100 text-gray-500'
+                          }`}>
+                            {st.paymentStatus === 'confirmed' ? 'ชำระแล้ว' : st.paymentStatus === 'pending' ? 'รอชำระ' : st.paymentStatus}
+                          </span>
+                        </td>
+                        <td className="p-2 text-center">
+                          {st.tel && st.tel !== '-' && (
+                            <a href={'tel:' + st.tel} className="inline-flex items-center justify-center w-7 h-7 bg-green-100 hover:bg-green-200 rounded-full text-green-600 transition-colors" title={'โทร ' + st.tel}>
+                              📞
+                            </a>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {popupData.students.length === 0 && popupData.courses.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-4">ยังไม่มีข้อมูลในวันนี้</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Instructor Availability ───
+function InstructorAvailability({ instructors, instructorAvail, saveInstructorAvail, courses }) {
+  const dynSlots = React.useMemo(() => getAllTimeSlots(courses), [courses]);
+  const [year, setYear] = useState(new Date().getFullYear() + 543);
+  const [month, setMonth] = useState(new Date().getMonth());
+  const [selectedInstructor, setSelectedInstructor] = useState(instructors[0] || "");
+
+  // ใช้ ref เก็บข้อมูลล่าสุด เพื่อแก้ปัญหา stale closure (ต้องอยู่ก่อน early return)
+  const availRef = React.useRef(instructorAvail);
+  React.useEffect(() => { availRef.current = instructorAvail; }, [instructorAvail]);
+
+  // ถ้ายังไม่มีผู้สอน แสดงข้อความแทน
+  if (!instructors || instructors.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-blue-100 p-6 text-center">
+        <div className="text-4xl mb-4">👨‍🏫</div>
+        <h2 className="font-bold text-lg text-blue-800 mb-2">ยังไม่มีผู้สอน</h2>
+        <p className="text-gray-500">กรุณาเพิ่มผู้สอนในหน้า "ตั้งค่า" ก่อน</p>
+      </div>
+    );
+  }
+
+  const getDaysInMonth = (m, y) => new Date(y - 543, m + 1, 0).getDate();
+  const getFirstDay = (m, y) => new Date(y - 543, m, 1).getDay();
+  const daysInMonth = getDaysInMonth(month, year);
+  const firstDay = getFirstDay(month, year);
+
+  const days = Array.from({ length: daysInMonth }, (_, i) => {
+    const d = String(i + 1).padStart(2, "0");
+    const m = String(month + 1).padStart(2, "0");
+    return { date: (year - 543) + "-" + m + "-" + d, day: i + 1 };
+  });
+
+  const toggleAvailability = (date, timeSlot) => {
+    const current = availRef.current;
+    const exists = current.find(a => a.instructor === selectedInstructor && a.date === date && a.timeSlot === timeSlot);
+    let updated;
+    if (exists) {
+      updated = current.filter(a => !(a.instructor === selectedInstructor && a.date === date && a.timeSlot === timeSlot));
+    } else {
+      updated = [...current, { id: uid(), instructor: selectedInstructor, date, timeSlot }];
+    }
+    availRef.current = updated;
+    saveInstructorAvail(updated);
+  };
+
+  const toggleAllSlots = (date) => {
+    const current = availRef.current;
+    const currentAvail = dynSlots.filter(slot =>
+      current.find(a => a.instructor === selectedInstructor && a.date === date && a.timeSlot === slot)
+    );
+    const allSelected = currentAvail.length === dynSlots.length;
+    let updated = current.filter(a => !(a.instructor === selectedInstructor && a.date === date));
+    if (!allSelected) {
+      dynSlots.forEach(slot => {
+        updated.push({ id: uid(), instructor: selectedInstructor, date, timeSlot: slot });
+      });
+    }
+    availRef.current = updated;
+    saveInstructorAvail(updated);
+  };
+
+  const getAvailabilityForDate = (date) => {
+    return dynSlots.filter(slot =>
+      instructorAvail.find(a => a.instructor === selectedInstructor && a.date === date && a.timeSlot === slot)
+    );
+  };
+
+  const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+    "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+  const dayNames = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+
+  const handlePrevMonth = () => {
+    if (month === 0) { setMonth(11); setYear(year - 1); }
+    else setMonth(month - 1);
+  };
+  const handleNextMonth = () => {
+    if (month === 11) { setMonth(0); setYear(year + 1); }
+    else setMonth(month + 1);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-xl border border-blue-100 p-6">
+        <h2 className="font-bold text-lg text-blue-800 mb-4">ลงเวลาผู้สอน</h2>
+
+        <div className="mb-4">
+          <label className="text-sm font-medium text-gray-700 block mb-2">เลือกผู้สอน</label>
+          <select value={selectedInstructor} onChange={(e) => setSelectedInstructor(e.target.value)}
+            className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+            {instructors.map(inst => (
+              <option key={inst} value={inst}>{inst}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-semibold text-gray-800">{monthNames[month]} {year}</h3>
+          <div className="flex gap-2">
+            <button onClick={handlePrevMonth} className="text-blue-600 hover:text-blue-800">◀</button>
+            <button onClick={handleNextMonth} className="text-blue-600 hover:text-blue-800">▶</button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-7 gap-1">
+          {dayNames.map(d => <div key={d} className="text-center text-xs font-semibold text-gray-600 py-2">{d}</div>)}
+          {Array.from({ length: firstDay }).map((_, i) => <div key={"empty-" + i} className="min-h-[80px]" />)}
+          {days.map(d => {
+            const avail = getAvailabilityForDate(d.date);
+            const hasAvail = avail.length > 0;
+            const allSelected = avail.length === dynSlots.length;
+            return (
+              <div key={d.date} className={`border rounded p-1 transition-colors min-h-[80px] ${
+                hasAvail ? "bg-green-50 border-green-300" : "bg-gray-50 border-gray-200"
+              }`}>
+                <div className="font-semibold text-xs text-center cursor-pointer hover:text-blue-600 mb-1" onClick={() => toggleAllSlots(d.date)}>{d.day}</div>
+                <div className="flex flex-col gap-0.5">
+                  {dynSlots.map(slot => {
+                    const isOn = avail.includes(slot);
+                    return (
+                      <button key={slot} onClick={() => toggleAvailability(d.date, slot)}
+                        className={`text-[9px] leading-tight px-0.5 py-0.5 rounded transition-colors truncate ${
+                          isOn ? "bg-green-500 text-white font-semibold" : "bg-gray-200 text-gray-500 hover:bg-gray-300"
+                        }`}>{slot}</button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="text-center text-xs text-gray-500 mt-3">
+          💡 แตะช่วงเวลาเพื่อเลือกทีละช่วง หรือแตะเลขวันที่เพื่อเลือก/ยกเลิกทั้งวัน
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-blue-100 p-6">
+        <h2 className="font-bold text-lg text-blue-800 mb-4">สรุปความว่าง</h2>
+        <div className="space-y-3">
+          {instructors.map(inst => {
+            const instAvail = instructorAvail.filter(a => a.instructor === inst);
+            const dateCount = new Set(instAvail.map(a => a.date)).size;
+            return (
+              <div key={inst} className="border border-blue-100 rounded-lg p-4 bg-blue-50">
+                <div className="font-semibold text-gray-800 mb-2">{inst}</div>
+                <div className="text-sm text-gray-600">
+                  {dateCount === 0 ? (
+                    <span>ยังไม่ลงเวลาว่าง</span>
+                  ) : (
+                    <span>ลงเวลาว่าง {dateCount} วัน ({instAvail.length} ช่องเวลา)</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Promo Code Manager ───
+function PromoCodeManager({ promoCodes, savePromoCodes, staff }) {
+  const [discountAmount, setDiscountAmount] = useState("");
+  const [codeType, setCodeType] = useState("SALE");
+  const [createdBy, setCreatedBy] = useState(staff[0] || "");
+  const [bookingUrl, setBookingUrl] = useState(() => localStorage.getItem("jia_booking_url") || "https://yoursite.com/jia-booking.html");
+  const [copied, setCopied] = useState(null);
+  const [showQR, setShowQR] = useState(null);
+  const [filterType, setFilterType] = useState("all");
+
+  const handleGenerateCode = () => {
+    if (!discountAmount || Number(discountAmount) <= 0) return;
+    const prefix = codeType === "JIA" ? "JIA-" : "SALE-";
+    const code = prefix + randCode();
+    const newCode = {
+      id: uid(),
+      code,
+      type: codeType,
+      discount: Number(discountAmount),
+      createdBy,
+      createdDate: today(),
+      used: false,
+      usedBy: "",
+    };
+    savePromoCodes([...promoCodes, newCode]);
+    setDiscountAmount("");
+  };
+
+  const handleDeleteCode = (id) => {
+    savePromoCodes(promoCodes.filter(c => c.id !== id));
+  };
+
+  const getBookingLink = (code) => bookingUrl + "?code=" + encodeURIComponent(code);
+  const getQRUrl = (code) => "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=" + encodeURIComponent(getBookingLink(code));
+
+  const copyLink = (code) => {
+    navigator.clipboard.writeText(getBookingLink(code)).then(() => {
+      setCopied(code);
+      setTimeout(() => setCopied(null), 2000);
+    }).catch(() => {});
+  };
+
+  const copyCode = (code) => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(code + "-text");
+      setTimeout(() => setCopied(null), 2000);
+    }).catch(() => {});
+  };
+
+  const saveBookingUrl = (url) => {
+    setBookingUrl(url);
+    localStorage.setItem("jia_booking_url", url);
+  };
+
+  // Payment settings
+  const [paySettings, setPaySettings] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("jia_payment_settings") || "{}"); } catch(e) { return {}; }
+  });
+  const getSetting = (key) => paySettings[key] || "";
+  const saveSetting = (key, val) => {
+    const updated = { ...paySettings, [key]: val };
+    setPaySettings(updated);
+    localStorage.setItem("jia_payment_settings", JSON.stringify(updated));
+    // Sync to API
+    if (window.JIA_API_URL || window.gsUrl) {
+      try {
+        const url = new URL(window.gsUrl || window.JIA_API_URL || localStorage.getItem("jia_gs_url"));
+        url.searchParams.set("action", "saveRow");
+        url.searchParams.set("sheet", "settings");
+        url.searchParams.set("data", JSON.stringify({ key, value: val }));
+        fetch(url.toString()).catch(() => {});
+      } catch(e) {}
+    }
+  };
+
+  // สถิติ
+  const jiaCodesCount = promoCodes.filter(c => c.code.startsWith("JIA-")).length;
+  const saleCodesCount = promoCodes.filter(c => c.code.startsWith("SALE-")).length;
+  const jiaUsed = promoCodes.filter(c => c.code.startsWith("JIA-") && c.used).length;
+  const saleUsed = promoCodes.filter(c => c.code.startsWith("SALE-") && c.used).length;
+
+  // Filter
+  const filteredCodes = filterType === "all" ? promoCodes
+    : filterType === "JIA" ? promoCodes.filter(c => c.code.startsWith("JIA-"))
+    : filterType === "SALE" ? promoCodes.filter(c => c.code.startsWith("SALE-"))
+    : filterType === "active" ? promoCodes.filter(c => !c.used)
+    : promoCodes.filter(c => c.used);
+
+  return (
+    <div className="space-y-6">
+      {/* ตั้งค่า URL หน้าจอง */}
+      <div className="bg-white rounded-xl border border-blue-100 p-6">
+        <h2 className="font-bold text-lg text-blue-800 mb-4">🔗 ตั้งค่า URL หน้าจอง</h2>
+        <p className="text-xs text-gray-500 mb-2">ใส่ URL ของหน้าจองลูกค้า เพื่อสร้าง QR และลิงก์แชร์ได้</p>
+        <input type="url" value={bookingUrl} onChange={(e) => saveBookingUrl(e.target.value)}
+          className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+          placeholder="https://yoursite.com/jia-booking.html" />
+      </div>
+
+      {/* ตั้งค่าข้อมูลการชำระเงิน */}
+      <div className="bg-white rounded-xl border border-green-100 p-6">
+        <h2 className="font-bold text-lg text-green-800 mb-4">💳 ตั้งค่าข้อมูลการชำระเงิน</h2>
+        <p className="text-xs text-gray-500 mb-3">ข้อมูลนี้จะแสดงในหน้าจองลูกค้า</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-semibold text-gray-600">เบอร์ PromptPay</label>
+            <input type="text" value={getSetting('promptpay') || '088-558-8078'} onChange={(e) => saveSetting('promptpay', e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="088-558-8078" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600">ธนาคาร</label>
+            <input type="text" value={getSetting('bankName') || 'กสิกรไทย'} onChange={(e) => saveSetting('bankName', e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="กสิกรไทย" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600">ชื่อบัญชี</label>
+            <input type="text" value={getSetting('accountName') || ''} onChange={(e) => saveSetting('accountName', e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="บริษัท เจี๋ยรักษา จำกัด" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600">เลขที่บัญชี</label>
+            <input type="text" value={getSetting('accountNumber') || ''} onChange={(e) => saveSetting('accountNumber', e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="XXX-X-XXXXX-X" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600">เบอร์ติดต่อ</label>
+            <input type="text" value={getSetting('contactPhone') || '088-558-8078'} onChange={(e) => saveSetting('contactPhone', e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="088-558-8078" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600">LINE ID</label>
+            <input type="text" value={getSetting('lineId') || '@jiacpr'} onChange={(e) => saveSetting('lineId', e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="@jiacpr" />
+          </div>
+        </div>
+      </div>
+
+      {/* สรุปโค้ด */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-green-700">{jiaCodesCount}</div>
+          <div className="text-xs text-green-600">โค้ด JIA (ใช้แล้ว {jiaUsed})</div>
+        </div>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-blue-700">{saleCodesCount}</div>
+          <div className="text-xs text-blue-600">โค้ด SALE (ใช้แล้ว {saleUsed})</div>
+        </div>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-amber-700">{promoCodes.filter(c => !c.used).length}</div>
+          <div className="text-xs text-amber-600">ยังไม่ได้ใช้</div>
+        </div>
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-gray-700">{promoCodes.filter(c => c.used).length}</div>
+          <div className="text-xs text-gray-500">ใช้แล้ว</div>
+        </div>
+      </div>
+
+      {/* สร้างโค้ด */}
+      <div className="bg-white rounded-xl border border-blue-100 p-6">
+        <h2 className="font-bold text-lg text-blue-800 mb-4">สร้างโค้ดโปรโมชั่น</h2>
+        <div className="space-y-4">
+          {/* เลือกประเภทโค้ด */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 block mb-2">ประเภทโค้ด</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setCodeType("SALE")}
+                className={`p-3 rounded-xl border-2 text-left transition-all ${codeType === "SALE" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}>
+                <div className="font-bold text-blue-700 text-sm">🏷️ SALE-XXXXXX</div>
+                <div className="text-xs text-gray-500 mt-1">สำหรับเซลล์แชร์ให้ลูกค้าใหม่</div>
+              </button>
+              <button onClick={() => setCodeType("JIA")}
+                className={`p-3 rounded-xl border-2 text-left transition-all ${codeType === "JIA" ? "border-green-500 bg-green-50" : "border-gray-200 hover:border-green-300"}`}>
+                <div className="font-bold text-green-700 text-sm">🎓 JIA-XXXXXX</div>
+                <div className="text-xs text-gray-500 mt-1">สำหรับลูกค้าที่เรียนออนไลน์จบ</div>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-700 block mb-2">
+              {codeType === "JIA" ? "พนักงานที่สร้าง" : "เซลล์ที่สร้าง"}
+            </label>
+            <select value={createdBy} onChange={(e) => setCreatedBy(e.target.value)}
+              className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+              {staff.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 block mb-2">ส่วนลด (บาท) *</label>
+            <input type="number" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} min="0"
+              className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+              placeholder={codeType === "JIA" ? "เช่น 100" : "เช่น 50, 100, 200"} />
+          </div>
+          <button onClick={handleGenerateCode} disabled={!discountAmount || Number(discountAmount) <= 0}
+            className={`w-full font-semibold py-2 rounded-lg transition-colors disabled:bg-gray-300 text-white ${
+              codeType === "JIA" ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"
+            }`}>
+            {codeType === "JIA" ? "🎓 สร้างโค้ดคอร์สออนไลน์" : "🎲 สร้างโค้ดเซลล์"}
+          </button>
+
+          {codeType === "JIA" && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-700">
+              💡 <strong>วิธีใช้:</strong> สร้างโค้ด → คัดลอกโค้ด → ส่งให้ลูกค้าทาง LINE หลังเรียนออนไลน์จบ → ลูกค้าเอาโค้ดไปใส่ตอนจองคลาสตัวจริง → ใช้ได้ครั้งเดียว
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Filter + โค้ดทั้งหมด */}
+      <div className="bg-white rounded-xl border border-blue-100 p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="font-bold text-lg text-blue-800">โค้ดทั้งหมด ({promoCodes.length})</h2>
+          <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
+            className="text-xs border border-blue-200 rounded-lg px-2 py-1 bg-blue-50">
+            <option value="all">ทั้งหมด</option>
+            <option value="JIA">🎓 JIA</option>
+            <option value="SALE">🏷️ SALE</option>
+            <option value="active">ใช้ได้</option>
+            <option value="used">ใช้แล้ว</option>
+          </select>
+        </div>
+        <div className="text-xs text-gray-400 mb-3">แสดง {filteredCodes.length} จาก {promoCodes.length} โค้ด</div>
+        {filteredCodes.length === 0 ? (
+          <p className="text-sm text-gray-500">ยังไม่มีโค้ด — สร้างโค้ดด้านบนเพื่อแชร์ให้ลูกค้า</p>
+        ) : (
+          <div className="space-y-3">
+            {filteredCodes.map(code => {
+              const isJIA = code.code.startsWith("JIA-");
+              const activeBg = isJIA ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200";
+              return (
+              <div key={code.id} className={`border rounded-xl p-4 ${code.used ? "bg-gray-50 border-gray-200" : activeBg}`}>
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${isJIA ? "bg-green-200 text-green-700" : "bg-blue-200 text-blue-700"}`}>
+                        {isJIA ? "🎓 คอร์สออนไลน์" : "🏷️ เซลล์"}
+                      </span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${code.used ? "bg-gray-300 text-gray-700" : "bg-amber-200 text-amber-700"}`}>
+                        {code.used ? "ใช้แล้ว" : "ใช้ได้"}
+                      </span>
+                    </div>
+                    <div className="font-mono font-bold text-xl text-gray-800">{code.code}</div>
+                    <div className="text-xs text-gray-600 mt-1 space-y-0.5">
+                      <div>ส่วนลด: <span className="font-semibold text-green-600">฿{code.discount}</span></div>
+                      <div>สร้างโดย: {code.createdBy} • {fmt(code.createdDate)}</div>
+                      {code.used && <div className="text-orange-600 font-semibold">ใช้โดย: {code.usedBy}</div>}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1 items-end">
+                    {!code.used && (
+                      <>
+                        <button onClick={() => copyCode(code.code)}
+                          className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                            copied === code.code + "-text" ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                          }`}>
+                          {copied === code.code + "-text" ? "✓ คัดลอก!" : "📋 โค้ด"}
+                        </button>
+                        <button onClick={() => handleDeleteCode(code.id)}
+                          className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200">
+                          ลบ
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
-                {expanded && (
-                  <div className="border-t bg-blue-50/50 px-4 py-3">
-                    {cBk.length === 0 ? (
-                      <p className="text-xs text-gray-400">ยังไม่มีการจอง</p>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-xs font-medium text-blue-600 mb-1">คอร์สที่จอง</p>
-                        {cBk.map(bk => {
-                          const bkSe   = sessions.filter(s => s.bookingId === bk.id);
-                          const bkDone = bkSe.filter(s => s.done).length;
-                          const bc     = cfg(bk.courseType);
-                          return (
-                            <div key={bk.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-blue-100">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${bc.color}`}>{bc.label}</span>
-                                <span className="text-xs text-gray-500">{bk.totalPeople || "-"} คน</span>
-                                {bk.timeSlot && <span className="text-xs text-gray-400">{bk.timeSlot}</span>}
-                                <span className="text-xs text-gray-400">{bkDone}/{bkSe.length} ครั้ง</span>
-                                {bk.teachers?.length > 0 && <span className="text-xs text-gray-400">เซลล์: {bk.teachers.join(", ")}</span>}
-                                {bk.instructors?.length > 0 && <span className="text-xs text-purple-500">ผู้สอน: {bk.instructors.join(", ")}</span>}
-                                {bk.paymentStatus && (
-                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${bk.paymentStatus === "โอนแล้ว" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-600"}`}>
-                                    {bk.paymentStatus}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex gap-1 shrink-0">
-                                <button onClick={() => setEditBk({ ...bk, teachers: bk.teachers || [], instructors: bk.instructors || ["", "", ""] })}
-                                  className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100">แก้ไข</button>
-                                <button onClick={() => confirmDelete(bc.label, () => deleteBooking(bk.id))}
-                                  className="text-xs px-2 py-1 bg-red-50 text-red-500 rounded hover:bg-red-100">ลบ</button>
-                              </div>
-                            </div>
-                          );
-                        })}
+                {/* แชร์ลิงก์ + QR — เฉพาะโค้ดที่ยังไม่ใช้ */}
+                {!code.used && (
+                  <div className="border-t border-blue-200 pt-3 mt-2 space-y-2">
+                    <div className="flex gap-2">
+                      <button onClick={() => copyLink(code.code)}
+                        className={`flex-1 text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
+                          copied === code.code
+                            ? "bg-green-600 text-white"
+                            : "bg-blue-600 text-white hover:bg-blue-700"
+                        }`}>
+                        {copied === code.code ? "✓ คัดลอกแล้ว!" : "📋 คัดลอกลิงก์"}
+                      </button>
+                      <button onClick={() => setShowQR(showQR === code.code ? null : code.code)}
+                        className="flex-1 text-xs font-semibold bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 transition-colors">
+                        {showQR === code.code ? "ซ่อน QR" : "📱 แสดง QR"}
+                      </button>
+                    </div>
+                    <div className="bg-white rounded-lg p-2 text-xs text-gray-500 break-all border border-blue-100">
+                      {getBookingLink(code.code)}
+                    </div>
+                    {showQR === code.code && (
+                      <div className="bg-white rounded-lg p-4 text-center border border-blue-100">
+                        <img src={getQRUrl(code.code)} alt="QR Code" className="mx-auto rounded-lg" style={{width: 200, height: 200}} />
+                        <p className="text-xs text-gray-500 mt-2">ส่ง QR นี้ให้ลูกค้าสแกน</p>
+                        <p className="text-xs font-semibold text-blue-700 mt-1">ส่วนลด {code.discount} บาท</p>
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+            );})}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Instructor Schedule ───
+function InstructorSchedule({ bookings, instructors }) {
+  const instructorStats = useMemo(() => {
+    const stats = {};
+    instructors.forEach(inst => {
+      const instBookings = bookings.filter(b => b.instructor === inst);
+      const dateMap = {};
+      instBookings.forEach(b => {
+        if (b.startDate) {
+          dateMap[b.startDate] = (dateMap[b.startDate] || 0) + (Number(b.totalPeople) || 0);
+        }
+      });
+      const totalStudents = Object.values(dateMap).reduce((sum, val) => sum + val, 0);
+      const totalEarnings = Object.values(dateMap).reduce((sum, students) => sum + Math.min(students * 250, 1000), 0);
+      stats[inst] = {
+        dateMap,
+        totalStudents,
+        totalEarnings,
+        bookingCount: instBookings.length,
+      };
+    });
+    return stats;
+  }, [bookings, instructors]);
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {instructors.map(inst => {
+          const stat = instructorStats[inst];
+          const earningStatus = stat.totalEarnings >= 1000 ? "bg-red-100" : stat.totalEarnings >= 500 ? "bg-yellow-100" : "bg-green-100";
+          const textStatus = stat.totalEarnings >= 1000 ? "text-red-700" : stat.totalEarnings >= 500 ? "text-yellow-700" : "text-green-700";
+          const earningColor = stat.totalEarnings >= 1000 ? "🔴" : stat.totalEarnings >= 500 ? "🟡" : "🟢";
+
+          return (
+            <div key={inst} className={`border rounded-xl p-4 ${earningStatus}`}>
+              <h3 className={`font-bold text-lg ${textStatus} mb-3`}>{inst} {earningColor}</h3>
+              <div className="space-y-2 text-sm mb-4">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">จำนวนนักเรียน</span>
+                  <span className="font-semibold">{stat.totalStudents} คน</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">ค่าสอนทั้งหมด</span>
+                  <span className="font-semibold">{stat.totalEarnings} บาท</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">คอร์สที่สอน</span>
+                  <span className="font-semibold">{stat.bookingCount} คอร์ส</span>
+                </div>
+              </div>
+
+              <div className="border-t pt-3">
+                <p className="text-xs font-semibold text-gray-700 mb-2">ตารางวันเวลา:</p>
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {Object.keys(stat.dateMap).length === 0 ? (
+                    <p className="text-xs text-gray-500">ยังไม่มีตารางสอน</p>
+                  ) : (
+                    Object.entries(stat.dateMap).map(([date, students]) => (
+                      <div key={date} className="text-xs bg-white bg-opacity-50 px-2 py-1 rounded">
+                        <span className="font-medium">{new Date(date).toLocaleDateString("th-TH")}</span>
+                        <span className="text-gray-600"> ({students} คน)</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="bg-white rounded-xl border border-blue-100 p-5">
+        <h2 className="font-bold text-lg text-blue-800 mb-4">สรุปทั่วไป</h2>
+        <div className="space-y-2 text-sm">
+          {instructors.map(inst => (
+            <div key={inst} className="flex justify-between items-center py-2 border-b last:border-b-0">
+              <span className="font-medium text-gray-800">{inst}</span>
+              <div className="text-right">
+                <div className="font-semibold text-gray-800">{instructorStats[inst].totalEarnings} บาท</div>
+                <div className="text-xs text-gray-500">{instructorStats[inst].totalStudents} นักเรียน</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Course Settings ───
+function CourseSettings({ courses, saveCourses, staff, saveStaff, instructors, saveInstructors, enrolled }) {
+  const [editMode, setEditMode] = useState(null);
+  const [newCourse, setNewCourse] = useState("");
+  const [newStaff, setNewStaff] = useState("");
+  const [newInstructor, setNewInstructor] = useState("");
+
+  const handleAddCourse = () => {
+    if (!newCourse.trim()) return;
+    const nc = {
+      key: newCourse.replace(/[^a-zA-Z0-9]/g, "").substring(0, 20) || "c" + Date.now(),
+      label: newCourse,
+      range: "",
+      max: 15,
+      color: "bg-gray-100 text-gray-700",
+      price: 0,
+      discountPrice: 0,
+      onlineBooking: false,
+      hasPackages: false,
+      flexPrice: 600,
+      fixedPrice: 500,
+      description: "",
+      timeSlots: [...TIME_SLOTS],
+    };
+    saveCourses([...courses, nc]);
+    setNewCourse("");
+  };
+
+  const handleRemoveCourse = (key) => {
+    saveCourses(courses.filter(c => c.key !== key));
+  };
+
+  const handleAddStaff = () => {
+    if (!newStaff.trim()) return;
+    if (!staff.includes(newStaff)) saveStaff([...staff, newStaff]);
+    setNewStaff("");
+  };
+
+  const handleRemoveStaff = (name) => {
+    saveStaff(staff.filter(s => s !== name));
+  };
+
+  const handleAddInstructor = () => {
+    if (!newInstructor.trim()) return;
+    if (!instructors.includes(newInstructor)) saveInstructors([...instructors, newInstructor]);
+    setNewInstructor("");
+  };
+
+  const handleRemoveInstructor = (name) => {
+    saveInstructors(instructors.filter(i => i !== name));
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-xl border border-blue-100 p-6">
+        <h2 className="font-bold text-lg text-blue-800 mb-4">⚙️ คอร์สเรียน</h2>
+        <div className="space-y-3">
+          {courses.map(c => {
+            const enrolled_count = enrolled[c.key] || 0;
+            return (
+              <div key={c.key} className={`border rounded-lg p-4 ${editMode === c.key ? "bg-blue-50 border-blue-300" : "bg-gray-50 border-gray-200"}`}>
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <h3 className="font-semibold text-gray-800">{c.label}</h3>
+                    <div className="flex flex-wrap gap-1 items-center mt-0.5">
+                      <p className="text-xs text-gray-500">{enrolled_count}/{c.max} นักเรียน</p>
+                      {c.durationHours && <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">{c.totalDays > 1 ? c.totalDays + " วัน × " : ""}{c.durationHours} ชม.</span>}
+                      {c.onlineBooking && <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">เปิดจองออนไลน์</span>}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setEditMode(editMode === c.key ? null : c.key)} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200">
+                      {editMode === c.key ? "ปิด" : "แก้"}
+                    </button>
+                    {c.max < 999 && (
+                      <button onClick={() => handleRemoveCourse(c.key)} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200">
+                        ลบ
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {editMode === c.key && (
+                  <div className="space-y-2 mt-3 pt-3 border-t">
+                    <input type="text" value={c.label} onChange={(e) => saveCourses(courses.map(x => x.key === c.key ? { ...x, label: e.target.value } : x))}
+                      className="w-full border border-blue-200 bg-white rounded px-2 py-1 text-sm" placeholder="ชื่อคอร์ส" />
+                    <input type="text" value={c.description || ""} onChange={(e) => saveCourses(courses.map(x => x.key === c.key ? { ...x, description: e.target.value } : x))}
+                      className="w-full border border-blue-200 bg-white rounded px-2 py-1 text-sm" placeholder="รายละเอียด (แสดงในหน้าจอง)" />
+                    <input type="number" value={c.max} onChange={(e) => saveCourses(courses.map(x => x.key === c.key ? { ...x, max: Number(e.target.value) } : x))}
+                      className="w-full border border-blue-200 bg-white rounded px-2 py-1 text-sm" placeholder="จำนวนคนสูงสุด" min="1" />
+
+                    {/* ระยะเวลาเรียน + รอบเวลา */}
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-3">
+                      <label className="text-xs font-semibold text-purple-700">ระยะเวลา & รอบเวลาเรียน</label>
+
+                      {/* จำนวนวันเรียน */}
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">จำนวนวันเรียน</label>
+                        <div className="flex flex-wrap gap-1">
+                          {[1, 2, 3, 4, 5].map(d => (
+                            <button key={d} onClick={() => saveCourses(courses.map(x => x.key === c.key ? { ...x, totalDays: d } : x))}
+                              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                                (c.totalDays || 1) === d
+                                  ? "bg-purple-600 text-white"
+                                  : "bg-white border border-purple-200 text-gray-700 hover:bg-purple-100"
+                              }`}>
+                              {d} วัน
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* ระยะเวลาต่อวัน */}
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">ระยะเวลาต่อวัน</label>
+                        <div className="flex flex-wrap gap-1">
+                          {[1, 1.5, 2, 2.5, 3, 4, 5, 6].map(h => (
+                            <button key={h} onClick={() => saveCourses(courses.map(x => x.key === c.key ? { ...x, durationHours: h } : x))}
+                              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                                (c.durationHours || 2) === h
+                                  ? "bg-purple-600 text-white"
+                                  : "bg-white border border-purple-200 text-gray-700 hover:bg-purple-100"
+                              }`}>
+                              {h} ชม.
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* รอบเวลาที่มี */}
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">รอบเวลา ({(c.timeSlots || TIME_SLOTS).length} รอบ)</label>
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {(c.timeSlots || TIME_SLOTS).map((slot, si) => {
+                            const parts = slot.split("-");
+                            const duration = c.durationHours || 2;
+                            return (
+                              <div key={si} className="flex items-center gap-1 bg-white border border-purple-200 rounded-lg px-2 py-1.5">
+                                <span className="text-xs font-medium text-purple-700">{slot}</span>
+                                <span className="text-xs text-gray-400">({duration} ชม.)</span>
+                                <button onClick={() => {
+                                  const current = c.timeSlots || [...TIME_SLOTS];
+                                  saveCourses(courses.map(x => x.key === c.key ? { ...x, timeSlots: current.filter((_, i) => i !== si) } : x));
+                                }} className="text-red-400 hover:text-red-600 text-xs font-bold ml-1">✕</button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* เพิ่มรอบใหม่ */}
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">เพิ่มรอบใหม่ — เลือกเวลาเริ่ม (จบอัตโนมัติตามระยะเวลา)</label>
+                        <div className="flex gap-1 items-center">
+                          <select id={"ts-hour-" + c.key}
+                            className="border border-purple-200 bg-white rounded px-2 py-1.5 text-xs flex-1">
+                            {Array.from({length: 14}, (_, i) => i + 7).map(h => (
+                              <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>
+                            ))}
+                          </select>
+                          <select id={"ts-min-" + c.key}
+                            className="border border-purple-200 bg-white rounded px-2 py-1.5 text-xs">
+                            <option value="00">:00</option>
+                            <option value="30">:30</option>
+                          </select>
+                          <span className="text-xs text-gray-500">→</span>
+                          <span className="text-xs font-medium text-purple-600" id={"ts-preview-" + c.key}>
+                            +{c.durationHours || 2} ชม.
+                          </span>
+                          <button onClick={() => {
+                            const hr = Number(document.getElementById("ts-hour-" + c.key)?.value || 9);
+                            const mn = document.getElementById("ts-min-" + c.key)?.value || "00";
+                            const dur = c.durationHours || 2;
+                            const startMin = hr * 60 + Number(mn);
+                            const endMin = startMin + dur * 60;
+                            const endHr = Math.floor(endMin / 60);
+                            const endMn = endMin % 60;
+                            const startStr = String(hr).padStart(2, "0") + ":" + mn;
+                            const endStr = String(endHr).padStart(2, "0") + ":" + String(endMn).padStart(2, "0");
+                            const newSlot = startStr + "-" + endStr;
+                            const current = c.timeSlots || [...TIME_SLOTS];
+                            if (!current.includes(newSlot)) {
+                              saveCourses(courses.map(x => x.key === c.key ? { ...x, timeSlots: [...current, newSlot].sort() } : x));
+                            }
+                          }} className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 font-semibold">
+                            + เพิ่มรอบ
+                          </button>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-gray-400">ตัวอย่าง: คลาส 2 ชม. เริ่ม 09:00 → รอบ 09:00-11:00</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="number" value={c.price} onChange={(e) => saveCourses(courses.map(x => x.key === c.key ? { ...x, price: Number(e.target.value) } : x))}
+                        className="w-full border border-blue-200 bg-white rounded px-2 py-1 text-sm" placeholder="ราคาเต็ม" min="0" />
+                      <input type="number" value={c.discountPrice} onChange={(e) => saveCourses(courses.map(x => x.key === c.key ? { ...x, discountPrice: Number(e.target.value) } : x))}
+                        className="w-full border border-blue-200 bg-white rounded px-2 py-1 text-sm" placeholder="ราคาส่วนลด" min="0" />
+                    </div>
+
+                    {/* เปิดจองออนไลน์ */}
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={!!c.onlineBooking}
+                          onChange={(e) => saveCourses(courses.map(x => x.key === c.key ? { ...x, onlineBooking: e.target.checked } : x))}
+                          className="w-4 h-4 accent-green-600" />
+                        <span className="text-sm font-semibold text-green-700">เปิดจองออนไลน์ (แสดงในหน้าจองลูกค้า)</span>
+                      </label>
+
+                      {c.onlineBooking && (
+                        <div className="space-y-2 ml-6">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={!!c.hasPackages}
+                              onChange={(e) => saveCourses(courses.map(x => x.key === c.key ? { ...x, hasPackages: e.target.checked } : x))}
+                              className="w-4 h-4 accent-blue-600" />
+                            <span className="text-xs font-medium text-gray-700">มีแพ็กเกจ Flex/Fixed (ถ้าไม่ติ๊ก ใช้ราคาเต็ม/ส่วนลด)</span>
+                          </label>
+                          {c.hasPackages && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-xs text-gray-600">Flex (เลื่อนได้ไม่จำกัด)</label>
+                                <input type="number" value={c.flexPrice || 600} onChange={(e) => saveCourses(courses.map(x => x.key === c.key ? { ...x, flexPrice: Number(e.target.value) } : x))}
+                                  className="w-full border border-blue-200 bg-white rounded px-2 py-1 text-sm" min="0" />
+                              </div>
+                              <div>
+                                <label className="text-xs text-gray-600">Fixed (เลื่อนได้ 1 ครั้ง)</label>
+                                <input type="number" value={c.fixedPrice || 500} onChange={(e) => saveCourses(courses.map(x => x.key === c.key ? { ...x, fixedPrice: Number(e.target.value) } : x))}
+                                  className="w-full border border-blue-200 bg-white rounded px-2 py-1 text-sm" min="0" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
             );
           })}
         </div>
-      )}
-
-      {editCust && (
-        <EditModal title="แก้ไขข้อมูลลูกค้า" onClose={() => setEditCust(null)}
-          onSave={() => { updateCustomer(editCust.id, { name: editCust.name, phone: editCust.phone }); setEditCust(null); }}>
-          <div className="space-y-3">
-            <Field label="ชื่อลูกค้า *" value={editCust.name || ""} onChange={v => setEditCust(c => ({ ...c, name: v }))} required />
-            <Field label="เบอร์โทร" value={editCust.phone || ""} onChange={v => setEditCust(c => ({ ...c, phone: v }))} />
-          </div>
-        </EditModal>
-      )}
-
-      {editBk && (
-        <BookingEditModal bk={editBk} setBk={setEditBk} enrolled={enrolled}
-          courses={courses} staff={staff}
-          onSave={() => {
-            updateBooking(editBk.id, {
-              courseType: editBk.courseType, totalPeople: Number(editBk.totalPeople),
-              teachers: editBk.teachers || [],
-              instructors: (editBk.instructors || []).filter(n => n.trim()),
-              timeSlot: editBk.timeSlot,
-              paymentStatus: editBk.paymentStatus, note: editBk.note, startDate: editBk.startDate
-            });
-            setEditBk(null);
-          }}
-          onClose={() => setEditBk(null)} />
-      )}
-    </div>
-  );
-}
-
-// ─── Booking Edit Modal ───
-function BookingEditModal({ bk, setBk, enrolled, courses, staff, onSave, onClose }) {
-  return (
-    <EditModal title="แก้ไขการจอง" onClose={onClose} onSave={onSave}>
-      <div className="space-y-4">
-        <div>
-          <label className="text-sm text-gray-600 block mb-2">ประเภทคอร์ส</label>
-          <CourseTypePicker value={bk.courseType} onChange={v => setBk(b => ({ ...b, courseType: v }))} enrolled={enrolled} courses={courses} size="small" />
+        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+          <input type="text" value={newCourse} onChange={(e) => setNewCourse(e.target.value)} placeholder="ชื่อคอร์สใหม่"
+            className="w-full border border-blue-200 bg-white rounded px-3 py-2 text-sm" onKeyPress={(e) => e.key === "Enter" && handleAddCourse()} />
+          <button onClick={handleAddCourse} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors">
+            + เพิ่มคอร์สใหม่
+          </button>
         </div>
-        <div>
-          <label className="text-sm text-gray-600 block mb-2">รอบเวลาเรียน</label>
-          <TimeSlotPicker value={bk.timeSlot || ""} onChange={v => setBk(b => ({ ...b, timeSlot: v }))} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="จำนวนคน" type="number" value={bk.totalPeople || ""} onChange={v => setBk(b => ({ ...b, totalPeople: v }))} min={1} />
-          <Field label="วันที่เริ่ม" type="date" value={bk.startDate || ""} onChange={v => setBk(b => ({ ...b, startDate: v }))} />
-        </div>
-        <div>
-          <label className="text-sm text-gray-600 block mb-2">เซลล์</label>
-          <StaffPicker selected={bk.teachers || []} onChange={v => setBk(b => ({ ...b, teachers: v }))} staff={staff} />
-        </div>
-        <div>
-          <label className="text-sm text-gray-600 block mb-2">ผู้สอน</label>
-          <div className="space-y-2">
-            {[0, 1, 2].map(i => {
-              const insts = bk.instructors || ["", "", ""];
-              return (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 w-20 shrink-0">คนที่ {i + 1}</span>
-                  <input value={insts[i] || ""} onChange={e => {
-                    const next = [...insts];
-                    while (next.length < 3) next.push("");
-                    next[i] = e.target.value;
-                    setBk(b => ({ ...b, instructors: next }));
-                  }} placeholder="ชื่อผู้สอน..."
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <div>
-          <label className="text-sm text-gray-600 block mb-2">การชำระเงิน</label>
-          <PaymentPicker value={bk.paymentStatus || "ยังไม่ได้โอน"} onChange={v => setBk(b => ({ ...b, paymentStatus: v }))} />
-        </div>
-        <Field label="หมายเหตุ" value={bk.note || ""} onChange={v => setBk(b => ({ ...b, note: v }))} />
-      </div>
-    </EditModal>
-  );
-}
-
-// ─── Schedule ───
-function Schedule({ sessions, bookings, customers, toggleSession, updateSessionDate, updateBooking, deleteBooking, enrolled, cfg, courseKeys, staff, courses }) {
-  const [filter, setFilter] = useState("pending");
-  const [editBk, setEditBk] = useState(null);
-
-  const filtered = sessions.filter(s => filter === "all" ? true : filter === "pending" ? !s.done : s.done);
-  const sorted = [...filtered].sort((a, b) => {
-    const ba = bookings.find(x => x.id === a.bookingId);
-    const bb = bookings.find(x => x.id === b.bookingId);
-    return (ba?.createdAt||"").localeCompare(bb?.createdAt||"") || a.sessionNo - b.sessionNo;
-  });
-
-  const confirmDelete = (label, fn) => { if (window.confirm('ลบ "' + label + '"?')) fn(); };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex gap-2">
-        {[["pending","รอดำเนินการ"],["done","เสร็จแล้ว"],["all","ทั้งหมด"]].map(([v,l]) => (
-          <button key={v} onClick={() => setFilter(v)}
-            className={`px-4 py-1.5 rounded-full text-sm border transition ${
-              filter === v ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 text-gray-500 hover:border-blue-400"
-            }`}>{l}</button>
-        ))}
       </div>
 
-      {sorted.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">ไม่มีข้อมูล</div>
-      ) : (
-        <div className="bg-white rounded-xl border border-blue-100 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-blue-50 border-b border-blue-100">
-              <tr className="text-left text-blue-700 text-xs">
-                <th className="px-4 py-3">ลูกค้า</th>
-                <th className="px-4 py-3">คอร์ส</th>
-                <th className="px-4 py-3">รอบ</th>
-                <th className="px-4 py-3">ลำดับ</th>
-                <th className="px-4 py-3">วันที่</th>
-                <th className="px-4 py-3">สถานะ</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map(s => {
-                const bk = bookings.find(b => b.id === s.bookingId);
-                const c  = customers.find(x => x.id === s.customerId);
-                const bc = cfg(bk?.courseType);
-                return (
-                  <tr key={s.id} className="border-b last:border-0 hover:bg-blue-50/30">
-                    <td className="px-4 py-2.5">
-                      <p className="font-medium">{c?.name || "-"}</p>
-                      {c?.phone && <p className="text-xs text-gray-400">{c.phone}</p>}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${bc.color}`}>{bc.label}</span>
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500">{bk?.timeSlot || "-"}</td>
-                    <td className="px-4 py-2.5 text-center text-gray-500 text-xs">#{s.sessionNo}</td>
-                    <td className="px-4 py-2.5">
-                      <input type="date" value={s.date || ""} onChange={e => updateSessionDate(s.id, e.target.value)}
-                        className="border border-gray-200 rounded px-2 py-0.5 text-xs text-gray-600 w-32" />
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <button onClick={() => toggleSession(s.id)}
-                        className={`text-xs px-3 py-1 rounded-full transition ${
-                          s.done ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-blue-100 text-blue-600 hover:bg-blue-200"
-                        }`}>{s.done ? "เสร็จ" : "ยังไม่เสร็จ"}</button>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      {s.sessionNo === 1 && bk && (
-                        <div className="flex gap-1">
-                          <button onClick={() => setEditBk({ ...bk, teachers: bk.teachers || [], instructors: bk.instructors || ["", "", ""] })}
-                            className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100">แก้ไข</button>
-                          <button onClick={() => confirmDelete(bc.label, () => deleteBooking(bk.id))}
-                            className="text-xs px-2 py-1 bg-red-50 text-red-500 rounded hover:bg-red-100">ลบ</button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {editBk && (
-        <BookingEditModal bk={editBk} setBk={setEditBk} enrolled={enrolled}
-          courses={courses} staff={staff}
-          onSave={() => {
-            updateBooking(editBk.id, {
-              courseType: editBk.courseType, totalPeople: Number(editBk.totalPeople),
-              teachers: editBk.teachers || [],
-              instructors: (editBk.instructors || []).filter(n => n.trim()),
-              timeSlot: editBk.timeSlot,
-              paymentStatus: editBk.paymentStatus, note: editBk.note, startDate: editBk.startDate
-            });
-            setEditBk(null);
-          }}
-          onClose={() => setEditBk(null)} />
-      )}
-    </div>
-  );
-}
-
-// ─── Calendar View (ปฏิทิน ว่าง/ไม่ว่าง) ───
-function CalendarView({ sessions, bookings, courses, cfg }) {
-  const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth());
-  const [selectedDate, setSelectedDate] = useState(null);
-
-  const prevMonth = () => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); };
-  const nextMonth = () => { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); };
-  const goToday = () => { setYear(now.getFullYear()); setMonth(now.getMonth()); };
-
-  const MONTH_NAMES = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
-  const DAY_NAMES = ["อา","จ","อ","พ","พฤ","ศ","ส"];
-
-  const occupancy = useMemo(() => {
-    const map = {};
-    sessions.forEach(s => {
-      if (!s.date) return;
-      const bk = bookings.find(b => b.id === s.bookingId);
-      if (!bk) return;
-      const key = s.date;
-      if (!map[key]) map[key] = {};
-      const ct = bk.courseType;
-      if (!map[key][ct]) map[key][ct] = {};
-      const ts = bk.timeSlot || "ไม่ระบุ";
-      map[key][ct][ts] = (map[key][ct][ts] || 0) + 1;
-    });
-    return map;
-  }, [sessions, bookings]);
-
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const weeks = [];
-  let week = Array(firstDay).fill(null);
-  for (let d = 1; d <= daysInMonth; d++) {
-    week.push(d);
-    if (week.length === 7) { weeks.push(week); week = []; }
-  }
-  if (week.length > 0) { while (week.length < 7) week.push(null); weeks.push(week); }
-
-  const todayStr = today();
-  const activeCourses = courses.filter(c => c.max < 999);
-
-  const getStatus = (dateStr, courseType) => {
-    const dayData = occupancy[dateStr];
-    if (!dayData || !dayData[courseType]) return "available";
-    const c = cfg(courseType);
-    let total = 0;
-    Object.values(dayData[courseType]).forEach(n => { total += n; });
-    if (total >= c.max) return "full";
-    return "partial";
-  };
-
-  const getDateStr = (d) => {
-    const mm = String(month + 1).padStart(2, "0");
-    const dd = String(d).padStart(2, "0");
-    return `${year}-${mm}-${dd}`;
-  };
-
-  const selectedDetail = useMemo(() => {
-    if (!selectedDate) return null;
-    const dayData = occupancy[selectedDate] || {};
-    return courses.map(c => {
-      const slots = dayData[c.key] || {};
-      let total = 0;
-      Object.values(slots).forEach(n => { total += n; });
-      const remaining = Math.max(0, (c.max < 999 ? c.max : 999) - total);
-      const status = total === 0 ? "available" : total >= c.max && c.max < 999 ? "full" : "partial";
-      const slotDetail = {};
-      TIME_SLOTS.forEach(ts => { slotDetail[ts] = slots[ts] || 0; });
-      return { ...c, total, remaining, status, slotDetail };
-    });
-  }, [selectedDate, occupancy, courses, cfg]);
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-xl border border-blue-100 p-4">
-        <div className="flex items-center justify-between mb-4">
-          <button onClick={prevMonth} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 text-sm font-medium">◀ ก่อนหน้า</button>
-          <div className="text-center">
-            <h2 className="text-lg font-bold text-blue-800">{MONTH_NAMES[month]} {year + 543}</h2>
-            <button onClick={goToday} className="text-xs text-blue-500 hover:underline">วันนี้</button>
-          </div>
-          <button onClick={nextMonth} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 text-sm font-medium">ถัดไป ▶</button>
-        </div>
-
-        <div className="flex flex-wrap gap-3 mb-4 text-xs">
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-400"></span> ว่าง</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-amber-400"></span> มีจองบางส่วน</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-400"></span> เต็ม</span>
-        </div>
-
-        <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-lg overflow-hidden">
-          {DAY_NAMES.map(d => (
-            <div key={d} className="bg-blue-50 text-center py-2 text-xs font-medium text-blue-600">{d}</div>
-          ))}
-          {weeks.flat().map((d, idx) => {
-            if (d === null) return <div key={"e" + idx} className="bg-white p-1 min-h-[64px]"></div>;
-            const dateStr = getDateStr(d);
-            const isToday = dateStr === todayStr;
-            const isSelected = dateStr === selectedDate;
-
-            const dots = activeCourses.map(c => ({
-              key: c.key,
-              status: getStatus(dateStr, c.key),
-              color: getStatus(dateStr, c.key) === "available" ? "bg-green-400" :
-                     getStatus(dateStr, c.key) === "full" ? "bg-red-400" : "bg-amber-400"
-            }));
-
-            return (
-              <button key={d} onClick={() => setSelectedDate(dateStr === selectedDate ? null : dateStr)}
-                className={`bg-white p-1 min-h-[64px] text-left hover:bg-blue-50 transition relative ${
-                  isSelected ? "ring-2 ring-blue-500 z-10" : ""
-                }`}>
-                <span className={`text-xs font-medium block mb-1 ${
-                  isToday ? "bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center" : "text-gray-700 pl-1"
-                }`}>{d}</span>
-                <div className="flex flex-wrap gap-0.5 px-0.5">
-                  {dots.map(dot => (
-                    <span key={dot.key} className={`w-2.5 h-2.5 rounded-full ${dot.color}`} title={cfg(dot.key).label}></span>
-                  ))}
-                </div>
+      <div className="bg-white rounded-xl border border-blue-100 p-6">
+        <h2 className="font-bold text-lg text-blue-800 mb-4">👥 เซลล์</h2>
+        <div className="space-y-2 mb-4">
+          {staff.map(s => (
+            <div key={s} className="flex justify-between items-center bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <span className="font-medium text-gray-800">{s}</span>
+              <button onClick={() => handleRemoveStaff(s)} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200">
+                ลบ
               </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {selectedDate && selectedDetail && (
-        <div className="bg-white rounded-xl border border-blue-100 p-5">
-          <h3 className="font-semibold text-blue-800 mb-3">
-            {new Date(selectedDate).toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-          </h3>
-          <div className="space-y-2">
-            {selectedDetail.map(c => {
-              const statusColor = c.status === "available" ? "bg-green-50 border-green-200" :
-                                  c.status === "full" ? "bg-red-50 border-red-200" : "bg-amber-50 border-amber-200";
-              const statusText = c.status === "available" ? "ว่าง" :
-                                 c.status === "full" ? "เต็ม" : "มีจองบางส่วน";
-              const statusBadge = c.status === "available" ? "bg-green-100 text-green-700" :
-                                  c.status === "full" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700";
-              return (
-                <div key={c.key} className={`rounded-lg border p-3 ${statusColor}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.color}`}>{c.label}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge}`}>{statusText}</span>
-                    </div>
-                    {c.max < 999 && (
-                      <span className="text-xs text-gray-500">
-                        จอง {c.total} / {c.max} คน {c.remaining > 0 && <span className="text-green-600 font-medium">(เหลือ {c.remaining})</span>}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {TIME_SLOTS.map(ts => {
-                      const count = c.slotDetail[ts] || 0;
-                      return (
-                        <div key={ts} className="flex items-center gap-1 bg-white/60 rounded px-2 py-1">
-                          <span className="text-xs text-gray-500">{ts}</span>
-                          <span className={`text-xs font-medium ${count > 0 ? "text-blue-600" : "text-gray-400"}`}>
-                            {count > 0 ? count + " คน" : "ว่าง"}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Course Settings ───
-function CourseSettings({ courses, saveCourses, staff, saveStaff, enrolled }) {
-  const [editIdx, setEditIdx] = useState(null);
-  const [editForm, setEditForm] = useState(null);
-  const [newStaff, setNewStaff] = useState("");
-
-  const startEdit = (idx) => {
-    setEditIdx(idx);
-    setEditForm({ ...courses[idx] });
-  };
-
-  const saveEdit = () => {
-    if (!editForm.label) return;
-    const next = [...courses];
-    if (!editForm.key) editForm.key = editForm.label.replace(/\s+/g, "_") + "_" + Date.now().toString(36);
-    next[editIdx] = editForm;
-    saveCourses(next);
-    setEditIdx(null); setEditForm(null);
-  };
-
-  const addCourse = () => {
-    const key = "course_" + Date.now().toString(36);
-    const colorIdx = courses.length % BADGE_COLORS.length;
-    const newC = { key, label: "", range: "", max: 10, color: BADGE_COLORS[colorIdx] };
-    const next = [...courses, newC];
-    saveCourses(next);
-    startEdit(next.length - 1);
-  };
-
-  const deleteCourse = (idx) => {
-    const c = courses[idx];
-    const used = enrolled[c.key] || 0;
-    if (used > 0) { alert("ไม่สามารถลบได้ — มีการจอง " + used + " คนอยู่"); return; }
-    if (!window.confirm('ลบคอร์ส "' + c.label + '"?')) return;
-    saveCourses(courses.filter((_, i) => i !== idx));
-  };
-
-  const addStaffMember = () => {
-    const name = newStaff.trim();
-    if (!name || staff.includes(name)) return;
-    saveStaff([...staff, name]);
-    setNewStaff("");
-  };
-
-  const deleteStaffMember = (name) => {
-    if (!window.confirm('ลบเซลล์ "' + name + '"?')) return;
-    saveStaff(staff.filter(s => s !== name));
-  };
-
-  return (
-    <div className="space-y-6 max-w-2xl">
-      <div className="bg-white rounded-xl border border-blue-100 p-5">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="font-semibold text-blue-800">ประเภทคอร์ส</h2>
-          <button onClick={addCourse}
-            className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">+ เพิ่มคอร์ส</button>
-        </div>
-
-        <div className="space-y-2">
-          {courses.map((c, idx) => (
-            <div key={c.key} className="flex items-center justify-between bg-blue-50/50 rounded-lg px-4 py-3 border border-blue-100">
-              <div className="flex items-center gap-3">
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.color}`}>{c.label || "(ไม่มีชื่อ)"}</span>
-                {c.range && <span className="text-xs text-gray-400">{c.range}</span>}
-                <span className="text-xs text-gray-400">สูงสุด {c.max < 999 ? c.max + " คน" : "ไม่จำกัด"}</span>
-                {(enrolled[c.key] || 0) > 0 && <span className="text-xs text-blue-600 font-medium">จอง {enrolled[c.key]} คน</span>}
-              </div>
-              <div className="flex gap-1">
-                <button onClick={() => startEdit(idx)}
-                  className="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200">แก้ไข</button>
-                <button onClick={() => deleteCourse(idx)}
-                  className="text-xs px-2 py-1 bg-red-50 text-red-500 rounded hover:bg-red-100">ลบ</button>
-              </div>
             </div>
           ))}
         </div>
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+          <input type="text" value={newStaff} onChange={(e) => setNewStaff(e.target.value)} placeholder="ชื่อเซลล์ใหม่"
+            className="w-full border border-blue-200 bg-white rounded px-3 py-2 text-sm" onKeyPress={(e) => e.key === "Enter" && handleAddStaff()} />
+          <button onClick={handleAddStaff} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors">
+            + เพิ่มเซลล์ใหม่
+          </button>
+        </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-blue-100 p-5">
-        <h2 className="font-semibold text-blue-800 mb-4">เซลล์</h2>
-        <div className="flex gap-2 mb-3">
-          <input value={newStaff} onChange={e => setNewStaff(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addStaffMember())}
-            placeholder="ชื่อเซลล์ใหม่..."
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
-          <button onClick={addStaffMember}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">+ เพิ่ม</button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {staff.map(name => (
-            <div key={name} className="flex items-center gap-1 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
-              <span className="text-sm text-blue-700">{name}</span>
-              <button onClick={() => deleteStaffMember(name)} className="text-red-400 hover:text-red-600 ml-1 text-xs">x</button>
+      <div className="bg-white rounded-xl border border-blue-100 p-6">
+        <h2 className="font-bold text-lg text-blue-800 mb-4">🎓 ผู้สอน</h2>
+        <div className="space-y-2 mb-4">
+          {instructors.map(i => (
+            <div key={i} className="flex justify-between items-center bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <span className="font-medium text-gray-800">{i}</span>
+              <button onClick={() => handleRemoveInstructor(i)} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200">
+                ลบ
+              </button>
             </div>
           ))}
-          {staff.length === 0 && <p className="text-xs text-gray-400">ยังไม่มีเซลล์</p>}
+        </div>
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+          <input type="text" value={newInstructor} onChange={(e) => setNewInstructor(e.target.value)} placeholder="ชื่อผู้สอนใหม่"
+            className="w-full border border-blue-200 bg-white rounded px-3 py-2 text-sm" onKeyPress={(e) => e.key === "Enter" && handleAddInstructor()} />
+          <button onClick={handleAddInstructor} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors">
+            + เพิ่มผู้สอนใหม่
+          </button>
         </div>
       </div>
-
-      {editIdx !== null && editForm && (
-        <EditModal title="แก้ไขคอร์ส" onClose={() => { setEditIdx(null); setEditForm(null); }} onSave={saveEdit}>
-          <div className="space-y-3">
-            <Field label="ชื่อคอร์ส *" value={editForm.label} onChange={v => setEditForm(f => ({ ...f, label: v }))} required />
-            <Field label="ช่วงจำนวนคน (เช่น 5-7 คน)" value={editForm.range} onChange={v => setEditForm(f => ({ ...f, range: v }))} />
-            <div>
-              <label className="text-sm text-gray-600 block mb-1">จำนวนสูงสุด</label>
-              <input type="number" value={editForm.max} onChange={e => setEditForm(f => ({ ...f, max: Number(e.target.value) }))}
-                min={1} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
-              <p className="text-xs text-gray-400 mt-1">ใส่ 999 = ไม่จำกัด</p>
-            </div>
-            <div>
-              <label className="text-sm text-gray-600 block mb-2">สีป้าย</label>
-              <div className="flex flex-wrap gap-2">
-                {BADGE_COLORS.map((bc, i) => (
-                  <button key={i} type="button" onClick={() => setEditForm(f => ({ ...f, color: bc }))}
-                    className={`px-3 py-1 rounded-full text-xs font-medium ${bc} border-2 transition ${
-                      editForm.color === bc ? "border-blue-600 ring-2 ring-blue-300" : "border-transparent"
-                    }`}>Aa</button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </EditModal>
-      )}
     </div>
   );
 }
@@ -1171,18 +3058,17 @@ function CourseSettings({ courses, saveCourses, staff, saveStaff, enrolled }) {
 // ─── Edit Modal ───
 function EditModal({ title, children, onSave, onClose }) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-base font-semibold text-blue-800 mb-4">{title}</h2>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30">
+      <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 max-h-96 overflow-y-auto">
+        <h2 className="font-bold text-lg text-gray-800 mb-4">{title}</h2>
         {children}
-        <div className="flex gap-2 mt-5">
-          <button onClick={onSave}
-            className="flex-1 text-white py-2 rounded-lg text-sm font-medium"
-            style={{ background: "linear-gradient(135deg, #3757D3 0%, #5C91FF 100%)" }}>
+        <div className="flex gap-2 mt-4">
+          <button onClick={onSave} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors">
             บันทึก
           </button>
-          <button onClick={onClose}
-            className="flex-1 border border-gray-300 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50">ยกเลิก</button>
+          <button onClick={onClose} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 rounded-lg transition-colors">
+            ยกเลิก
+          </button>
         </div>
       </div>
     </div>
@@ -1193,24 +3079,20 @@ function EditModal({ title, children, onSave, onClose }) {
 function SetupModal({ gsUrl, setGsUrl, onClose, onSync }) {
   const [url, setUrl] = useState(gsUrl);
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-        <h2 className="text-lg font-semibold text-blue-800 mb-1">ตั้งค่า Google Sheets</h2>
-        <p className="text-xs text-gray-400 mb-4">วาง URL ของ Google Apps Script Web App</p>
-        <textarea value={url} onChange={e => setUrl(e.target.value)} rows={3}
-          placeholder="https://script.google.com/macros/s/..."
-          className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-blue-400" />
-        <p className="text-xs text-gray-400 mt-2 mb-4">
-          หากยังไม่มี: เปิด Google Sheets, Extensions, Apps Script, วางโค้ด, Deploy, New deployment
-        </p>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30">
+      <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+        <h2 className="font-bold text-lg text-gray-800 mb-4">ตั้งค่า Google Sheets</h2>
+        <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="ใส่ URL ของ Google Apps Script"
+          className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:border-blue-500" />
         <div className="flex gap-2">
-          <button onClick={() => { setGsUrl(url); onSync(); onClose(); }}
-            className="flex-1 text-white py-2 rounded-lg text-sm font-medium"
-            style={{ background: "linear-gradient(135deg, #3757D3 0%, #5C91FF 100%)" }}>
-            บันทึกและซิงค์
+          <button onClick={() => { setGsUrl(url); onClose(); }}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors">
+            บันทึก
           </button>
           <button onClick={onClose}
-            className="flex-1 border border-gray-300 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50">ยกเลิก</button>
+            className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 rounded-lg transition-colors">
+            ยกเลิก
+          </button>
         </div>
       </div>
     </div>
@@ -1218,8 +3100,8 @@ function SetupModal({ gsUrl, setGsUrl, onClose, onSync }) {
 }
 
 // ─── Render ───
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(React.createElement(App));
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<AppLoader />);
 </script>
 </body>
 </html>

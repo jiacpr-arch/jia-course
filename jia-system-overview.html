@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JIA — ภาพรวมระบบทั้งหมด</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Noto Sans Thai',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+  .header{background:linear-gradient(135deg,#1e293b 0%,#253A8D 50%,#3757D3 100%);text-align:center;padding:36px 20px 28px}
+  .header h1{font-size:24px;font-weight:800;color:white}
+  .header p{font-size:13px;color:#93c5fd;margin-top:4px}
+  .container{max-width:920px;margin:0 auto;padding:24px 16px 60px}
+
+  .section-title{
+    text-align:center;font-size:14px;font-weight:700;color:#60a5fa;
+    letter-spacing:2px;margin:32px 0 16px;
+  }
+  .section-title::before{content:'── ';color:#334155}
+  .section-title::after{content:' ──';color:#334155}
+
+  /* 3-column actors */
+  .actors{display:flex;gap:12px;margin-bottom:24px}
+  .actor{
+    flex:1;border-radius:14px;padding:18px 14px;text-align:center;
+    border:2px solid;position:relative;
+  }
+  .actor-icon{font-size:32px;margin-bottom:6px}
+  .actor h3{font-size:15px;font-weight:700;margin-bottom:4px}
+  .actor p{font-size:11px;line-height:1.6;opacity:0.85}
+  .a-instructor{background:#1e1b4b;border-color:#6366f1;color:#c7d2fe}
+  .a-customer{background:#052e16;border-color:#22c55e;color:#bbf7d0}
+  .a-sales{background:#451a03;border-color:#f59e0b;color:#fef3c7}
+
+  /* Flow cards */
+  .flow{position:relative;margin-bottom:24px}
+  .flow:not(:last-child)::after{
+    content:'';position:absolute;left:50%;bottom:-24px;width:2px;height:24px;
+    background:linear-gradient(to bottom,#3757D3,#1e293b);transform:translateX(-50%);
+  }
+  .card{
+    background:#1e293b;border-radius:14px;border:1px solid #334155;
+    overflow:hidden;
+  }
+  .card-head{
+    display:flex;align-items:center;gap:10px;padding:14px 16px;
+    border-bottom:1px solid #334155;
+  }
+  .step{
+    width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:13px;flex-shrink:0;color:white;
+  }
+  .s-purple{background:#6366f1}
+  .s-green{background:#22c55e}
+  .s-amber{background:#f59e0b}
+  .s-blue{background:#3b82f6}
+  .s-red{background:#ef4444}
+  .card-title{font-size:14px;font-weight:700;color:#f1f5f9}
+  .badge{
+    margin-left:auto;font-size:10px;padding:2px 8px;border-radius:12px;font-weight:600;
+  }
+  .bg-purple{background:#4338ca33;color:#a5b4fc}
+  .bg-green{background:#16653433;color:#86efac}
+  .bg-amber{background:#92400e33;color:#fcd34d}
+  .bg-blue{background:#1e40af33;color:#93c5fd}
+  .bg-red{background:#991b1b33;color:#fca5a5}
+  .card-body{padding:14px 16px 16px}
+  .desc{font-size:12px;color:#94a3b8;line-height:1.7;margin-bottom:10px}
+
+  .items{display:flex;flex-wrap:wrap;gap:8px}
+  .item{
+    background:#0f172a;border:1px solid #334155;border-radius:10px;
+    padding:10px 12px;font-size:12px;color:#cbd5e1;flex:1 1 calc(50% - 4px);min-width:150px;
+  }
+  .item strong{display:block;font-size:11px;margin-bottom:2px}
+  .item .purple{color:#a5b4fc}
+  .item .green{color:#86efac}
+  .item .amber{color:#fcd34d}
+  .item .blue{color:#93c5fd}
+  .item .red{color:#fca5a5}
+
+  /* Connection lines */
+  .connect-box{
+    background:#0f172a;border:2px dashed #334155;border-radius:12px;
+    padding:16px;margin:8px 0;
+  }
+  .connect-box h4{font-size:13px;color:#60a5fa;margin-bottom:8px;font-weight:700}
+
+  /* Branches */
+  .branches{display:flex;gap:10px;margin-top:10px}
+  .branch{flex:1;border-radius:10px;padding:12px;border:1px solid}
+  .branch h4{font-size:13px;font-weight:700;margin-bottom:6px}
+  .branch p,.branch li{font-size:11px;line-height:1.7}
+  .branch ul{padding-left:14px;margin-top:4px}
+  .b-web{background:#052e1680;border-color:#22c55e60;color:#bbf7d0}
+  .b-sales{background:#451a0380;border-color:#f59e0b60;color:#fef3c7}
+  .b-system{background:#1e1b4b80;border-color:#6366f160;color:#c7d2fe}
+
+  /* Big flow arrow */
+  .flow-arrow{
+    text-align:center;padding:8px;font-size:20px;color:#475569;
+  }
+
+  /* Key insight box */
+  .insight{
+    background:linear-gradient(135deg,#1e1b4b,#312e81);
+    border:2px solid #6366f1;border-radius:14px;padding:18px;margin:16px 0;
+  }
+  .insight h3{font-size:15px;font-weight:800;color:#a5b4fc;margin-bottom:10px}
+  .insight p{font-size:12px;color:#c7d2fe;line-height:1.8}
+  .insight .highlight{color:#fbbf24;font-weight:700}
+
+  /* Timeline */
+  .timeline{display:flex;gap:4px;margin:12px 0;flex-wrap:wrap;justify-content:center}
+  .t-step{
+    display:flex;align-items:center;gap:4px;background:#1e293b;border:1px solid #334155;
+    border-radius:16px;padding:4px 10px;font-size:10px;font-weight:600;
+  }
+  .t-step .dot{width:8px;height:8px;border-radius:50%}
+  .t-arrow{color:#475569;font-size:11px;align-self:center}
+
+  @media(max-width:600px){
+    .actors{flex-direction:column}
+    .item{flex:1 1 100%}
+    .branches{flex-direction:column}
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>JIA — ภาพรวมระบบทั้งหมด</h1>
+  <p>ผู้สอนลงวัน → ลูกค้าจอง → เซลล์จัดการ → ทุกอย่างเชื่อมกัน</p>
+</div>
+
+<div class="container">
+
+<!-- ═══ 3 ACTORS ═══ -->
+<div class="section-title">3 บทบาทหลัก</div>
+<div class="actors">
+  <div class="actor a-instructor">
+    <div class="actor-icon">🎓</div>
+    <h3>ผู้สอน</h3>
+    <p>ลงวันว่าง → ระบบแสดงเฉพาะวันที่มีผู้สอน → รับงานสอน → ค่าสอน 250 บ./คน</p>
+  </div>
+  <div class="actor a-customer">
+    <div class="actor-icon">👤</div>
+    <h3>ลูกค้า</h3>
+    <p>จองผ่านเว็บ (ราคาเต็ม) หรือ ได้โค้ดจากเซลล์ (ราคาโปร) → เลือกวันที่เปิดสอน</p>
+  </div>
+  <div class="actor a-sales">
+    <div class="actor-icon">💼</div>
+    <h3>เซลล์</h3>
+    <p>สร้างโค้ดส่วนลด → ส่งให้ลูกค้า → จัดการจอง → ติดตามการขาย</p>
+  </div>
+</div>
+
+<!-- ═══ KEY INSIGHT ═══ -->
+<div class="insight">
+  <h3>💡 หัวใจของระบบ: ผู้สอนลงวันก่อน → ลูกค้าเห็นเฉพาะวันที่เปิดสอน</h3>
+  <p>
+    ปัจจุบันลูกค้าจองวันไหนก็ได้ แต่ไม่มีผู้สอน → ปัญหา!<br>
+    <span class="highlight">แก้โดย: ให้ผู้สอนลงตาราง "วันที่พร้อมสอน" ก่อน</span> → ระบบจะเปิดให้จองเฉพาะวันที่มีผู้สอน<br>
+    ลูกค้าจองวันไหน → ผู้สอนคนนั้นถูกมอบหมายอัตโนมัติ
+  </p>
+</div>
+
+<div class="section-title">FLOW ทั้งระบบ — 6 ขั้นตอน</div>
+
+<div class="timeline">
+  <div class="t-step"><div class="dot" style="background:#6366f1"></div> ผู้สอนลงวัน</div>
+  <span class="t-arrow">→</span>
+  <div class="t-step"><div class="dot" style="background:#f59e0b"></div> เซลล์สร้างโค้ด</div>
+  <span class="t-arrow">→</span>
+  <div class="t-step"><div class="dot" style="background:#22c55e"></div> ลูกค้าจอง</div>
+  <span class="t-arrow">→</span>
+  <div class="t-step"><div class="dot" style="background:#3b82f6"></div> ยืนยัน+จ่าย</div>
+  <span class="t-arrow">→</span>
+  <div class="t-step"><div class="dot" style="background:#6366f1"></div> จับคู่ผู้สอน</div>
+  <span class="t-arrow">→</span>
+  <div class="t-step"><div class="dot" style="background:#22c55e"></div> เรียน</div>
+</div>
+
+<!-- ═══ STEP 1: ผู้สอนลงวัน ═══ -->
+<div class="flow">
+  <div class="card">
+    <div class="card-head">
+      <div class="step s-purple">1</div>
+      <div class="card-title">ผู้สอนลงวันว่าง</div>
+      <span class="badge bg-purple">ผู้สอน</span>
+    </div>
+    <div class="card-body">
+      <p class="desc">ผู้สอนแต่ละคนเข้าระบบ → เลือกวันที่พร้อมสอน + รอบเวลา → ระบบบันทึก</p>
+      <div class="items">
+        <div class="item"><strong class="purple">📅 เลือกวันว่าง</strong>เปิดปฏิทินเดือน → กดวันที่พร้อมสอน (เลือกหลายวันได้)</div>
+        <div class="item"><strong class="purple">🕐 เลือกรอบเวลา</strong>แต่ละวันเลือกได้: 11-13 / 14-16 / 17-19 (เลือกหลายรอบได้)</div>
+        <div class="item"><strong class="purple">👤 ข้อมูลผู้สอน</strong>ชื่อ, ความเชี่ยวชาญ, จำนวนนักเรียนสูงสุดต่อรอบ</div>
+        <div class="item"><strong class="purple">✅ ผลลัพธ์</strong>ระบบรู้ว่า "วันนี้ มีผู้สอนกี่คน รอบไหนบ้าง" → เปิดให้ลูกค้าจอง</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">▼</div>
+
+<!-- ═══ STEP 2: เซลล์สร้างโค้ด ═══ -->
+<div class="flow">
+  <div class="card">
+    <div class="card-head">
+      <div class="step s-amber">2</div>
+      <div class="card-title">เซลล์สร้างโค้ดส่วนลด (ถ้าต้องการ)</div>
+      <span class="badge bg-amber">เซลล์</span>
+    </div>
+    <div class="card-body">
+      <p class="desc">เซลล์สร้างโค้ดโปรโมชั่นส่งให้ลูกค้า เพื่อได้ราคาพิเศษ</p>
+      <div class="items">
+        <div class="item"><strong class="amber">🎟️ สร้างโค้ด</strong>เซลล์กด "สร้างโค้ด" → ระบบ generate เช่น <code style="color:#fbbf24">SALE-A3X9K2</code></div>
+        <div class="item"><strong class="amber">💰 กำหนดส่วนลด</strong>ลดกี่บาท หรือกี่ % → เช่น ลด 100 บ. หรือ ลด 20%</div>
+        <div class="item"><strong class="amber">📋 เงื่อนไข</strong>ใช้ได้กี่ครั้ง, หมดอายุเมื่อไหร่, ใช้กับคอร์สไหนบ้าง</div>
+        <div class="item"><strong class="amber">📱 ส่งให้ลูกค้า</strong>ส่งโค้ดทาง LINE/โทร → ลูกค้าใส่ตอนจองผ่านเว็บ</div>
+      </div>
+
+      <div class="connect-box" style="margin-top:12px;">
+        <h4>🔗 โค้ดส่วนลด 2 ประเภท</h4>
+        <div class="branches">
+          <div class="branch b-sales">
+            <h4>SALE-XXXXXX</h4>
+            <p>เซลล์สร้างเอง → ส่งให้ลูกค้าเฉพาะราย → ลดได้ตามที่กำหนด</p>
+          </div>
+          <div class="branch b-web" style="background:#052e1640;">
+            <h4>JIA-XXXXXX</h4>
+            <p>จากระบบเรียนออนไลน์ jiacpr.com → นักเรียนจบได้อัตโนมัติ → ลด ฿100</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">▼</div>
+
+<!-- ═══ STEP 3: ลูกค้าจอง ═══ -->
+<div class="flow">
+  <div class="card">
+    <div class="card-head">
+      <div class="step s-green">3</div>
+      <div class="card-title">ลูกค้าจองคลาส</div>
+      <span class="badge bg-green">ลูกค้า / เซลล์</span>
+    </div>
+    <div class="card-body">
+      <p class="desc">ลูกค้าจองเองผ่านเว็บ หรือเซลล์จองให้ — เห็นเฉพาะวันที่มีผู้สอน</p>
+
+      <div class="branches">
+        <div class="branch b-web">
+          <h4>🌐 จองผ่านเว็บ (ราคาเต็ม)</h4>
+          <ul>
+            <li>เปิดเว็บ → เลือกคลาส CPR</li>
+            <li>เห็นปฏิทิน: <strong>เฉพาะวันที่มีผู้สอน</strong></li>
+            <li>เลือกวัน + รอบเวลา</li>
+            <li>เลือกแพ็คเกจ Flex ฿600 / Fixed ฿500</li>
+            <li>ใส่โค้ด (ถ้ามี) → ลดราคา</li>
+            <li>ราคาเว็บ = <strong>ราคาเต็ม</strong></li>
+          </ul>
+        </div>
+        <div class="branch b-sales">
+          <h4>💼 จองผ่านเซลล์ (ราคาโปร)</h4>
+          <ul>
+            <li>เซลล์ส่งโค้ด SALE-XXXXXX ให้ลูกค้า</li>
+            <li>ลูกค้าเปิดเว็บ → ใส่โค้ด → ได้ราคาโปร</li>
+            <li>หรือเซลล์จองให้ในระบบหลังบ้าน</li>
+            <li>เซลล์กำหนดส่วนลดได้ตามโปรโมชั่น</li>
+            <li>ราคาเซลล์ = <strong>ราคาส่วนลด</strong></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="connect-box" style="margin-top:12px;">
+        <h4>📅 ปฏิทินแสดงเฉพาะวันที่เปิดสอน</h4>
+        <div class="items">
+          <div class="item"><strong class="green">วันเปิด (สีเขียว)</strong>มีผู้สอนลงวัน → ลูกค้าจองได้ → แสดง "เหลือ X ที่"</div>
+          <div class="item"><strong class="red">วันปิด (สีเทา)</strong>ไม่มีผู้สอน → กดไม่ได้ → แสดง "ไม่เปิดสอน"</div>
+          <div class="item"><strong class="amber">วันเต็ม (สีแดง)</strong>มีผู้สอนแต่คนเรียนเต็มแล้ว → แสดง "เต็ม"</div>
+          <div class="item"><strong class="blue">วันของฉัน (สีน้ำเงิน)</strong>วันที่ลูกค้าจองไว้แล้ว → แสดง "จองแล้ว"</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">▼</div>
+
+<!-- ═══ STEP 4: ยืนยัน + จ่าย ═══ -->
+<div class="flow">
+  <div class="card">
+    <div class="card-head">
+      <div class="step s-blue">4</div>
+      <div class="card-title">ยืนยัน + ชำระเงิน</div>
+      <span class="badge bg-blue">ระบบ</span>
+    </div>
+    <div class="card-body">
+      <p class="desc">ระบบสรุปทั้งหมด → ลูกค้ายืนยัน → ชำระเงิน → ล็อกที่นั่ง</p>
+      <div class="items">
+        <div class="item"><strong class="blue">📋 สรุปการจอง</strong>คลาส, วัน, เวลา, แพ็คเกจ, ราคาสุทธิ (หลังหักส่วนลด)</div>
+        <div class="item"><strong class="blue">⚠️ เงื่อนไข</strong>Fixed = เลื่อน 1 ครั้ง / Flex = เลื่อนได้ → ลูกค้ากดรับทราบ</div>
+        <div class="item"><strong class="blue">💰 ชำระเงิน</strong>Prompt Pay / โอนธนาคาร / เงินสด / LINE Pay</div>
+        <div class="item"><strong class="blue">🔒 ล็อกที่นั่ง</strong>จ่ายแล้ว → ล็อกที่นั่ง + จับคู่ผู้สอนอัตโนมัติ</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">▼</div>
+
+<!-- ═══ STEP 5: จับคู่ผู้สอน ═══ -->
+<div class="flow">
+  <div class="card">
+    <div class="card-head">
+      <div class="step s-purple">5</div>
+      <div class="card-title">ระบบจับคู่ผู้สอนอัตโนมัติ</div>
+      <span class="badge bg-purple">อัตโนมัติ</span>
+    </div>
+    <div class="card-body">
+      <p class="desc">เมื่อลูกค้าจองวันไหน → ระบบดูว่าผู้สอนคนไหนลงวันนั้น → มอบหมายอัตโนมัติ</p>
+      <div class="items">
+        <div class="item"><strong class="purple">🤖 จับคู่อัตโนมัติ</strong>วันที่ 20 มี.ค. รอบ 14-16 → ครูเอลงไว้ → มอบหมายครูเอ</div>
+        <div class="item"><strong class="purple">⚖️ กระจายงาน</strong>ถ้ามีผู้สอนหลายคนวันเดียวกัน → ระบบกระจายให้คนที่งานน้อยสุด</div>
+        <div class="item"><strong class="purple">💰 คำนวณค่าสอน</strong>250 บ. × จำนวนนักเรียน (สูงสุด 1,000 บ./วัน)</div>
+        <div class="item"><strong class="purple">📧 แจ้งเตือน</strong>ผู้สอนได้รับแจ้งว่ามีนักเรียนจองวันนั้น</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">▼</div>
+
+<!-- ═══ STEP 6: เรียน ═══ -->
+<div class="flow">
+  <div class="card">
+    <div class="card-head">
+      <div class="step s-green">6</div>
+      <div class="card-title">เรียน + ติดตาม + Renew</div>
+      <span class="badge bg-green">ต่อเนื่อง</span>
+    </div>
+    <div class="card-body">
+      <p class="desc">วันเรียน → เช็คอิน → เรียนจบ → ติดตาม upsell + renew 6 เดือน</p>
+      <div class="items">
+        <div class="item"><strong class="green">✅ เรียนจบ</strong>ผู้สอนกด "เรียนแล้ว" → อัปเดต progress</div>
+        <div class="item"><strong class="green">🔄 Renew</strong>ระบบแจ้งเตือนเมื่อใกล้ครบ 6 เดือน → เซลล์ติดตาม</div>
+        <div class="item"><strong class="amber">📈 Upsell</strong>เรียน CPR จบ → เสนอคอร์ส ACLS/AED/Airway ราคาพิเศษ</div>
+        <div class="item"><strong class="blue">📊 Dashboard</strong>ออฟฟิศดูสรุปรายได้ ลูกค้า ผู้สอน ทั้งหมด</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PRICING ═══ -->
+<div class="section-title">สรุปราคาทั้งหมด</div>
+
+<div class="card">
+  <div class="card-body">
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center">
+        <thead>
+          <tr style="border-bottom:2px solid #334155;">
+            <th style="padding:10px 8px;text-align:left;color:#94a3b8">ช่องทาง</th>
+            <th style="padding:10px 8px;color:#94a3b8">แพ็คเกจ</th>
+            <th style="padding:10px 8px;color:#94a3b8">ราคา</th>
+            <th style="padding:10px 8px;color:#94a3b8">เลื่อนวัน</th>
+            <th style="padding:10px 8px;color:#94a3b8">+ คูปอง JIA</th>
+            <th style="padding:10px 8px;color:#94a3b8">+ โค้ดเซลล์</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #1e293b;">
+            <td style="padding:10px 8px;text-align:left;color:#86efac;font-weight:700">🌐 เว็บ (ราคาเต็ม)</td>
+            <td style="padding:10px 8px;color:#fcd34d">Flex</td>
+            <td style="padding:10px 8px;color:white;font-weight:700">฿600</td>
+            <td style="padding:10px 8px;color:#86efac">ไม่จำกัด</td>
+            <td style="padding:10px 8px;color:#93c5fd">฿500</td>
+            <td style="padding:10px 8px;color:#94a3b8">—</td>
+          </tr>
+          <tr style="border-bottom:1px solid #1e293b;">
+            <td style="padding:10px 8px;text-align:left;color:#86efac;font-weight:700">🌐 เว็บ (ราคาเต็ม)</td>
+            <td style="padding:10px 8px;color:#93c5fd">Fixed</td>
+            <td style="padding:10px 8px;color:white;font-weight:700">฿500</td>
+            <td style="padding:10px 8px;color:#fca5a5">1 ครั้ง</td>
+            <td style="padding:10px 8px;color:#93c5fd">฿400</td>
+            <td style="padding:10px 8px;color:#94a3b8">—</td>
+          </tr>
+          <tr style="border-bottom:1px solid #1e293b;">
+            <td style="padding:10px 8px;text-align:left;color:#fcd34d;font-weight:700">💼 เซลล์ (ราคาโปร)</td>
+            <td style="padding:10px 8px;color:#fcd34d">Flex</td>
+            <td style="padding:10px 8px;color:white;font-weight:700">฿???</td>
+            <td style="padding:10px 8px;color:#86efac">ไม่จำกัด</td>
+            <td style="padding:10px 8px;color:#93c5fd">+ ลดอีก</td>
+            <td style="padding:10px 8px;color:#fcd34d">ตามโค้ด</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 8px;text-align:left;color:#fcd34d;font-weight:700">💼 เซลล์ (ราคาโปร)</td>
+            <td style="padding:10px 8px;color:#93c5fd">Fixed</td>
+            <td style="padding:10px 8px;color:white;font-weight:700">฿???</td>
+            <td style="padding:10px 8px;color:#fca5a5">1 ครั้ง</td>
+            <td style="padding:10px 8px;color:#93c5fd">+ ลดอีก</td>
+            <td style="padding:10px 8px;color:#fcd34d">ตามโค้ด</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:11px;color:#64748b;margin-top:10px;text-align:center;">
+      * ราคาเซลล์ = ฿??? (Jia กำหนดเอง) | คูปอง JIA = จากเรียนออนไลน์จบ (ลด ฿100) | โค้ดเซลล์ = เซลล์สร้างเอง
+    </p>
+  </div>
+</div>
+
+<!-- ═══ DATA ARCHITECTURE ═══ -->
+<div class="section-title">แหล่งข้อมูลเชื่อมกัน</div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="branches">
+      <div class="branch b-system">
+        <h4>🖥️ JIA Course (หลังบ้าน)</h4>
+        <ul>
+          <li>ลูกค้า, การจอง, ตารางเรียน</li>
+          <li>ผู้สอน + วันว่าง</li>
+          <li>เซลล์ + โค้ดส่วนลด</li>
+          <li>ราคา, แพ็คเกจ, รายได้</li>
+        </ul>
+      </div>
+      <div class="branch b-web">
+        <h4>🌐 เว็บจอง (หน้าบ้าน)</h4>
+        <ul>
+          <li>ลูกค้าจองเอง</li>
+          <li>เห็นปฏิทิน (วันที่เปิดสอน)</li>
+          <li>ใส่โค้ด / ชำระเงิน</li>
+          <li>เชื่อม jiacpr.com</li>
+        </ul>
+      </div>
+      <div class="branch b-sales">
+        <h4>☁️ Google Sheets</h4>
+        <ul>
+          <li>Students → คูปอง JIA-XXXXXX</li>
+          <li>Sale Dashboard → ติดตามเซลล์</li>
+          <li>Renew Tracker → แจ้งเตือน</li>
+          <li>ซิงค์กับระบบทั้ง 2 ฝั่ง</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ RECOMMENDATION ═══ -->
+<div class="section-title">แนะนำ: แยก 2 หน้า รวม 1 ระบบ</div>
+
+<div class="insight">
+  <h3>🏗️ สถาปัตยกรรมที่แนะนำ</h3>
+  <p>
+    <span class="highlight">1. หน้าบ้าน (ลูกค้า)</span> — เว็บจองคลาสสวยๆ ลูกค้าเข้าจอง+จ่ายเอง → เชื่อมกับ jiacpr.com หรือเป็นส่วนหนึ่งของเว็บเดียวกัน<br><br>
+    <span class="highlight">2. หลังบ้าน (ออฟฟิศ)</span> — JIA Course เดิม + เพิ่มฟีเจอร์: ผู้สอนลงวัน, เซลล์สร้างโค้ด, ดูรายได้, จัดตาราง<br><br>
+    <span class="highlight">3. ข้อมูลร่วม</span> — ใช้ Google Sheets เป็นฐานข้อมูลกลาง → ทั้งหน้าบ้านและหลังบ้านดึง/เขียนข้อมูลที่เดียวกัน<br><br>
+    ✅ ลูกค้าจองผ่านเว็บ → ข้อมูลไหลเข้าระบบหลังบ้านอัตโนมัติ<br>
+    ✅ เซลล์จองในหลังบ้าน → ข้อมูลอัปเดตเหมือนกัน<br>
+    ✅ ผู้สอนลงวัน → เว็บหน้าบ้านแสดงเฉพาะวันที่เปิดสอน
+  </p>
+</div>
+
+</div>
+</body>
+</html>

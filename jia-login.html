@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เข้าสู่ระบบ — JIA Trainer Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        :root { --jia-red: #C8102E; --jia-cream: #FFF8F0; }
+        body { background: var(--jia-cream); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .jia-red { color: var(--jia-red); }
+        .jia-red-bg { background: var(--jia-red); }
+
+        .card { background: white; border-radius: 20px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+
+        .btn-primary {
+            background: var(--jia-red); color: white;
+            padding: 14px 32px; border-radius: 12px;
+            font-weight: 600; cursor: pointer; border: none;
+            transition: all 0.3s; width: 100%; font-size: 16px;
+        }
+        .btn-primary:hover:not(:disabled) { background: #a00826; }
+        .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+
+        .btn-secondary {
+            background: white; color: var(--jia-red); border: 2px solid var(--jia-red);
+            padding: 12px 24px; border-radius: 12px;
+            font-weight: 600; cursor: pointer; width: 100%; font-size: 15px;
+            transition: all 0.3s;
+        }
+        .btn-secondary:hover { background: #FFF0F0; }
+
+        .input-field {
+            width: 100%; padding: 14px 18px; border: 2px solid #e0e0e0;
+            border-radius: 12px; font-size: 16px; outline: none;
+            transition: border-color 0.3s; box-sizing: border-box;
+        }
+        .input-field:focus { border-color: var(--jia-red); }
+
+        .role-badge {
+            display: inline-block; padding: 4px 12px;
+            border-radius: 20px; font-size: 13px; font-weight: 600;
+        }
+        .role-admin { background: #DBEAFE; color: #1E40AF; }
+        .role-sales { background: #D1FAE5; color: #065F46; }
+        .role-instructor { background: #FEF3C7; color: #92400E; }
+
+        .fade-in { animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .loading-spinner {
+            border: 3px solid #e0e0e0;
+            border-top: 3px solid var(--jia-red);
+            border-radius: 50%;
+            width: 32px; height: 32px;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .tab-active { border-bottom: 3px solid var(--jia-red); color: var(--jia-red); font-weight: 700; }
+        .tab-inactive { border-bottom: 3px solid transparent; color: #888; }
+    </style>
+</head>
+<body>
+
+<div id="app" class="min-h-screen flex items-center justify-center px-4 py-8">
+    <div id="loading-screen" class="text-center">
+        <div class="loading-spinner mb-4"></div>
+        <p class="text-gray-500">กำลังตรวจสอบ...</p>
+    </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════
+
+const API_URL = "https://script.google.com/macros/s/AKfycbyAbzjf6EyBdgv_h3k72CyesYG72voz_-ss3GpiniwI8YU8JKTBi2i8bVKhpQTXamt-YA/exec";
+
+const PAGES = {
+    admin:      "./jia-course-web.html",
+    sales:      "./jia-course-web.html",
+    instructor: "./jia-instructor.html",
+    booking:    "./jia-booking.html"
+};
+
+// ═══════════════════════════════════════════════════════════
+// API HELPERS
+// ═══════════════════════════════════════════════════════════
+
+async function apiGet(action, params = {}) {
+    const url = new URL(API_URL);
+    url.searchParams.set('action', action);
+    Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            const res = await fetch(url.toString());
+            return await res.json();
+        } catch(err) {
+            // JSONP fallback
+            try {
+                const name = '_jia' + Date.now() + Math.random().toString(36).slice(2);
+                const result = await new Promise((resolve, reject) => {
+                    let done = false;
+                    const cleanup = () => { done = true; delete window[name]; if (script.parentNode) script.remove(); };
+                    window[name] = (data) => { cleanup(); resolve(data); };
+                    const script = document.createElement('script');
+                    script.onerror = () => { cleanup(); reject(new Error('JSONP failed')); };
+                    script.src = url.toString() + '&callback=' + name;
+                    setTimeout(() => { if (!done) { cleanup(); reject(new Error('JSONP timeout')); } }, 15000);
+                    document.head.appendChild(script);
+                });
+                return result;
+            } catch(e2) {
+                if (attempt === 2) throw e2;
+                await new Promise(r => setTimeout(r, 1500));
+            }
+        }
+    }
+}
+
+// SHA-256 hash ใน browser
+async function hashPassword(password) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hash = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// APP STATE
+// ═══════════════════════════════════════════════════════════
+
+const app = document.getElementById('app');
+
+// ═══════════════════════════════════════════════════════════
+// RENDER: LOGIN SCREEN
+// ═══════════════════════════════════════════════════════════
+
+function renderLoginScreen() {
+    app.innerHTML = `
+        <div class="card p-10 max-w-md w-full fade-in">
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-bold jia-red mb-2">JIA</h1>
+                <p class="text-xl font-semibold text-gray-700">TRAINER CENTER</p>
+                <p class="text-sm text-gray-500 mt-2">ระบบจัดการคลาส CPR/AED</p>
+            </div>
+
+            <!-- Tabs: Login / Register -->
+            <div class="flex mb-6">
+                <button id="tab-login" onclick="showTab('login')" class="flex-1 text-center pb-3 cursor-pointer tab-active">
+                    เข้าสู่ระบบ
+                </button>
+                <button id="tab-register" onclick="showTab('register')" class="flex-1 text-center pb-3 cursor-pointer tab-inactive">
+                    ลงทะเบียน
+                </button>
+            </div>
+
+            <!-- Login Form -->
+            <div id="form-login">
+                <div class="mb-4">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">ชื่อผู้ใช้ (Username)</label>
+                    <input type="text" id="login-username" class="input-field" placeholder="เช่น admin" autocomplete="username" />
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">รหัสผ่าน</label>
+                    <input type="password" id="login-password" class="input-field" placeholder="รหัสผ่าน" autocomplete="current-password" />
+                </div>
+                <div id="login-error" class="hidden bg-red-50 text-red-700 rounded-xl p-4 mb-4 text-sm"></div>
+                <button onclick="handleLogin()" id="login-btn" class="btn-primary">
+                    เข้าสู่ระบบ
+                </button>
+                <p class="text-center text-sm text-gray-400 mt-4">ลืมรหัสผ่าน? แจ้ง Admin เพื่อรีเซ็ตให้</p>
+            </div>
+
+            <!-- Register Form -->
+            <div id="form-register" class="hidden">
+                <div class="mb-4">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">รหัสเชิญ (Invite Code)</label>
+                    <input type="text" id="reg-code" class="input-field" placeholder="เช่น SALE-A1B2C3"
+                        style="text-transform: uppercase; letter-spacing: 2px; text-align: center; font-size: 18px;" />
+                    <p class="text-xs text-gray-400 mt-2">ขอรหัสเชิญจากแอดมิน</p>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">ชื่อที่แสดง</label>
+                    <input type="text" id="reg-name" class="input-field" placeholder="เช่น สมชาย" />
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">ชื่อผู้ใช้ (Username)</label>
+                    <input type="text" id="reg-username" class="input-field" placeholder="เช่น somchai" autocomplete="username" />
+                    <p class="text-xs text-gray-400 mt-1">ใช้สำหรับ login ครั้งต่อไป</p>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">ตั้งรหัสผ่าน</label>
+                    <input type="password" id="reg-password" class="input-field" placeholder="อย่างน้อย 4 ตัว" autocomplete="new-password" />
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">ยืนยันรหัสผ่าน</label>
+                    <input type="password" id="reg-password2" class="input-field" placeholder="พิมพ์รหัสผ่านอีกครั้ง" autocomplete="new-password" />
+                </div>
+                <div id="register-error" class="hidden bg-red-50 text-red-700 rounded-xl p-4 mb-4 text-sm"></div>
+                <button onclick="handleRegister()" id="register-btn" class="btn-primary">
+                    ลงทะเบียน
+                </button>
+            </div>
+
+            <div class="border-t pt-6 mt-6">
+                <p class="text-sm text-gray-500 text-center">สำหรับพนักงาน, เซลล์, และผู้สอน</p>
+                <p class="text-xs text-gray-400 mt-2 text-center">ลูกค้าจองคลาสได้ที่ <a href="${PAGES.booking}" class="jia-red underline">หน้าจองคลาส</a></p>
+            </div>
+        </div>`;
+
+    // Enter key handlers
+    document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+    document.getElementById('reg-password2').addEventListener('keydown', e => { if (e.key === 'Enter') handleRegister(); });
+    document.getElementById('login-username').focus();
+}
+
+function showTab(tab) {
+    const tabLogin = document.getElementById('tab-login');
+    const tabRegister = document.getElementById('tab-register');
+    const formLogin = document.getElementById('form-login');
+    const formRegister = document.getElementById('form-register');
+
+    if (tab === 'login') {
+        tabLogin.className = tabLogin.className.replace('tab-inactive', 'tab-active');
+        tabRegister.className = tabRegister.className.replace('tab-active', 'tab-inactive');
+        formLogin.classList.remove('hidden');
+        formRegister.classList.add('hidden');
+    } else {
+        tabRegister.className = tabRegister.className.replace('tab-inactive', 'tab-active');
+        tabLogin.className = tabLogin.className.replace('tab-active', 'tab-inactive');
+        formRegister.classList.remove('hidden');
+        formLogin.classList.add('hidden');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER: SUCCESS SCREEN
+// ═══════════════════════════════════════════════════════════
+
+function renderSuccessScreen(role, name) {
+    const roleMap = {
+        admin: { label: 'แอดมิน / หน้างาน', class: 'role-admin', icon: '🔵', page: PAGES.admin },
+        sales: { label: 'เซลล์', class: 'role-sales', icon: '🟢', page: PAGES.sales },
+        instructor: { label: 'ผู้สอน', class: 'role-instructor', icon: '🟡', page: PAGES.instructor }
+    };
+    const r = roleMap[role] || roleMap.admin;
+
+    app.innerHTML = `
+        <div class="card p-10 max-w-md w-full fade-in text-center">
+            <div class="text-6xl mb-4">${r.icon}</div>
+            <h1 class="text-3xl font-bold jia-red mb-2">สำเร็จ!</h1>
+
+            <div class="bg-gray-50 rounded-xl p-4 mb-6">
+                <p class="font-semibold text-gray-800 text-lg">${name}</p>
+                <span class="role-badge ${r.class}">${r.label}</span>
+            </div>
+
+            <p class="text-gray-600 mb-8">กำลังเข้าสู่ระบบ...</p>
+            <div class="loading-spinner"></div>
+        </div>`;
+
+    setTimeout(() => { window.location.href = r.page; }, 1500);
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER: ADMIN PANEL
+// ═══════════════════════════════════════════════════════════
+
+function renderAdminPanel(userInfo) {
+    app.innerHTML = `
+        <div class="card p-10 max-w-lg w-full fade-in">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold jia-red mb-2">JIA Admin</h1>
+                <div class="flex items-center gap-3 justify-center">
+                    <span class="text-gray-600">${userInfo.name}</span>
+                    <span class="role-badge role-admin">แอดมิน</span>
+                </div>
+            </div>
+
+            <div class="space-y-4 mb-8">
+                <a href="${PAGES.admin}" class="block bg-blue-50 hover:bg-blue-100 rounded-xl p-5 transition-colors">
+                    <div class="flex items-center gap-4">
+                        <span class="text-3xl">🔵</span>
+                        <div>
+                            <p class="font-bold text-blue-800">ระบบหลังบ้าน</p>
+                            <p class="text-sm text-blue-600">จัดการทุกอย่าง</p>
+                        </div>
+                    </div>
+                </a>
+                <a href="${PAGES.booking}" class="block bg-red-50 hover:bg-red-100 rounded-xl p-5 transition-colors">
+                    <div class="flex items-center gap-4">
+                        <span class="text-3xl">🔴</span>
+                        <div>
+                            <p class="font-bold text-red-800">หน้าจองลูกค้า</p>
+                            <p class="text-sm text-red-600">ดูหน้าตาที่ลูกค้าเห็น</p>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <div class="border-t pt-6">
+                <h2 class="font-bold text-gray-800 mb-4">สร้างรหัสเชิญ</h2>
+                <div class="flex gap-2 mb-4">
+                    <select id="code-role" class="input-field" style="flex:1">
+                        <option value="admin">แอดมิน / หน้างาน</option>
+                        <option value="sales">เซลล์</option>
+                        <option value="instructor">ผู้สอน</option>
+                    </select>
+                    <button onclick="handleGenCode()" class="btn-primary" style="width:auto; padding: 14px 24px;">
+                        สร้าง
+                    </button>
+                </div>
+
+                <div id="code-result" class="hidden bg-green-50 rounded-xl p-4 text-center">
+                    <p class="text-sm text-green-700 mb-2">รหัสเชิญ:</p>
+                    <p id="code-display" class="text-2xl font-bold text-green-800 tracking-widest mb-2"></p>
+                    <button onclick="copyCode()" class="text-sm bg-green-200 text-green-800 px-4 py-2 rounded-lg hover:bg-green-300">
+                        คัดลอก
+                    </button>
+                </div>
+
+                <div id="codes-list" class="mt-6"></div>
+            </div>
+
+            <div class="border-t pt-6 mt-6">
+                <h2 class="font-bold text-gray-800 mb-4">จัดการผู้ใช้</h2>
+                <div id="users-list"></div>
+            </div>
+
+            <div class="border-t pt-4 mt-6 text-center">
+                <button onclick="handleSignOut()" class="text-sm text-gray-500 underline cursor-pointer">ออกจากระบบ</button>
+            </div>
+        </div>`;
+
+    loadExistingCodes();
+    loadUsers();
+}
+
+// ═══════════════════════════════════════════════════════════
+// AUTH ACTIONS
+// ═══════════════════════════════════════════════════════════
+
+async function handleLogin() {
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+    const errEl = document.getElementById('login-error');
+    const btn = document.getElementById('login-btn');
+
+    if (!username || !password) {
+        errEl.textContent = 'กรุณากรอก username และรหัสผ่าน';
+        errEl.classList.remove('hidden');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'กำลังตรวจสอบ...';
+    errEl.classList.add('hidden');
+
+    try {
+        const passwordHash = await hashPassword(password);
+        const result = await apiGet('loginPassword', {
+            username: username,
+            password: passwordHash
+        });
+
+        if (result.success) {
+            // Save session
+            sessionStorage.setItem('jia_user', JSON.stringify({
+                username: result.username,
+                name: result.name,
+                role: result.role
+            }));
+
+            if (result.role === 'admin') {
+                renderAdminPanel(result);
+            } else {
+                renderSuccessScreen(result.role, result.name);
+            }
+        } else {
+            errEl.textContent = result.message || result.error || 'เข้าสู่ระบบไม่สำเร็จ';
+            errEl.classList.remove('hidden');
+            btn.disabled = false;
+            btn.textContent = 'เข้าสู่ระบบ';
+        }
+    } catch (err) {
+        console.error('Login error:', err);
+        errEl.textContent = 'ไม่สามารถเชื่อมต่อ server ได้';
+        errEl.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'เข้าสู่ระบบ';
+    }
+}
+
+async function handleRegister() {
+    const code = document.getElementById('reg-code').value.trim().toUpperCase();
+    const name = document.getElementById('reg-name').value.trim();
+    const username = document.getElementById('reg-username').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const password2 = document.getElementById('reg-password2').value;
+    const errEl = document.getElementById('register-error');
+    const btn = document.getElementById('register-btn');
+
+    // Validate
+    if (!code) { showRegError('กรุณาใส่รหัสเชิญ'); return; }
+    if (!name) { showRegError('กรุณาใส่ชื่อที่แสดง'); return; }
+    if (!username) { showRegError('กรุณาใส่ชื่อผู้ใช้'); return; }
+    if (username.length < 3) { showRegError('ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร'); return; }
+    if (/[^a-zA-Z0-9._-]/.test(username)) { showRegError('ชื่อผู้ใช้ใช้ได้เฉพาะ a-z, 0-9, . _ -'); return; }
+    if (!password) { showRegError('กรุณาตั้งรหัสผ่าน'); return; }
+    if (password.length < 4) { showRegError('รหัสผ่านต้องมีอย่างน้อย 4 ตัว'); return; }
+    if (password !== password2) { showRegError('รหัสผ่านไม่ตรงกัน'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'กำลังลงทะเบียน...';
+    errEl.classList.add('hidden');
+
+    try {
+        const passwordHash = await hashPassword(password);
+        const result = await apiGet('registerPassword', {
+            code: code,
+            username: username,
+            name: name,
+            password: passwordHash
+        });
+
+        if (result.success) {
+            // Save session
+            sessionStorage.setItem('jia_user', JSON.stringify({
+                username: username,
+                name: result.name,
+                role: result.role
+            }));
+
+            renderSuccessScreen(result.role, result.name);
+        } else {
+            showRegError(result.message || result.error || 'ลงทะเบียนไม่สำเร็จ');
+            btn.disabled = false;
+            btn.textContent = 'ลงทะเบียน';
+        }
+    } catch (err) {
+        console.error('Register error:', err);
+        showRegError('ไม่สามารถเชื่อมต่อ server ได้');
+        btn.disabled = false;
+        btn.textContent = 'ลงทะเบียน';
+    }
+}
+
+function showRegError(msg) {
+    const errEl = document.getElementById('register-error');
+    errEl.textContent = msg;
+    errEl.classList.remove('hidden');
+}
+
+function handleSignOut() {
+    sessionStorage.removeItem('jia_user');
+    renderLoginScreen();
+}
+
+// ═══════════════════════════════════════════════════════════
+// ADMIN: INVITE CODES
+// ═══════════════════════════════════════════════════════════
+
+async function handleGenCode() {
+    const role = document.getElementById('code-role').value;
+    const user = JSON.parse(sessionStorage.getItem('jia_user') || '{}');
+
+    try {
+        const result = await apiGet('genCode', {
+            role: role,
+            username: user.username || 'admin'
+        });
+
+        if (result.success) {
+            document.getElementById('code-display').textContent = result.code;
+            document.getElementById('code-result').classList.remove('hidden');
+            loadExistingCodes();
+        } else {
+            alert(result.message || 'สร้างรหัสไม่สำเร็จ');
+        }
+    } catch (err) {
+        alert('เชื่อมต่อ server ไม่สำเร็จ');
+    }
+}
+
+function copyCode() {
+    const code = document.getElementById('code-display').textContent;
+    navigator.clipboard.writeText(code).then(() => {
+        const btn = event.target;
+        btn.textContent = 'คัดลอกแล้ว!';
+        setTimeout(() => btn.textContent = 'คัดลอก', 2000);
+    });
+}
+
+async function loadExistingCodes() {
+    try {
+        const codes = await apiGet('listCodes');
+        if (!Array.isArray(codes) || codes.length === 0) return;
+
+        const listEl = document.getElementById('codes-list');
+        if (!listEl) return;
+
+        const roleLabels = { admin: 'แอดมิน', sales: 'เซลล์', instructor: 'ผู้สอน' };
+        const roleClasses = { admin: 'role-admin', sales: 'role-sales', instructor: 'role-instructor' };
+
+        const activeCodes = codes.filter(c => c.status === 'active');
+        const usedCodes = codes.filter(c => c.status === 'used').slice(-5);
+
+        let html = '';
+
+        if (activeCodes.length > 0) {
+            html += '<h3 class="text-sm font-bold text-gray-600 mb-2">รหัสที่ยังไม่ได้ใช้</h3>';
+            html += '<div class="space-y-2 mb-4">';
+            activeCodes.forEach(c => {
+                html += `
+                    <div class="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-3">
+                        <div>
+                            <code class="font-mono font-bold text-gray-800">${c.code}</code>
+                            <span class="role-badge ${roleClasses[c.role] || ''} ml-2">${roleLabels[c.role] || c.role}</span>
+                        </div>
+                        <span class="text-xs text-gray-400">${c.createdAt ? new Date(c.createdAt).toLocaleDateString('th-TH') : ''}</span>
+                    </div>`;
+            });
+            html += '</div>';
+        }
+
+        if (usedCodes.length > 0) {
+            html += '<h3 class="text-sm font-bold text-gray-400 mb-2">ใช้แล้ว (ล่าสุด)</h3>';
+            html += '<div class="space-y-1">';
+            usedCodes.forEach(c => {
+                html += `
+                    <div class="flex justify-between items-center text-xs text-gray-400 px-4 py-2">
+                        <span class="line-through">${c.code}</span>
+                        <span>${c.usedBy || '?'}</span>
+                    </div>`;
+            });
+            html += '</div>';
+        }
+
+        listEl.innerHTML = html;
+    } catch (err) {
+        console.error('Load codes error:', err);
+    }
+}
+
+async function handleResetPassword(username, displayName) {
+    const newPass = prompt(`ตั้งรหัสผ่านใหม่ให้ "${displayName}" (@${username}):`);
+    if (!newPass || !newPass.trim()) return;
+    if (newPass.length < 4) { alert('รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร'); return; }
+    try {
+        const hashed = await hashPassword(newPass.trim());
+        const saved = JSON.parse(sessionStorage.getItem('jia_user'));
+        const result = await apiGet('resetPassword', {
+            adminUser: saved.username,
+            targetUser: username,
+            newPassword: hashed
+        });
+        if (result.error) { alert('ผิดพลาด: ' + result.error); return; }
+        alert(`รีเซ็ตรหัสผ่านของ @${username} สำเร็จ!\nรหัสผ่านใหม่: ${newPass.trim()}`);
+    } catch (err) {
+        alert('เกิดข้อผิดพลาด: ' + err.message);
+    }
+}
+
+async function loadUsers() {
+    try {
+        const users = await apiGet('listUsers');
+        if (!Array.isArray(users) || users.length === 0) return;
+
+        const listEl = document.getElementById('users-list');
+        if (!listEl) return;
+
+        const roleLabels = { admin: 'แอดมิน', sales: 'เซลล์', instructor: 'ผู้สอน' };
+        const roleClasses = { admin: 'role-admin', sales: 'role-sales', instructor: 'role-instructor' };
+
+        let html = '<div class="space-y-2">';
+        users.forEach(u => {
+            html += `
+                <div class="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-3">
+                    <div>
+                        <span class="font-semibold text-gray-800">${u.name}</span>
+                        <span class="text-sm text-gray-500 ml-1">@${u.username}</span>
+                        <span class="role-badge ${roleClasses[u.role] || ''} ml-2">${roleLabels[u.role] || u.role}</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs text-gray-400">${u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('th-TH') : 'ยังไม่เคย login'}</span>
+                        <button onclick="handleResetPassword('${u.username}', '${u.name}')"
+                            class="text-xs bg-amber-100 text-amber-700 px-3 py-1 rounded-lg hover:bg-amber-200 transition-colors font-medium">
+                            รีเซ็ต Pass
+                        </button>
+                    </div>
+                </div>`;
+        });
+        html += '</div>';
+
+        listEl.innerHTML = html;
+    } catch (err) {
+        console.error('Load users error:', err);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT — Check if already logged in
+// ═══════════════════════════════════════════════════════════
+
+(function init() {
+    const saved = sessionStorage.getItem('jia_user');
+    if (saved) {
+        try {
+            const user = JSON.parse(saved);
+            if (user.role === 'admin') {
+                renderAdminPanel(user);
+            } else {
+                renderSuccessScreen(user.role, user.name);
+            }
+            return;
+        } catch(e) {}
+    }
+    renderLoginScreen();
+})();
+</script>
+
+<!-- ─── ปุ่มช่วยเหลือลอย ─── -->
+<style>
+.jia-help-fab { position:fixed; bottom:20px; right:20px; z-index:9999; display:flex; flex-direction:column; gap:10px; align-items:flex-end; }
+.jia-help-toggle { width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg,#C8102E,#a00d24); color:#fff; border:none; font-size:24px; cursor:pointer; box-shadow:0 4px 15px rgba(200,16,46,0.4); display:flex; align-items:center; justify-content:center; transition:transform 0.3s; }
+.jia-help-toggle:hover { transform:scale(1.1); }
+.jia-help-toggle.open { background:linear-gradient(135deg,#666,#444); }
+.jia-help-menu { display:none; flex-direction:column; gap:8px; align-items:flex-end; }
+.jia-help-menu.show { display:flex; }
+.jia-help-btn { display:flex; align-items:center; gap:8px; padding:10px 16px; border-radius:50px; border:none; cursor:pointer; font-size:14px; font-weight:600; box-shadow:0 2px 10px rgba(0,0,0,0.15); text-decoration:none; white-space:nowrap; transition:transform 0.2s; }
+.jia-help-btn:hover { transform:scale(1.05); }
+.jia-help-btn.line { background:#06C755; color:#fff; }
+.jia-help-btn.tel { background:#fff; color:#333; border:1px solid #ddd; }
+</style>
+<div class="jia-help-fab">
+    <div class="jia-help-menu" id="helpMenu">
+        <a href="https://line.me/R/ti/p/@jiacpr" target="_blank" class="jia-help-btn line">
+            <span style="font-size:20px">LINE</span> แชท @jiacpr
+        </a>
+        <a href="tel:0885588078" class="jia-help-btn tel">
+            <span style="font-size:20px">TEL</span> โทร 088-558-8078
+        </a>
+    </div>
+    <button class="jia-help-toggle" id="helpToggle" onclick="document.getElementById('helpMenu').classList.toggle('show'); this.classList.toggle('open'); this.textContent = this.classList.contains('open') ? 'X' : '?';">
+        ?
+    </button>
+</div>
+</body>
+</html>
