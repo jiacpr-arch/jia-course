@@ -19,6 +19,7 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#FFF8F0;
 .role-btn.active-admin{border-color:#C8102E;background:#C8102E;color:#fff}
 .role-btn.active-sales{border-color:#E85D04;background:#E85D04;color:#fff}
 .role-btn.active-instructor{border-color:#0A9396;background:#0A9396;color:#fff}
+.role-btn.active-customer{border-color:#2563EB;background:#2563EB;color:#fff}
 .role-icon{font-size:20px}
 
 /* Content area */
@@ -34,6 +35,7 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#FFF8F0;
 .admin .section-num{background:#C8102E}
 .sales .section-num{background:#E85D04}
 .instructor .section-num{background:#0A9396}
+.customer .section-num{background:#2563EB}
 .chevron{transition:transform .3s;font-size:18px;color:#999}
 .section.open .chevron{transform:rotate(180deg)}
 
@@ -44,6 +46,7 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#FFF8F0;
 .section-body strong{color:#C8102E}
 .sales .section-body strong{color:#E85D04}
 .instructor .section-body strong{color:#0A9396}
+.customer .section-body strong{color:#2563EB}
 
 .step-list{list-style:none;counter-reset:step;padding:0;margin:12px 0}
 .step-list li{counter-increment:step;padding:10px 12px 10px 44px;position:relative;background:#FAFAFA;border-radius:8px;margin-bottom:6px;font-size:14px}
@@ -51,6 +54,7 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#FFF8F0;
 .admin .step-list li::before{background:#C8102E}
 .sales .step-list li::before{background:#E85D04}
 .instructor .step-list li::before{background:#0A9396}
+.customer .step-list li::before{background:#2563EB}
 
 .bullet-list{list-style:none;padding:0;margin:12px 0}
 .bullet-list li{padding:8px 12px 8px 28px;position:relative;font-size:14px}
@@ -58,13 +62,16 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#FFF8F0;
 .admin .bullet-list li::before{background:#C8102E}
 .sales .bullet-list li::before{background:#E85D04}
 .instructor .bullet-list li::before{background:#0A9396}
+.customer .bullet-list li::before{background:#2563EB}
 
 .note-box{background:#FFF3F0;border-left:4px solid #C8102E;padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0;font-size:14px}
 .sales .note-box{border-left-color:#E85D04}
 .instructor .note-box{border-left-color:#0A9396}
+.customer .note-box{border-left-color:#2563EB;background:#EFF6FF}
 .note-box b{color:#C8102E}
 .sales .note-box b{color:#E85D04}
 .instructor .note-box b{color:#0A9396}
+.customer .note-box b{color:#2563EB}
 
 .url-box{background:#F0F7FF;border:1px solid #D0E3FF;padding:10px 16px;border-radius:8px;margin:10px 0;font-size:14px;word-break:break-all}
 .url-box a{color:#0066CC;text-decoration:none;font-weight:600}
@@ -74,6 +81,7 @@ table.info-table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14p
 table.info-table th{background:#C8102E;color:#fff;padding:10px 14px;text-align:left;font-weight:600}
 .sales table.info-table th{background:#E85D04}
 .instructor table.info-table th{background:#0A9396}
+.customer table.info-table th{background:#2563EB}
 table.info-table td{padding:10px 14px;border-bottom:1px solid #eee}
 table.info-table tr:last-child td{border-bottom:none}
 
@@ -85,6 +93,16 @@ table.info-table tr:last-child td{border-bottom:none}
 
 /* Footer */
 .footer{text-align:center;padding:24px;color:#999;font-size:12px;border-top:1px solid #eee;margin-top:40px}
+
+/* Tab badges */
+.tab-badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;margin:2px 4px;line-height:1.6}
+.tab-badge.blue{background:#DBEAFE;color:#1E40AF}
+.tab-badge.green{background:#D1FAE5;color:#065F46}
+.tab-badge.orange{background:#FFEDD5;color:#9A3412}
+.tab-badge.gray{background:#F3F4F6;color:#374151}
+
+/* Screenshot placeholder */
+.screenshot{background:#F9FAFB;border:2px dashed #D1D5DB;border-radius:12px;padding:20px;text-align:center;margin:12px 0;color:#6B7280;font-size:14px}
 
 /* Mobile */
 @media(max-width:600px){
@@ -99,7 +117,7 @@ table.info-table tr:last-child td{border-bottom:none}
 <div class="top-bar">JIA TRAINER CENTER</div>
 <div class="header">
   <h1>คู่มือการใช้งานระบบ</h1>
-  <p>ระบบจองคอร์สออนไลน์ — เลือกบทบาทของคุณเพื่อดูคู่มือ</p>
+  <p>ระบบจองคอร์ส CPR/AED/ACLS ออนไลน์ — เลือกบทบาทของคุณเพื่อดูคู่มือ</p>
 </div>
 
 <div class="role-selector">
@@ -111,6 +129,9 @@ table.info-table tr:last-child td{border-bottom:none}
   </button>
   <button class="role-btn" onclick="showRole('instructor')" id="btn-instructor">
     <span class="role-icon">📚</span> อาจารย์ผู้สอน
+  </button>
+  <button class="role-btn" onclick="showRole('customer')" id="btn-customer">
+    <span class="role-icon">🎓</span> ลูกค้า/ผู้เรียน
   </button>
 </div>
 
@@ -132,15 +153,16 @@ table.info-table tr:last-child td{border-bottom:none}
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
-        <p>ในฐานะแอดมิน คุณมี<strong>สิทธิ์สูงสุดในการจัดการระบบทั้งหมด</strong></p>
+        <p>ในฐานะแอดมิน คุณมี<strong>สิทธิ์สูงสุดในการจัดการระบบทั้งหมด</strong> รวมถึง:</p>
         <ul class="bullet-list">
-          <li>จัดการคอร์ส (เพิ่ม แก้ไข ลบ ตั้งราคา)</li>
-          <li>จัดการตารางสอน (กำหนดวัน-เวลา มอบหมายอาจารย์)</li>
-          <li>จัดการการจอง (ดู อนุมัติ ปฏิเสธ ตรวจสลิป)</li>
-          <li>สร้างและจัดการโค้ดส่วนลด</li>
-          <li>จัดการพนักงาน (สร้างรหัสเชิญ กำหนดสิทธิ์)</li>
-          <li>ตั้งค่าข้อมูลการชำระเงิน</li>
-          <li>จองคอร์สให้ลูกค้า (เหมือนเซลล์)</li>
+          <li>จัดการคอร์ส (เพิ่ม แก้ไข ลบ ตั้งราคา ตั้งเวลาเรียน)</li>
+          <li>จัดการลูกค้าและการจอง</li>
+          <li>กำหนดตารางเรียน มอบหมายอาจารย์</li>
+          <li>สร้างและจัดการโค้ดส่วนลด (Promo Code)</li>
+          <li>จัดการพนักงาน (สร้างรหัสเชิญ รีเซ็ตรหัสผ่าน)</li>
+          <li>ลงเวลาว่างผู้สอน</li>
+          <li>ดูปฏิทินภาพรวม</li>
+          <li>บันทึกข้อมูลทั้งหมดลง Google Sheets</li>
         </ul>
       </div>
     </div>
@@ -151,58 +173,74 @@ table.info-table tr:last-child td{border-bottom:none}
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
-        <div class="url-box">🔗 <a href="https://jia-trainer.netlify.app/jia-login.html" target="_blank">jia-trainer.netlify.app/jia-login.html</a></div>
+        <div class="url-box">🔗 <a href="https://jiacpr-arch.github.io/jia-course/jia-login.html" target="_blank">jiacpr-arch.github.io/jia-course/jia-login.html</a></div>
         <ol class="step-list">
-          <li>กดปุ่ม "เข้าสู่ระบบด้วย Google"</li>
-          <li>เลือกบัญชี Google ที่ได้รับอนุญาต</li>
+          <li>เปิดลิงก์ล็อกอินด้านบน</li>
+          <li>กรอก <strong>Username</strong> และ <strong>Password</strong></li>
+          <li>กดปุ่ม "เข้าสู่ระบบ"</li>
           <li>ระบบจะเข้าหน้า Admin อัตโนมัติ (แสดงเมนูทั้งหมด)</li>
         </ol>
-        <div class="note-box"><b>หมายเหตุ:</b> บัญชี jiacpr@gmail.com จะได้สิทธิ์ Admin โดยอัตโนมัติ ไม่ต้องใส่รหัสเชิญ</div>
+        <div class="note-box"><b>ครั้งแรก:</b> ใส่ "รหัสเชิญ" (Invite Code) ที่ได้รับ → ตั้ง Username + Password → ลงทะเบียนเสร็จก็ล็อกอินได้เลย</div>
+        <div class="note-box"><b>ลืมรหัสผ่าน?</b> แจ้ง Admin เพื่อรีเซ็ตให้ — Admin สามารถรีเซ็ตรหัสผ่านให้ทุกคนได้จากหน้า Login</div>
       </div>
     </div>
 
     <div class="section">
       <div class="section-header" onclick="toggleSection(this)">
-        <h2><span class="section-num">3</span> จัดการคอร์สเรียน</h2>
+        <h2><span class="section-num">3</span> เมนูทั้งหมด (10 แท็บ)</h2>
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
-        <p>ไปที่เมนู "จัดการคอร์ส" เพื่อเพิ่ม แก้ไข หรือลบคอร์สเรียน</p>
+        <p>หลังล็อกอินจะเห็นแท็บด้านบน 10 แท็บ:</p>
+        <table class="info-table">
+          <tr><th>แท็บ</th><th>หน้าที่</th></tr>
+          <tr><td><strong>บอร์ดหน้างาน</strong></td><td>ภาพรวมวันนี้ — มีใครเรียนบ้าง สถานะการจอง</td></tr>
+          <tr><td><strong>แดชบอร์ด</strong></td><td>สถิติรวม — จำนวนลูกค้า รายได้ คอร์สยอดนิยม</td></tr>
+          <tr><td><strong>จองคอร์ส</strong></td><td>จองคอร์สให้ลูกค้า (สำหรับ walk-in หรือโทรจอง)</td></tr>
+          <tr><td><strong>ลูกค้า</strong></td><td>รายชื่อลูกค้าทั้งหมด + ประวัติการจอง</td></tr>
+          <tr><td><strong>ตารางเรียน</strong></td><td>ดู/จัดการ session เรียนทั้งหมด</td></tr>
+          <tr><td><strong>ปฏิทิน</strong></td><td>ดูตารางแบบปฏิทิน — เห็นภาพรวมทั้งเดือน</td></tr>
+          <tr><td><strong>ลงเวลาผู้สอน</strong></td><td>กำหนดวัน-เวลาว่างของอาจารย์แต่ละคน</td></tr>
+          <tr><td><strong>โค้ดโปรโม</strong></td><td>สร้าง/จัดการโค้ดส่วนลด</td></tr>
+          <tr><td><strong>ตารางผู้สอน</strong></td><td>ดูตารางสอนของอาจารย์ทุกคน</td></tr>
+          <tr><td><strong>ตั้งค่า</strong></td><td>ตั้งค่าคอร์ส, เพิ่มพนักงาน, สร้างรหัสเชิญ</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <h2><span class="section-num">4</span> จองคอร์สให้ลูกค้า</h2>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <p>ใช้เมนู <strong>"จองคอร์ส"</strong> เพื่อจองให้ลูกค้าที่ walk-in หรือโทรมา:</p>
         <ol class="step-list">
-          <li>กดปุ่ม "เพิ่มคอร์ส"</li>
-          <li>กรอกชื่อคอร์ส, รายละเอียด, ราคา, จำนวนที่นั่งสูงสุด</li>
-          <li>กดบันทึก — คอร์สจะแสดงในหน้าจองของลูกค้าทันที</li>
+          <li><strong>กรอกข้อมูลลูกค้า</strong> — ชื่อ, เบอร์โทร (ถ้ามี email ก็ใส่)</li>
+          <li><strong>เลือกคอร์ส</strong> — ระบบจะแสดงราคาอัตโนมัติ</li>
+          <li><strong>เลือกวันที่ + เวลา</strong> — จะแสดงเฉพาะวันที่อาจารย์ว่าง</li>
+          <li><strong>เลือกพนักงานขาย + อาจารย์</strong> — อาจารย์ที่ว่างจะมีเครื่องหมาย ✅</li>
+          <li><strong>ใส่โค้ดส่วนลด (ถ้ามี)</strong></li>
+          <li><strong>เลือกช่องทางชำระเงิน</strong> — เงินสด / โอนเงิน / ผ่านเซลล์</li>
+          <li><strong>กดยืนยันการจอง</strong></li>
         </ol>
-        <div class="note-box"><b>ราคาแต่ละคอร์สไม่เท่ากัน</b> — ตั้งราคาแยกสำหรับแต่ละคอร์สได้ ระบบจะแสดงราคาให้ลูกค้าเห็นตอนจอง</div>
+        <div class="note-box"><b>สำคัญ:</b> หลังจองเสร็จ อย่าลืมกดปุ่ม <strong>💾 บันทึก</strong> ที่มุมขวาบน เพื่อ save ข้อมูลลง Google Sheets</div>
       </div>
     </div>
 
     <div class="section">
       <div class="section-header" onclick="toggleSection(this)">
-        <h2><span class="section-num">4</span> จัดการตารางสอน</h2>
+        <h2><span class="section-num">5</span> การบันทึกข้อมูล (💾)</h2>
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
-        <ul class="bullet-list">
-          <li><strong>เพิ่มตารางเรียน:</strong> เลือกคอร์ส วันที่ เวลา และอาจารย์ผู้สอน</li>
-          <li><strong>ดูปฏิทิน:</strong> เห็นภาพรวมตารางสอนทั้งหมด</li>
-          <li><strong>แก้ไข/ลบ:</strong> แก้ไขหรือลบตารางที่สร้างไว้</li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-header" onclick="toggleSection(this)">
-        <h2><span class="section-num">5</span> จัดการการจอง</h2>
-        <span class="chevron">▼</span>
-      </div>
-      <div class="section-body">
-        <ul class="bullet-list">
-          <li>ดูรายชื่อผู้จอง สถานะ จำนวนคน ราคา</li>
-          <li>ตรวจสอบสลิปการโอนเงิน</li>
-          <li>อนุมัติหรือปฏิเสธการจอง</li>
-          <li>จองคอร์สให้ลูกค้าโดยตรง (เหมือนเซลล์)</li>
-        </ul>
+        <p>ข้อมูลจะถูกเก็บใน browser (localStorage) อัตโนมัติ แต่เพื่อให้ข้อมูลไม่หาย <strong>ต้องกดบันทึกลง Google Sheets ด้วย</strong></p>
+        <ol class="step-list">
+          <li>กดปุ่ม <strong>💾 บันทึก</strong> ที่มุมขวาบน</li>
+          <li>รอจนขึ้น "กำลังบันทึกทั้งหมด..." → "รอ server ประมวลผล..."</li>
+          <li>เมื่อขึ้น <strong>✅ บันทึกสำเร็จ</strong> แปลว่าข้อมูลอยู่ใน Google Sheets แล้ว</li>
+        </ol>
+        <div class="note-box"><b>ควรกดบันทึกเมื่อ:</b> เพิ่ม/แก้ไข/ลบลูกค้า, จองคอร์ส, เปลี่ยนตั้งค่า, ลงเวลาผู้สอน — ทุกครั้งที่เปลี่ยนข้อมูล</div>
       </div>
     </div>
 
@@ -212,53 +250,58 @@ table.info-table tr:last-child td{border-bottom:none}
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
-        <p>ไปที่เมนู "โค้ดส่วนลด &amp; ตั้งค่า"</p>
+        <p>ไปที่แท็บ <strong>"โค้ดโปรโม"</strong></p>
         <ol class="step-list">
-          <li>กดปุ่ม "เพิ่มโค้ดส่วนลด"</li>
-          <li>กรอกชื่อโค้ด, เปอร์เซ็นต์ส่วนลด, วันหมดอายุ</li>
+          <li>กดปุ่ม "เพิ่มโค้ด"</li>
+          <li>กรอกชื่อโค้ด, ประเภท (% หรือ บาท), จำนวนส่วนลด</li>
+          <li>ระบุชื่อเซลล์ที่สร้างโค้ด</li>
           <li>กดบันทึก — โค้ดพร้อมใช้งานทันที</li>
         </ol>
+        <div class="note-box"><b>โค้ดใช้ได้ครั้งเดียว</b> — เมื่อลูกค้าใช้โค้ดแล้ว สถานะจะเปลี่ยนเป็น "ใช้แล้ว" อัตโนมัติ</div>
       </div>
     </div>
 
     <div class="section">
       <div class="section-header" onclick="toggleSection(this)">
-        <h2><span class="section-num">7</span> จัดการพนักงาน</h2>
+        <h2><span class="section-num">7</span> ลงเวลาว่างอาจารย์</h2>
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
-        <p>เพิ่มพนักงานใหม่เข้าระบบโดยการสร้าง "รหัสเชิญ" (Invite Code)</p>
+        <p>ไปที่แท็บ <strong>"ลงเวลาผู้สอน"</strong> เพื่อกำหนดว่าอาจารย์คนไหนว่างวันไหน:</p>
         <ol class="step-list">
-          <li>ไปที่เมนูจัดการพนักงาน</li>
-          <li>กดสร้างรหัสเชิญใหม่</li>
-          <li>เลือกสิทธิ์: Sales (เซลล์) หรือ Instructor (อาจารย์)</li>
-          <li>ส่งรหัสให้พนักงานใหม่ — เขาจะใส่ตอนล็อกอินครั้งแรก</li>
+          <li>เลือกอาจารย์จาก dropdown</li>
+          <li>เลือกวันที่ในปฏิทิน</li>
+          <li>ติ๊กช่วงเวลาที่ว่าง (เช่น 11:00-13:00, 14:00-16:00)</li>
+          <li>กดบันทึก</li>
         </ol>
+        <div class="note-box"><b>สำคัญมาก:</b> ถ้าไม่ลงเวลาว่าง ลูกค้าจะ<strong>จองวันนั้นไม่ได้</strong>ในหน้าจองออนไลน์ กรุณาลงเวลาว่างล่วงหน้าอย่างน้อย 1-2 สัปดาห์</div>
       </div>
     </div>
 
     <div class="section">
       <div class="section-header" onclick="toggleSection(this)">
-        <h2><span class="section-num">8</span> ตั้งค่าการชำระเงิน</h2>
+        <h2><span class="section-num">8</span> จัดการพนักงาน + รีเซ็ตรหัสผ่าน</h2>
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
-        <p>แก้ไขข้อมูลการชำระเงินที่แสดงในหน้าจอง <strong>ไม่ต้องแก้โค้ด</strong></p>
+        <p><strong>เพิ่มพนักงานใหม่:</strong></p>
         <ol class="step-list">
-          <li>ล็อกอินด้วยบัญชี Admin</li>
-          <li>ไปที่เมนู "โค้ดส่วนลด &amp; ตั้งค่า"</li>
-          <li>เลื่อนลงมาที่ส่วน "ตั้งค่าการชำระเงิน"</li>
-          <li>แก้ไขข้อมูลแล้วกดบันทึก — แสดงผลบนหน้าจองทันที</li>
+          <li>ไปที่แท็บ "ตั้งค่า"</li>
+          <li>เลื่อนลงมาที่ส่วนพนักงาน</li>
+          <li>เพิ่มชื่อในรายชื่อเซลล์หรืออาจารย์</li>
         </ol>
-        <table class="info-table">
-          <tr><th>รายการ</th><th>คำอธิบาย</th></tr>
-          <tr><td>PromptPay</td><td>เบอร์โทรสำหรับ PromptPay</td></tr>
-          <tr><td>ชื่อธนาคาร</td><td>เช่น กสิกรไทย, กรุงเทพ, ไทยพาณิชย์</td></tr>
-          <tr><td>ชื่อบัญชี</td><td>ชื่อบัญชีธนาคาร</td></tr>
-          <tr><td>เลขที่บัญชี</td><td>เลขที่บัญชีธนาคาร</td></tr>
-          <tr><td>เบอร์โทรติดต่อ</td><td>เบอร์โทรที่แสดงในหน้าจอง</td></tr>
-          <tr><td>LINE ID</td><td>LINE Official Account เช่น @jiacpr</td></tr>
-        </table>
+        <p style="margin-top:16px"><strong>สร้างรหัสเชิญ:</strong></p>
+        <ol class="step-list">
+          <li>ไปที่หน้า Login → ส่วน "จัดการผู้ใช้"</li>
+          <li>กดสร้างรหัสเชิญ → เลือกสิทธิ์ (admin / sales)</li>
+          <li>ส่งรหัสให้พนักงานใหม่ — เขาจะใช้ตอนลงทะเบียนครั้งแรก</li>
+        </ol>
+        <p style="margin-top:16px"><strong>รีเซ็ตรหัสผ่าน:</strong></p>
+        <ol class="step-list">
+          <li>ไปที่หน้า Login → ส่วน "จัดการผู้ใช้"</li>
+          <li>กดปุ่ม "รีเซ็ต Pass" ข้างชื่อพนักงานคนนั้น</li>
+          <li>ตั้งรหัสผ่านใหม่ → แจ้งพนักงาน</li>
+        </ol>
       </div>
     </div>
 
@@ -268,9 +311,11 @@ table.info-table tr:last-child td{border-bottom:none}
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
-        <div class="url-box">🔐 <strong>ล็อกอิน:</strong> <a href="https://jia-trainer.netlify.app/jia-login.html" target="_blank">jia-trainer.netlify.app/jia-login.html</a></div>
-        <div class="url-box">📋 <strong>หน้าจอง (ลูกค้า):</strong> <a href="https://jia-trainer.netlify.app/jia-booking.html" target="_blank">jia-trainer.netlify.app/jia-booking.html</a></div>
-        <div class="url-box">🌐 <strong>Netlify (โฮสติ้ง):</strong> <a href="https://app.netlify.com" target="_blank">app.netlify.com</a> → โปรเจค jia-trainer</div>
+        <div class="url-box">🔐 <strong>ล็อกอิน:</strong> <a href="https://jiacpr-arch.github.io/jia-course/jia-login.html" target="_blank">jiacpr-arch.github.io/jia-course/jia-login.html</a></div>
+        <div class="url-box">👑 <strong>Admin Panel:</strong> <a href="https://jiacpr-arch.github.io/jia-course/jia-course-web.html" target="_blank">jiacpr-arch.github.io/jia-course/jia-course-web.html</a></div>
+        <div class="url-box">📋 <strong>หน้าจอง (ลูกค้า):</strong> <a href="https://jiacpr-arch.github.io/jia-course/jia-booking.html" target="_blank">jiacpr-arch.github.io/jia-course/jia-booking.html</a></div>
+        <div class="url-box">📚 <strong>หน้าอาจารย์:</strong> <a href="https://jiacpr-arch.github.io/jia-course/jia-instructor.html" target="_blank">jiacpr-arch.github.io/jia-course/jia-instructor.html</a></div>
+        <div class="url-box">📖 <strong>คู่มือ (หน้านี้):</strong> <a href="https://jiacpr-arch.github.io/jia-course/jia-manual.html" target="_blank">jiacpr-arch.github.io/jia-course/jia-manual.html</a></div>
         <div class="url-box">📊 <strong>Google Sheets:</strong> เข้าผ่าน Google Drive ของ jiacpr@gmail.com</div>
       </div>
     </div>
@@ -286,12 +331,13 @@ table.info-table tr:last-child td{border-bottom:none}
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
-        <p>ในฐานะเซลล์ คุณมีหน้าที่หลักคือ <strong>ขายคอร์สให้ลูกค้าและจองคอร์สให้ลูกค้าหลังจากรับชำระเงินแล้ว</strong></p>
+        <p>ในฐานะเซลล์ คุณมีหน้าที่หลักคือ <strong>จองคอร์สให้ลูกค้าและดูแลการขาย</strong></p>
         <ul class="bullet-list">
-          <li>ดูรายการจองทั้งหมดของลูกค้า</li>
           <li>จองคอร์สให้ลูกค้า (หลังรับชำระเงิน)</li>
+          <li>ดูรายการจองทั้งหมด</li>
           <li>ดูรายละเอียดคอร์สและตารางเรียน</li>
           <li>ใช้โค้ดส่วนลดให้ลูกค้า</li>
+          <li>ดูบอร์ดหน้างาน / แดชบอร์ด</li>
         </ul>
       </div>
     </div>
@@ -302,14 +348,15 @@ table.info-table tr:last-child td{border-bottom:none}
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
-        <div class="url-box">🔗 <a href="https://jia-trainer.netlify.app/jia-login.html" target="_blank">jia-trainer.netlify.app/jia-login.html</a></div>
+        <div class="url-box">🔗 <a href="https://jiacpr-arch.github.io/jia-course/jia-login.html" target="_blank">jiacpr-arch.github.io/jia-course/jia-login.html</a></div>
         <ol class="step-list">
           <li>เปิดลิงก์ล็อกอินด้านบน</li>
-          <li>กดปุ่ม "เข้าสู่ระบบด้วย Google"</li>
-          <li>เลือกบัญชี Google ที่ได้รับอนุญาต</li>
-          <li>ระบบจะเข้าหน้า Admin โดยอัตโนมัติ (แสดงเฉพาะเมนูที่เซลล์ใช้ได้)</li>
+          <li>กรอก <strong>Username</strong> และ <strong>Password</strong> ที่ตั้งไว้</li>
+          <li>กดปุ่ม "เข้าสู่ระบบ"</li>
+          <li>ระบบจะเข้าหน้า Admin โดยอัตโนมัติ</li>
         </ol>
-        <div class="note-box"><b>หมายเหตุ:</b> ถ้าเป็นการเข้าระบบครั้งแรก จะต้องใส่ "รหัสเชิญ" (Invite Code) ที่ได้รับจากแอดมินก่อน</div>
+        <div class="note-box"><b>ครั้งแรก:</b> ต้องมี "รหัสเชิญ" จากแอดมิน → กดลงทะเบียน → ตั้ง Username + Password</div>
+        <div class="note-box"><b>ลืมรหัสผ่าน?</b> แจ้ง Admin เพื่อรีเซ็ตให้</div>
       </div>
     </div>
 
@@ -319,66 +366,57 @@ table.info-table tr:last-child td{border-bottom:none}
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
-        <p>เมื่อลูกค้าโอนเงินแล้ว เซลล์สามารถจองคอร์สให้ลูกค้าผ่านระบบได้:</p>
+        <p>เมื่อลูกค้าโอนเงินแล้ว เซลล์สามารถจองคอร์สให้ลูกค้าได้:</p>
         <ol class="step-list">
-          <li><strong>เข้าสู่ระบบ</strong> — ล็อกอินด้วยบัญชี Google ที่มีสิทธิ์ Sales</li>
-          <li><strong>กดเมนู "จองให้ลูกค้า"</strong> — อยู่ในหน้าจัดการระบบ</li>
-          <li><strong>กรอกข้อมูลลูกค้า</strong> — ชื่อ-นามสกุล, เบอร์โทร, อีเมล, จำนวนผู้เรียน</li>
-          <li><strong>เลือกคอร์สและวันเรียน</strong> — ระบบจะแสดงราคาและตรวจสอบที่ว่างให้อัตโนมัติ</li>
-          <li><strong>ใส่โค้ดส่วนลด (ถ้ามี)</strong> — กรอกโค้ดแล้วกดตรวจสอบ</li>
-          <li><strong>ตรวจสอบข้อมูลแล้วกดยืนยัน</strong> — การจองจะถูกบันทึกทันที</li>
+          <li>ล็อกอินเข้าระบบ</li>
+          <li>กดแท็บ <strong>"จองคอร์ส"</strong></li>
+          <li>กรอกข้อมูลลูกค้า — ชื่อ, เบอร์โทร</li>
+          <li>เลือกคอร์ส → เลือกวันที่ + เวลา</li>
+          <li>เลือกชื่อตัวเองเป็นพนักงานขาย</li>
+          <li>ใส่โค้ดส่วนลด (ถ้ามี)</li>
+          <li>กดยืนยัน → กด <strong>💾 บันทึก</strong></li>
         </ol>
-        <div class="note-box"><b>ราคาแต่ละคอร์สแตกต่างกัน</b> — ระบบจะแสดงราคาอัตโนมัติ ไม่ต้องคำนวณเอง</div>
+        <div class="note-box"><b>หลังจองเสร็จ อย่าลืมกดบันทึก!</b> ถ้าไม่กด 💾 ข้อมูลอาจหายเมื่อปิดหน้าเว็บ</div>
       </div>
     </div>
 
     <div class="section">
       <div class="section-header" onclick="toggleSection(this)">
-        <h2><span class="section-num">4</span> การดูรายการจอง</h2>
+        <h2><span class="section-num">4</span> ดูรายการจองและลูกค้า</h2>
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
-        <p>หลังล็อกอินแล้ว คุณจะเห็นรายการจองทั้งหมดในหน้าแดชบอร์ด:</p>
         <ul class="bullet-list">
-          <li>ดูรายชื่อผู้จองทั้งหมด พร้อมสถานะ</li>
-          <li>ค้นหาการจองตามชื่อ หรือคอร์ส</li>
-          <li>ดูรายละเอียดการจองแต่ละรายการ (จำนวนคน, ราคา, สลิป)</li>
+          <li><strong>แท็บ "ลูกค้า"</strong> — ดูรายชื่อลูกค้าทั้งหมด + การจองของแต่ละคน</li>
+          <li><strong>แท็บ "ตารางเรียน"</strong> — ดู session เรียนที่จัดไว้</li>
+          <li><strong>แท็บ "ปฏิทิน"</strong> — ดูภาพรวมตารางแบบปฏิทิน</li>
+          <li><strong>แท็บ "บอร์ดหน้างาน"</strong> — ดูงานวันนี้</li>
         </ul>
       </div>
     </div>
 
     <div class="section">
       <div class="section-header" onclick="toggleSection(this)">
-        <h2><span class="section-num">5</span> การใช้โค้ดส่วนลด</h2>
+        <h2><span class="section-num">5</span> ขั้นตอนจองของลูกค้า (สำหรับอ้างอิง)</h2>
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
-        <p>เมื่อจองให้ลูกค้า สามารถใส่โค้ดส่วนลดที่แอดมินสร้างไว้ได้ ระบบจะตรวจสอบว่าโค้ดยังใช้ได้อยู่หรือไม่ และคำนวณราคาหลังหักส่วนลดให้อัตโนมัติ</p>
-        <div class="note-box"><b>สำคัญ:</b> เซลล์ไม่สามารถสร้างโค้ดส่วนลดเองได้ ต้องขอจากแอดมินเท่านั้น</div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-header" onclick="toggleSection(this)">
-        <h2><span class="section-num">6</span> ขั้นตอนจองของลูกค้า (สำหรับอ้างอิง)</h2>
-        <span class="chevron">▼</span>
-      </div>
-      <div class="section-body">
-        <p>เพื่อให้ช่วยเหลือลูกค้าได้ นี่คือขั้นตอนที่ลูกค้าจองเองผ่านหน้าเว็บ:</p>
+        <p>ลูกค้าสามารถจองเองผ่านหน้าเว็บ — เซลล์สามารถส่งลิงก์นี้ให้ลูกค้า:</p>
+        <div class="url-box">📋 <a href="https://jiacpr-arch.github.io/jia-course/jia-booking.html" target="_blank">jiacpr-arch.github.io/jia-course/jia-booking.html</a></div>
         <ol class="step-list">
           <li>ลูกค้าเข้าหน้าจอง (ไม่ต้องล็อกอิน)</li>
           <li>เลือกคอร์ส → เลือกวันที่ → กรอกข้อมูล</li>
           <li>ใส่โค้ดส่วนลด (ถ้ามี)</li>
-          <li>โอนเงินตามข้อมูลที่แสดง (PromptPay หรือบัญชีธนาคาร)</li>
-          <li>อัพโหลดรูปสลิปการโอนเงิน</li>
-          <li>กดยืนยันการจอง — เสร็จสิ้น</li>
+          <li>เลือกวิธีชำระเงิน</li>
+          <li>กดยืนยันการจอง</li>
+          <li>ส่งสลิปทาง LINE @jiacpr</li>
         </ol>
       </div>
     </div>
 
     <div class="section">
       <div class="section-header" onclick="toggleSection(this)">
-        <h2><span class="section-num">7</span> ติดต่อขอความช่วยเหลือ</h2>
+        <h2><span class="section-num">6</span> ติดต่อขอความช่วยเหลือ</h2>
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
@@ -403,7 +441,7 @@ table.info-table tr:last-child td{border-bottom:none}
       <div class="section-body">
         <p>ในฐานะอาจารย์ผู้สอน คุณมีหน้าที่หลักคือ <strong>ลงเวลาว่างสำหรับสอน และดูตารางสอนของตัวเอง</strong></p>
         <ul class="bullet-list">
-          <li>ลงเวลาว่างสำหรับสอน (เลือกวันที่ที่สะดวก)</li>
+          <li>ลงเวลาว่างสำหรับสอน (เลือกวันและช่วงเวลา)</li>
           <li>ดูตารางสอนของตัวเอง</li>
           <li>ดูรายชื่อผู้เรียนในแต่ละคอร์ส</li>
           <li>แก้ไข/ยกเลิกเวลาว่างที่ลงไว้</li>
@@ -417,14 +455,15 @@ table.info-table tr:last-child td{border-bottom:none}
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
-        <div class="url-box">🔗 <a href="https://jia-trainer.netlify.app/jia-login.html" target="_blank">jia-trainer.netlify.app/jia-login.html</a></div>
+        <div class="url-box">🔗 <a href="https://jiacpr-arch.github.io/jia-course/jia-login.html" target="_blank">jiacpr-arch.github.io/jia-course/jia-login.html</a></div>
         <ol class="step-list">
           <li>เปิดลิงก์ล็อกอินด้านบน</li>
-          <li>กดปุ่ม "เข้าสู่ระบบด้วย Google"</li>
-          <li>เลือกบัญชี Google ที่ได้รับอนุญาต</li>
+          <li>กรอก <strong>Username</strong> และ <strong>Password</strong></li>
+          <li>กดปุ่ม "เข้าสู่ระบบ"</li>
           <li>ระบบจะเข้าหน้าอาจารย์โดยอัตโนมัติ</li>
         </ol>
-        <div class="note-box"><b>หมายเหตุ:</b> ถ้าเป็นการเข้าระบบครั้งแรก จะต้องใส่ "รหัสเชิญ" (Invite Code) ที่ได้รับจากแอดมินก่อน</div>
+        <div class="note-box"><b>ครั้งแรก:</b> ต้องมี "รหัสเชิญ" จากแอดมิน → กดลงทะเบียน → ตั้ง Username + Password</div>
+        <div class="note-box"><b>ลืมรหัสผ่าน?</b> แจ้ง Admin เพื่อรีเซ็ตให้</div>
       </div>
     </div>
 
@@ -434,11 +473,12 @@ table.info-table tr:last-child td{border-bottom:none}
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
-        <p>การลงเวลาว่าง<strong>เป็นสิ่งสำคัญที่สุด</strong> เพราะลูกค้าจะสามารถจองเรียนได้เฉพาะวันที่อาจารย์มีเวลาว่างเท่านั้น</p>
+        <p>การลงเวลาว่าง<strong>เป็นสิ่งสำคัญที่สุด</strong> เพราะลูกค้าจะจองเรียนได้เฉพาะวันที่อาจารย์มีเวลาว่างเท่านั้น</p>
         <ol class="step-list">
-          <li><strong>เข้าหน้าอาจารย์</strong> — ล็อกอินแล้วจะเข้าอัตโนมัติ หรือเปิดตรง jia-trainer.netlify.app/jia-instructor.html</li>
+          <li><strong>เข้าหน้าอาจารย์</strong> — ล็อกอินแล้วจะเข้าอัตโนมัติ</li>
           <li><strong>เลือกวันที่</strong> — กดที่ปฏิทินเพื่อเลือกวันที่ว่าง</li>
-          <li><strong>ยืนยัน</strong> — กดบันทึก วันนั้นจะถูกเพิ่มเข้าระบบ</li>
+          <li><strong>เลือกช่วงเวลา</strong> — ติ๊กช่วงเวลาที่ว่าง (เช่น 11:00-13:00)</li>
+          <li><strong>กดบันทึก</strong></li>
           <li><strong>ทำซ้ำ</strong> — ลงเวลาว่างล่วงหน้าหลายวันได้</li>
         </ol>
         <div class="note-box"><b>สำคัญมาก:</b> กรุณาลงเวลาว่างล่วงหน้าอย่างน้อย 1-2 สัปดาห์ หากไม่มีเวลาว่างในระบบ ลูกค้าจะจองไม่ได้</div>
@@ -492,29 +532,139 @@ table.info-table tr:last-child td{border-bottom:none}
 
   </div>
 
+  <!-- ==================== CUSTOMER ==================== -->
+  <div id="role-customer" class="role-content customer">
+
+    <div class="section open">
+      <div class="section-header" onclick="toggleSection(this)">
+        <h2><span class="section-num">1</span> วิธีจองคอร์สเรียน</h2>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <p>จองคอร์ส CPR/AED/ACLS ง่ายๆ <strong>ไม่ต้องสมัครสมาชิก ไม่ต้องล็อกอิน</strong></p>
+        <div class="url-box">📋 <strong>จองเลย:</strong> <a href="https://jiacpr-arch.github.io/jia-course/jia-booking.html" target="_blank">jiacpr-arch.github.io/jia-course/jia-booking.html</a></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <h2><span class="section-num">2</span> ขั้นตอนการจอง</h2>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <ol class="step-list">
+          <li><strong>เลือกคอร์ส</strong> — เลือกคอร์สที่ต้องการเรียน (ดูราคาและรายละเอียด)</li>
+          <li><strong>เลือกแพ็คเกจ</strong> — Flexible (เลื่อนได้ไม่จำกัด) หรือ Fixed (เลื่อนได้ 1 ครั้ง)</li>
+          <li><strong>เลือกวันที่</strong> — ระบบจะแสดงเฉพาะวันที่เปิดสอน (มีอาจารย์ว่าง)</li>
+          <li><strong>เลือกเวลา</strong> — เลือกช่วงเวลาที่สะดวก</li>
+          <li><strong>กรอกข้อมูล</strong> — ชื่อ, เบอร์โทร, จำนวนผู้เรียน</li>
+          <li><strong>ใส่โค้ดส่วนลด (ถ้ามี)</strong> — กรอกโค้ดแล้วกดตรวจสอบ</li>
+          <li><strong>เลือกวิธีชำระเงิน</strong> — โอนเงิน หรือ เงินสด</li>
+          <li><strong>กดยืนยันการจอง</strong></li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <h2><span class="section-num">3</span> การชำระเงิน</h2>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <p>หลังยืนยันการจอง ระบบจะแสดงข้อมูลการชำระเงิน:</p>
+        <ul class="bullet-list">
+          <li><strong>โอนเงิน</strong> — โอนตามข้อมูลที่แสดง (PromptPay หรือบัญชีธนาคาร)</li>
+          <li><strong>ส่งสลิป</strong> — เพิ่มเพื่อน LINE <strong>@jiacpr</strong> แล้วส่งสลิป + รหัสจอง</li>
+          <li><strong>เงินสด</strong> — จ่ายหน้างานในวันเรียน</li>
+        </ul>
+        <div class="note-box"><b>รหัสจอง:</b> หลังจองเสร็จ ระบบจะให้รหัสจอง (เช่น _fbqwa1c4r) — <strong>จดไว้</strong>เพื่อใช้อ้างอิงตอนส่งสลิป</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <h2><span class="section-num">4</span> คอร์สที่เปิดสอน</h2>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <table class="info-table">
+          <tr><th>คอร์ส</th><th>เหมาะสำหรับ</th></tr>
+          <tr><td><strong>Full Station ACLS 2025</strong></td><td>ฝึกครบทุกสถานี ACLS (10-15 คน)</td></tr>
+          <tr><td><strong>ACLS Full Course</strong></td><td>คอร์ส ACLS เต็มรูปแบบ (10-15 คน)</td></tr>
+          <tr><td><strong>Fundamentals ACLS</strong></td><td>พื้นฐาน ACLS (5-10 คน)</td></tr>
+          <tr><td><strong>ALS Blue Code</strong></td><td>การช่วยชีวิตขั้นสูง (5-10 คน)</td></tr>
+          <tr><td><strong>Emergency Airway Workshop</strong></td><td>จัดการทางเดินหายใจฉุกเฉิน (5-7 คน)</td></tr>
+          <tr><td><strong>Emergency Defib & AED</strong></td><td>การใช้เครื่อง AED (5-7 คน)</td></tr>
+          <tr><td><strong>Emergency Vascular Access</strong></td><td>การเปิดเส้นเลือดฉุกเฉิน (5-7 คน)</td></tr>
+        </table>
+        <div class="note-box"><b>ราคาและรายละเอียด:</b> ดูได้ในหน้าจองออนไลน์ — ราคาอาจมีโปรโมชั่นพิเศษ</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <h2><span class="section-num">5</span> คำถามที่พบบ่อย (FAQ)</h2>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <p><strong>Q: จองแล้วเลื่อนวันได้ไหม?</strong></p>
+        <p style="margin-bottom:16px">แพ็คเกจ Flexible เลื่อนได้ไม่จำกัด, Fixed เลื่อนได้ 1 ครั้ง — ติดต่อ LINE @jiacpr เพื่อเลื่อนวัน</p>
+
+        <p><strong>Q: จองแล้วยกเลิกได้ไหม?</strong></p>
+        <p style="margin-bottom:16px">ติดต่อ LINE @jiacpr หรือโทร 088-558-8078 เพื่อสอบถามนโยบายการคืนเงิน</p>
+
+        <p><strong>Q: จองให้เพื่อนหลายคนพร้อมกันได้ไหม?</strong></p>
+        <p style="margin-bottom:16px">ได้ครับ — ระบุจำนวนผู้เรียนตอนจอง ระบบจะคำนวณราคารวมให้</p>
+
+        <p><strong>Q: มีโค้ดส่วนลดใช้ยังไง?</strong></p>
+        <p>กรอกโค้ดในช่อง "โค้ดส่วนลด" ตอนจอง → กดตรวจสอบ → ราคาจะลดอัตโนมัติ</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <h2><span class="section-num">6</span> ติดต่อเรา</h2>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <ul class="bullet-list">
+          <li><strong>LINE:</strong> <a href="https://line.me/R/ti/p/@jiacpr" target="_blank" style="color:#06C755;font-weight:600">@jiacpr</a> (เพิ่มเพื่อนเพื่อสอบถาม/ส่งสลิป)</li>
+          <li><strong>โทร:</strong> <a href="tel:0885588078" style="color:#2563EB;font-weight:600">088-558-8078</a></li>
+          <li><strong>Email:</strong> jiacpr@gmail.com</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
 </div>
 
 <div class="footer">
-  JIA TRAINER CENTER &copy; 2026 — ระบบจองคอร์สออนไลน์<br>
+  JIA TRAINER CENTER &copy; 2026 — ระบบจองคอร์ส CPR/AED/ACLS ออนไลน์<br>
   <a href="https://line.me/R/ti/p/@jiacpr" style="color:#06C755">LINE: @jiacpr</a> | โทร: 088-558-8078
 </div>
 
 <script>
 function showRole(role) {
-  // Hide all
   document.getElementById('welcome').style.display = 'none';
   document.querySelectorAll('.role-content').forEach(el => el.classList.remove('visible'));
   document.querySelectorAll('.role-btn').forEach(btn => {
-    btn.classList.remove('active-admin','active-sales','active-instructor');
+    btn.classList.remove('active-admin','active-sales','active-instructor','active-customer');
   });
-
-  // Show selected
   document.getElementById('role-' + role).classList.add('visible');
   document.getElementById('btn-' + role).classList.add('active-' + role);
 }
 
 function toggleSection(header) {
   header.parentElement.classList.toggle('open');
+}
+
+// Auto-open from URL hash
+if (window.location.hash) {
+  const role = window.location.hash.replace('#','');
+  if (['admin','sales','instructor','customer'].includes(role)) {
+    showRole(role);
+  }
 }
 </script>
 </body>
