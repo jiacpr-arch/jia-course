@@ -173,6 +173,9 @@ window.JIA_DATA_READY = (async function() {
             _set('jia_instructor_quals', JSON.stringify(qualsObj));
         }
         _safeSave('jia_promo_codes', data.promo_codes);
+        // v2: classes
+        _safeSave('jia_classes', data.classes);
+        _safeSave('jia_class_instructors', data.class_instructors);
         if (data.pdpa_log) _set('jia_pdpa_log', JSON.stringify(data.pdpa_log));
         if (data.settings) {
             data.settings.forEach(s => {
@@ -276,7 +279,21 @@ const BADGE_COLORS = [
   "bg-sky-100 text-sky-700","bg-purple-100 text-purple-700","bg-teal-100 text-teal-700",
   "bg-emerald-100 text-emerald-700","bg-amber-100 text-amber-700","bg-gray-100 text-gray-700",
 ];
-const TABS = ["บอร์ดหน้างาน", "แดชบอร์ด", "จองคอร์ส", "ลูกค้า", "ตารางเรียน", "ปฏิทิน", "ลงเวลาผู้สอน", "โค้ดโปรโม", "ตารางผู้สอน", "ตั้งค่า"];
+const TABS = ["บอร์ดหน้างาน", "แดชบอร์ด", "เปิดคลาส", "จองคอร์ส", "ลูกค้า", "ตารางเรียน", "ปฏิทิน", "โค้ดโปรโม", "ตารางผู้สอน", "ตั้งค่า"];
+// Instructor Levels
+const INSTRUCTOR_LEVELS = [
+  { value: 1, label: "Level 1 — Basic", badge: "🥉" },
+  { value: 2, label: "Level 2 — Intermediate", badge: "🥈" },
+  { value: 3, label: "Level 3 — Advanced", badge: "🥇" },
+];
+// Class statuses
+const CLASS_STATUS = {
+  waiting_instructor: { label: "รอผู้สอน", color: "bg-yellow-100 text-yellow-700", icon: "🟡" },
+  ready:              { label: "พร้อมรับนักเรียน", color: "bg-blue-100 text-blue-700", icon: "🔵" },
+  full:               { label: "เต็ม", color: "bg-green-100 text-green-700", icon: "🟢" },
+  completed:          { label: "สอนแล้ว", color: "bg-gray-100 text-gray-500", icon: "✅" },
+  cancelled:          { label: "ยกเลิก", color: "bg-red-100 text-red-600", icon: "❌" },
+};
 
 // ─── JSONP helpers ───
 const jsonp = (url) =>
@@ -552,6 +569,9 @@ function AppContent() {
   const [instructors, setInstructors] = useState([]);
   const [instructorAvail, setInstructorAvail] = useState([]);
   const [promoCodes, setPromoCodes] = useState([]);
+  // v2: classes + class_instructors
+  const [classes, setClasses] = useState([]);
+  const [classInstructors, setClassInstructors] = useState([]);
   const [gsUrl, setGsUrl] = useState(() => localStorage.getItem("jia_gs_url") || "");
   const [showSetup, setShowSetup] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -570,6 +590,9 @@ function AppContent() {
       setInstructors(Array.isArray(savedInstructors) ? savedInstructors : DEFAULT_INSTRUCTORS);
       setInstructorAvail(JSON.parse(localStorage.getItem("jia_instructor_avail") || "[]"));
       setPromoCodes(JSON.parse(localStorage.getItem("jia_promo_codes") || "[]"));
+      // v2
+      setClasses(JSON.parse(localStorage.getItem("jia_classes") || "[]"));
+      setClassInstructors(JSON.parse(localStorage.getItem("jia_class_instructors") || "[]"));
     } catch {}
   }, []);
 
@@ -628,10 +651,13 @@ function AppContent() {
       bookings: bookings,
       sessions: sessions,
       courses: courses,
-      staff: staff.map((name, i) => ({ id: 'staff' + (i+1), name })),
-      instructors: instructors.map((name, i) => ({ id: 'instructors' + (i+1), name })),
+      staff: staff.map((s, i) => typeof s === 'object' ? s : { id: 'staff' + (i+1), name: s }),
+      instructors: instructors.map((inst, i) => typeof inst === 'object' ? inst : { id: 'inst' + (i+1), name: inst, level: 1 }),
       instructor_avail: instructorAvail,
       promo_codes: promoCodes,
+      // v2
+      classes: classes,
+      class_instructors: classInstructors,
     };
 
     try {
@@ -702,7 +728,7 @@ function AppContent() {
       alert('❌ บันทึกล้มเหลว!\n\nข้อมูลยังอยู่ใน localStorage ไม่หาย\nลอง: 1) กด บันทึก อีกครั้ง\n2) ตรวจว่า deploy Code.gs ใหม่แล้ว');
     }
     setTimeout(() => setSaveStatus(''), 5000);
-  }, [customers, bookings, sessions, courses, staff, instructors, instructorAvail, promoCodes, jsonpCall]);
+  }, [customers, bookings, sessions, courses, staff, instructors, instructorAvail, promoCodes, classes, classInstructors, jsonpCall]);
 
   const addCustomer = useCallback(async (c) => {
     c.id = uid(); c.createdAt = today();
@@ -833,6 +859,57 @@ function AppContent() {
     setPromoCodes(list); save("jia_promo_codes", list);
   }, [save]);
 
+  // v2: class management
+  const saveClasses = useCallback((list) => {
+    setClasses(list); save("jia_classes", list);
+  }, [save]);
+  const saveClassInstructors = useCallback((list) => {
+    setClassInstructors(list); save("jia_class_instructors", list);
+  }, [save]);
+
+  const addClass = useCallback((cls) => {
+    cls.id = uid(); cls.createdAt = today(); cls.currentInstructors = 0; cls.status = 'waiting_instructor';
+    const next = [...classes, cls];
+    saveClasses(next);
+    return cls;
+  }, [classes, saveClasses]);
+
+  const updateClass = useCallback((id, data) => {
+    const next = classes.map(c => c.id === id ? { ...c, ...data } : c);
+    saveClasses(next);
+  }, [classes, saveClasses]);
+
+  const deleteClass = useCallback((id) => {
+    saveClasses(classes.filter(c => c.id !== id));
+    saveClassInstructors(classInstructors.filter(ci => ci.classId !== id));
+  }, [classes, classInstructors, saveClasses, saveClassInstructors]);
+
+  const assignInstructor = useCallback((classId, instructorName, assignedBy) => {
+    // ตรวจว่ายังไม่ได้ assign
+    if (classInstructors.some(ci => ci.classId === classId && ci.instructor === instructorName)) return;
+    const newCi = { id: uid(), classId, instructor: instructorName, assignedBy: assignedBy || 'admin', assignedAt: new Date().toISOString() };
+    const nextCi = [...classInstructors, newCi];
+    saveClassInstructors(nextCi);
+    // อัพเดทจำนวนผู้สอนและสถานะ
+    const cls = classes.find(c => c.id === classId);
+    if (cls) {
+      const count = nextCi.filter(ci => ci.classId === classId).length;
+      const needed = parseInt(cls.requiredInstructors) || 1;
+      updateClass(classId, { currentInstructors: count, status: count >= needed ? 'ready' : 'waiting_instructor' });
+    }
+  }, [classes, classInstructors, saveClassInstructors, updateClass]);
+
+  const removeInstructorFromClass = useCallback((classId, instructorName) => {
+    const nextCi = classInstructors.filter(ci => !(ci.classId === classId && ci.instructor === instructorName));
+    saveClassInstructors(nextCi);
+    const cls = classes.find(c => c.id === classId);
+    if (cls) {
+      const count = nextCi.filter(ci => ci.classId === classId).length;
+      const needed = parseInt(cls.requiredInstructors) || 1;
+      updateClass(classId, { currentInstructors: count, status: count >= needed ? 'ready' : 'waiting_instructor' });
+    }
+  }, [classes, classInstructors, saveClassInstructors, updateClass]);
+
   const enrolled = useMemo(() => {
     const map = {};
     courseKeys.forEach(k => { map[k] = 0; });
@@ -894,23 +971,221 @@ function AppContent() {
       <main className="max-w-5xl mx-auto px-4 py-6">
         {tab === 0 && <OperationsBoard bookings={bookings} customers={customers} courses={courses} cfg={cfg} instructors={instructors} updateBooking={updateBooking} />}
         {tab === 1 && <Dashboard stats={stats} bookings={bookings} customers={customers} enrolled={enrolled} courses={courses} cfg={cfg} courseKeys={courseKeys} instructors={instructors} />}
-        {tab === 2 && <BookingForm customers={customers} addCustomer={addCustomer} addBooking={addBooking} enrolled={enrolled} courses={courses} cfg={cfg} courseKeys={courseKeys} staff={staff} instructors={instructors} instructorAvail={instructorAvail} promoCodes={promoCodes} updatePromoCodes={savePromoCodes} />}
-        {tab === 3 && (
+        {tab === 2 && <ClassManager classes={classes} classInstructors={classInstructors} courses={courses} instructors={instructors} bookings={bookings}
+          addClass={addClass} updateClass={updateClass} deleteClass={deleteClass}
+          assignInstructor={assignInstructor} removeInstructorFromClass={removeInstructorFromClass} />}
+        {tab === 3 && <BookingForm customers={customers} addCustomer={addCustomer} addBooking={addBooking} enrolled={enrolled} courses={courses} cfg={cfg} courseKeys={courseKeys} staff={staff} instructors={instructors} instructorAvail={instructorAvail} promoCodes={promoCodes} updatePromoCodes={savePromoCodes} classes={classes} classInstructors={classInstructors} />}
+        {tab === 4 && (
           <CustomerList customers={customers} bookings={bookings} sessions={sessions}
             updateCustomer={updateCustomer} deleteCustomer={deleteCustomer}
             updateBooking={updateBooking} deleteBooking={deleteBooking} enrolled={enrolled} cfg={cfg} courseKeys={courseKeys} staff={staff} instructors={instructors} courses={courses} />
         )}
-        {tab === 4 && (
+        {tab === 5 && (
           <Schedule sessions={sessions} bookings={bookings} customers={customers}
             toggleSession={toggleSession} updateSessionDate={updateSessionDate}
             updateBooking={updateBooking} deleteBooking={deleteBooking} enrolled={enrolled} cfg={cfg} courseKeys={courseKeys} staff={staff} instructors={instructors} courses={courses} />
         )}
-        {tab === 5 && <CalendarView sessions={sessions} bookings={bookings} courses={courses} cfg={cfg} customers={customers} />}
-        {tab === 6 && <ErrorBoundary><InstructorAvailability instructors={instructors} instructorAvail={instructorAvail} saveInstructorAvail={saveInstructorAvail} courses={courses} /></ErrorBoundary>}
+        {tab === 6 && <CalendarView sessions={sessions} bookings={bookings} courses={courses} cfg={cfg} customers={customers} />}
         {tab === 7 && <ErrorBoundary><PromoCodeManager promoCodes={promoCodes} savePromoCodes={savePromoCodes} staff={staff} /></ErrorBoundary>}
-        {tab === 8 && <InstructorSchedule bookings={bookings} instructors={instructors} />}
+        {tab === 8 && <InstructorSchedule bookings={bookings} instructors={instructors} classes={classes} classInstructors={classInstructors} />}
         {tab === 9 && <CourseSettings courses={courses} saveCourses={saveCourses} staff={staff} saveStaff={saveStaff} instructors={instructors} saveInstructors={saveInstructors} enrolled={enrolled} />}
       </main>
+    </div>
+  );
+}
+
+// ─── v2: Class Manager (เปิดคลาส) ───
+function ClassManager({ classes, classInstructors, courses, instructors, bookings, addClass, updateClass, deleteClass, assignInstructor, removeInstructorFromClass }) {
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ courseKey: '', date: '', timeSlot: '', maxStudents: 15, requiredInstructors: 1, place: '', note: '' });
+  const [filter, setFilter] = useState('all'); // all, waiting_instructor, ready, full
+
+  // Helper: instructor name → level
+  const getLevel = (name) => {
+    const inst = instructors.find(i => (typeof i === 'object' ? i.name : i) === name);
+    return inst && typeof inst === 'object' ? (parseInt(inst.level) || 1) : 1;
+  };
+  const getInstructorName = (i) => typeof i === 'object' ? i.name : i;
+
+  // Helper: course requiredLevel
+  const getCourseLevel = (courseKey) => {
+    const c = courses.find(x => x.key === courseKey);
+    return c ? (parseInt(c.requiredLevel) || 1) : 1;
+  };
+
+  // available time slots from courses
+  const dynSlots = useMemo(() => getAllTimeSlots(courses), [courses]);
+
+  // sorted classes
+  const sortedClasses = useMemo(() => {
+    let list = [...classes];
+    if (filter !== 'all') list = list.filter(c => c.status === filter);
+    return list.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.timeSlot || '').localeCompare(b.timeSlot || ''));
+  }, [classes, filter]);
+
+  const handleSubmit = () => {
+    if (!form.courseKey || !form.date || !form.timeSlot) { alert('กรุณาเลือกคอร์ส วันที่ และเวลา'); return; }
+    const course = courses.find(c => c.key === form.courseKey);
+    addClass({
+      ...form,
+      courseName: course ? course.label : form.courseKey,
+      maxStudents: parseInt(form.maxStudents) || 15,
+      requiredInstructors: parseInt(form.requiredInstructors) || 1,
+      createdBy: window.JIA_AUTH_USER?.name || 'admin',
+    });
+    setForm({ courseKey: '', date: '', timeSlot: '', maxStudents: 15, requiredInstructors: 1, place: '', note: '' });
+    setShowForm(false);
+  };
+
+  // count bookings per class
+  const classBookingCount = useMemo(() => {
+    const map = {};
+    bookings.forEach(b => { if (b.classId) map[b.classId] = (map[b.classId] || 0) + (parseInt(b.totalPeople) || 1); });
+    return map;
+  }, [bookings]);
+
+  // qualified instructors for a class
+  const getQualifiedInstructors = (cls) => {
+    const reqLevel = getCourseLevel(cls.courseKey);
+    const assigned = classInstructors.filter(ci => ci.classId === cls.id).map(ci => ci.instructor);
+    return instructors
+      .map(i => ({ name: getInstructorName(i), level: typeof i === 'object' ? (parseInt(i.level) || 1) : 1 }))
+      .filter(i => i.level >= reqLevel && !assigned.includes(i.name));
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold">เปิดคลาสเรียน</h2>
+        <button onClick={() => setShowForm(!showForm)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+          {showForm ? 'ปิดฟอร์ม' : '+ เปิดคลาสใหม่'}
+        </button>
+      </div>
+
+      {/* Filter */}
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {[{k:'all',l:'ทั้งหมด'},{k:'waiting_instructor',l:'🟡 รอผู้สอน'},{k:'ready',l:'🔵 พร้อม'},{k:'full',l:'🟢 เต็ม'},{k:'completed',l:'✅ สอนแล้ว'}].map(f =>
+          <button key={f.k} onClick={() => setFilter(f.k)}
+            className={'px-3 py-1 rounded-full text-xs font-semibold border ' + (filter === f.k ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200')}>
+            {f.l} {f.k !== 'all' ? '(' + classes.filter(c => c.status === f.k).length + ')' : '(' + classes.length + ')'}
+          </button>
+        )}
+      </div>
+
+      {/* Create Form */}
+      {showForm && (
+        <div className="bg-white rounded-xl p-5 shadow mb-6 border border-blue-200">
+          <h3 className="font-bold mb-3">สร้างคลาสใหม่</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-500">คอร์ส *</label>
+              <select value={form.courseKey} onChange={e => setForm({...form, courseKey: e.target.value})}
+                className="w-full border rounded-lg p-2 text-sm">
+                <option value="">เลือกคอร์ส</option>
+                {courses.filter(c => c.key !== 'Other').map(c =>
+                  <option key={c.key} value={c.key}>{c.label} (Level {c.requiredLevel || 1})</option>
+                )}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">วันที่ *</label>
+              <input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})}
+                className="w-full border rounded-lg p-2 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">เวลา *</label>
+              <select value={form.timeSlot} onChange={e => setForm({...form, timeSlot: e.target.value})}
+                className="w-full border rounded-lg p-2 text-sm">
+                <option value="">เลือกเวลา</option>
+                {dynSlots.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">ที่นั่งสูงสุด</label>
+              <input type="number" value={form.maxStudents} onChange={e => setForm({...form, maxStudents: e.target.value})}
+                className="w-full border rounded-lg p-2 text-sm" min="1" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">จำนวนผู้สอนที่ต้องการ</label>
+              <input type="number" value={form.requiredInstructors} onChange={e => setForm({...form, requiredInstructors: e.target.value})}
+                className="w-full border rounded-lg p-2 text-sm" min="1" max="10" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">สถานที่</label>
+              <input value={form.place} onChange={e => setForm({...form, place: e.target.value})}
+                className="w-full border rounded-lg p-2 text-sm" placeholder="ห้อง / สถานที่" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <label className="text-xs text-gray-500">หมายเหตุ</label>
+            <input value={form.note} onChange={e => setForm({...form, note: e.target.value})}
+              className="w-full border rounded-lg p-2 text-sm" placeholder="หมายเหตุเพิ่มเติม" />
+          </div>
+          <button onClick={handleSubmit} className="mt-4 bg-green-600 text-white px-6 py-2 rounded-lg text-sm font-semibold">
+            สร้างคลาส
+          </button>
+        </div>
+      )}
+
+      {/* Class List */}
+      {sortedClasses.length === 0 ? (
+        <div className="text-center text-gray-400 py-12">ยังไม่มีคลาส — กด "+ เปิดคลาสใหม่" เพื่อสร้าง</div>
+      ) : sortedClasses.map(cls => {
+        const st = CLASS_STATUS[cls.status] || CLASS_STATUS.waiting_instructor;
+        const assigned = classInstructors.filter(ci => ci.classId === cls.id);
+        const qualified = getQualifiedInstructors(cls);
+        const booked = classBookingCount[cls.id] || 0;
+        const course = courses.find(c => c.key === cls.courseKey);
+
+        return (
+          <div key={cls.id} className="bg-white rounded-xl p-5 shadow mb-3 border-l-4" style={{borderLeftColor: cls.status === 'ready' ? '#2563EB' : cls.status === 'waiting_instructor' ? '#EAB308' : cls.status === 'full' ? '#22C55E' : '#9CA3AF'}}>
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <span className={'inline-block px-2 py-0.5 rounded-full text-xs font-semibold mr-2 ' + st.color}>{st.icon} {st.label}</span>
+                <span className="text-xs text-gray-400">{fmt(cls.date)} {cls.timeSlot}</span>
+              </div>
+              <div className="flex gap-2">
+                {cls.status === 'ready' && <button onClick={() => updateClass(cls.id, {status:'full'})} className="text-xs text-green-600 border border-green-200 rounded px-2 py-1">ปิดรับ</button>}
+                {cls.status === 'full' && <button onClick={() => updateClass(cls.id, {status:'ready'})} className="text-xs text-blue-600 border border-blue-200 rounded px-2 py-1">เปิดรับ</button>}
+                <button onClick={() => updateClass(cls.id, {status:'completed'})} className="text-xs text-gray-500 border border-gray-200 rounded px-2 py-1">สอนแล้ว</button>
+                <button onClick={() => { if(confirm('ลบคลาสนี้?')) deleteClass(cls.id); }} className="text-xs text-red-500 border border-red-200 rounded px-2 py-1">ลบ</button>
+              </div>
+            </div>
+
+            <h3 className="font-bold text-lg">{cls.courseName || cls.courseKey}</h3>
+            <div className="text-sm text-gray-500 mt-1">
+              {cls.place && <span className="mr-3">📍 {cls.place}</span>}
+              <span className="mr-3">👥 {booked}/{cls.maxStudents} คน</span>
+              <span>Level {course?.requiredLevel || 1} ขึ้นไป</span>
+            </div>
+
+            {/* Assigned Instructors */}
+            <div className="mt-3">
+              <div className="text-xs text-gray-500 mb-1">ผู้สอน ({assigned.length}/{cls.requiredInstructors || 1}):</div>
+              <div className="flex flex-wrap gap-1">
+                {assigned.map(ci => (
+                  <span key={ci.id} className="inline-flex items-center gap-1 bg-teal-50 text-teal-700 px-2 py-1 rounded-full text-xs font-semibold">
+                    {INSTRUCTOR_LEVELS.find(l => l.value === getLevel(ci.instructor))?.badge} {ci.instructor}
+                    <button onClick={() => removeInstructorFromClass(cls.id, ci.instructor)} className="text-red-400 hover:text-red-600 ml-1">✕</button>
+                  </span>
+                ))}
+                {assigned.length < (parseInt(cls.requiredInstructors) || 1) && qualified.length > 0 && (
+                  <select onChange={e => { if(e.target.value) { assignInstructor(cls.id, e.target.value, 'admin'); e.target.value=''; }}}
+                    className="text-xs border rounded-full px-2 py-1 bg-yellow-50 border-yellow-300">
+                    <option value="">+ เพิ่มผู้สอน</option>
+                    {qualified.map(q => <option key={q.name} value={q.name}>{q.badge || ''} {q.name} (Lv.{q.level})</option>)}
+                  </select>
+                )}
+                {assigned.length < (parseInt(cls.requiredInstructors) || 1) && qualified.length === 0 && (
+                  <span className="text-xs text-red-400 italic">ไม่มีผู้สอนที่มี Level ถึง</span>
+                )}
+              </div>
+            </div>
+
+            {cls.note && <div className="text-xs text-gray-400 mt-2">📝 {cls.note}</div>}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -2373,24 +2648,37 @@ function InstructorAvailability({ instructors, instructorAvail, saveInstructorAv
 // ─── Promo Code Manager ───
 function PromoCodeManager({ promoCodes, savePromoCodes, staff }) {
   const [discountAmount, setDiscountAmount] = useState("");
+  const [discountUnit, setDiscountUnit] = useState("percent"); // percent | baht | free
   const [codeType, setCodeType] = useState("SALE");
-  const [createdBy, setCreatedBy] = useState(staff[0] || "");
-  const [bookingUrl, setBookingUrl] = useState(() => localStorage.getItem("jia_booking_url") || "https://yoursite.com/jia-booking.html");
+  const [createdBy, setCreatedBy] = useState(staff[0] || window.JIA_AUTH_USER?.name || "");
+  const [bookingUrl, setBookingUrl] = useState(() => localStorage.getItem("jia_booking_url") || "https://jiacpr-arch.github.io/jia-course/jia-booking.html");
   const [copied, setCopied] = useState(null);
   const [showQR, setShowQR] = useState(null);
   const [filterType, setFilterType] = useState("all");
 
+  // v2: role check — sales สร้างได้เลย, admin ก็ได้
+  const userRole = window.JIA_AUTH_USER?.role || 'admin';
+
   const handleGenerateCode = () => {
-    if (!discountAmount || Number(discountAmount) <= 0) return;
+    let finalDiscount;
+    if (discountUnit === 'free') {
+      finalDiscount = 100; // 100% = ฟรี
+    } else {
+      if (!discountAmount || Number(discountAmount) <= 0) return;
+      finalDiscount = Number(discountAmount);
+    }
     const prefix = codeType === "JIA" ? "JIA-" : "SALE-";
     const code = prefix + randCode();
     const newCode = {
       id: uid(),
       code,
       type: codeType,
-      discount: Number(discountAmount),
-      createdBy,
+      discount: finalDiscount,
+      discountUnit: discountUnit, // percent | baht | free
+      createdBy: createdBy || window.JIA_AUTH_USER?.name || 'unknown',
+      staffName: createdBy || window.JIA_AUTH_USER?.name || 'unknown',
       createdDate: today(),
+      createdAt: today(),
       used: false,
       usedBy: "",
     };
@@ -2558,12 +2846,26 @@ function PromoCodeManager({ promoCodes, savePromoCodes, staff }) {
             </select>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-700 block mb-2">ส่วนลด (บาท) *</label>
-            <input type="number" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} min="0"
-              className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              placeholder={codeType === "JIA" ? "เช่น 100" : "เช่น 50, 100, 200"} />
+            <label className="text-sm font-medium text-gray-700 block mb-2">ประเภทส่วนลด *</label>
+            <div className="flex gap-1 mb-2">
+              {[{k:'percent',l:'% เปอร์เซ็นต์'},{k:'baht',l:'฿ บาท'},{k:'free',l:'🎁 ฟรี'}].map(u =>
+                <button key={u.k} onClick={() => setDiscountUnit(u.k)}
+                  className={'px-3 py-1.5 rounded-lg text-xs font-semibold border ' + (discountUnit === u.k ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-600')}>
+                  {u.l}
+                </button>
+              )}
+            </div>
+            {discountUnit !== 'free' && (
+              <input type="number" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} min="0"
+                max={discountUnit === 'percent' ? 100 : 99999}
+                className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                placeholder={discountUnit === 'percent' ? "เช่น 10, 20, 50 (%)" : "เช่น 100, 500, 1000 (บาท)"} />
+            )}
+            {discountUnit === 'free' && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-700">ลูกค้าจะได้ส่วนลด 100% — <strong>เรียนฟรี!</strong></div>
+            )}
           </div>
-          <button onClick={handleGenerateCode} disabled={!discountAmount || Number(discountAmount) <= 0}
+          <button onClick={handleGenerateCode} disabled={discountUnit !== 'free' && (!discountAmount || Number(discountAmount) <= 0)}
             className={`w-full font-semibold py-2 rounded-lg transition-colors disabled:bg-gray-300 text-white ${
               codeType === "JIA" ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"
             }`}>
@@ -2613,7 +2915,7 @@ function PromoCodeManager({ promoCodes, savePromoCodes, staff }) {
                     </div>
                     <div className="font-mono font-bold text-xl text-gray-800">{code.code}</div>
                     <div className="text-xs text-gray-600 mt-1 space-y-0.5">
-                      <div>ส่วนลด: <span className="font-semibold text-green-600">฿{code.discount}</span></div>
+                      <div>ส่วนลด: <span className="font-semibold text-green-600">{code.discountUnit === 'free' ? '🎁 ฟรี' : code.discountUnit === 'percent' ? code.discount + '%' : '฿' + code.discount}</span></div>
                       <div>สร้างโดย: {code.createdBy} • {fmt(code.createdDate)}</div>
                       {code.used && <div className="text-orange-600 font-semibold">ใช้โดย: {code.usedBy}</div>}
                     </div>
@@ -2660,7 +2962,7 @@ function PromoCodeManager({ promoCodes, savePromoCodes, staff }) {
                       <div className="bg-white rounded-lg p-4 text-center border border-blue-100">
                         <img src={getQRUrl(code.code)} alt="QR Code" className="mx-auto rounded-lg" style={{width: 200, height: 200}} />
                         <p className="text-xs text-gray-500 mt-2">ส่ง QR นี้ให้ลูกค้าสแกน</p>
-                        <p className="text-xs font-semibold text-blue-700 mt-1">ส่วนลด {code.discount} บาท</p>
+                        <p className="text-xs font-semibold text-blue-700 mt-1">ส่วนลด {code.discountUnit === 'free' ? 'ฟรี' : code.discountUnit === 'percent' ? code.discount + '%' : code.discount + ' บาท'}</p>
                       </div>
                     )}
                   </div>
@@ -2786,6 +3088,7 @@ function CourseSettings({ courses, saveCourses, staff, saveStaff, instructors, s
       fixedPrice: 500,
       description: "",
       timeSlots: [...TIME_SLOTS],
+      requiredLevel: 1,
     };
     saveCourses([...courses, nc]);
     setNewCourse("");
@@ -2805,14 +3108,30 @@ function CourseSettings({ courses, saveCourses, staff, saveStaff, instructors, s
     saveStaff(staff.filter(s => s !== name));
   };
 
+  const [newInstructorLevel, setNewInstructorLevel] = useState(1);
+
+  const getInstName = (i) => typeof i === 'object' ? i.name : i;
+
   const handleAddInstructor = () => {
     if (!newInstructor.trim()) return;
-    if (!instructors.includes(newInstructor)) saveInstructors([...instructors, newInstructor]);
+    const exists = instructors.some(i => getInstName(i) === newInstructor.trim());
+    if (!exists) {
+      saveInstructors([...instructors, { id: 'inst_' + Date.now(), name: newInstructor.trim(), level: parseInt(newInstructorLevel) || 1 }]);
+    }
     setNewInstructor("");
+    setNewInstructorLevel(1);
   };
 
   const handleRemoveInstructor = (name) => {
-    saveInstructors(instructors.filter(i => i !== name));
+    saveInstructors(instructors.filter(i => getInstName(i) !== name));
+  };
+
+  const handleChangeInstructorLevel = (name, newLevel) => {
+    saveInstructors(instructors.map(i => {
+      const n = getInstName(i);
+      if (n === name) return typeof i === 'object' ? { ...i, level: parseInt(newLevel) } : { id: 'inst_' + Date.now(), name: n, level: parseInt(newLevel) };
+      return i;
+    }));
   };
 
   return (
@@ -2830,6 +3149,7 @@ function CourseSettings({ courses, saveCourses, staff, saveStaff, instructors, s
                     <div className="flex flex-wrap gap-1 items-center mt-0.5">
                       <p className="text-xs text-gray-500">{enrolled_count}/{c.max} นักเรียน</p>
                       {c.durationHours && <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">{c.totalDays > 1 ? c.totalDays + " วัน × " : ""}{c.durationHours} ชม.</span>}
+                      <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">{INSTRUCTOR_LEVELS.find(l=>l.value===(parseInt(c.requiredLevel)||1))?.badge} Level {c.requiredLevel || 1}</span>
                       {c.onlineBooking && <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">เปิดจองออนไลน์</span>}
                     </div>
                   </div>
@@ -2852,6 +3172,20 @@ function CourseSettings({ courses, saveCourses, staff, saveStaff, instructors, s
                       className="w-full border border-blue-200 bg-white rounded px-2 py-1 text-sm" placeholder="รายละเอียด (แสดงในหน้าจอง)" />
                     <input type="number" value={c.max} onChange={(e) => saveCourses(courses.map(x => x.key === c.key ? { ...x, max: Number(e.target.value) } : x))}
                       className="w-full border border-blue-200 bg-white rounded px-2 py-1 text-sm" placeholder="จำนวนคนสูงสุด" min="1" />
+
+                    {/* v2: ระดับผู้สอนที่ต้องการ */}
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      <label className="text-xs font-semibold text-amber-700 block mb-1">ระดับผู้สอนที่ต้องการ</label>
+                      <div className="flex gap-1">
+                        {INSTRUCTOR_LEVELS.map(l => (
+                          <button key={l.value} onClick={() => saveCourses(courses.map(x => x.key === c.key ? { ...x, requiredLevel: l.value } : x))}
+                            className={'text-xs px-3 py-1.5 rounded-lg font-medium ' + ((parseInt(c.requiredLevel) || 1) === l.value ? 'bg-amber-600 text-white' : 'bg-white border border-amber-200 text-gray-700 hover:bg-amber-100')}>
+                            {l.badge} Lv.{l.value}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">ผู้สอนที่มีระดับ ≥ ค่านี้จะสอนคอร์สนี้ได้</p>
+                    </div>
 
                     {/* ระยะเวลาเรียน + รอบเวลา */}
                     <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-3">
@@ -3032,20 +3366,41 @@ function CourseSettings({ courses, saveCourses, staff, saveStaff, instructors, s
       </div>
 
       <div className="bg-white rounded-xl border border-blue-100 p-6">
-        <h2 className="font-bold text-lg text-blue-800 mb-4">🎓 ผู้สอน</h2>
+        <h2 className="font-bold text-lg text-blue-800 mb-4">🎓 ผู้สอน + ระดับ</h2>
+        <div className="text-xs text-gray-500 mb-3">🥉 Level 1 = Basic &nbsp; 🥈 Level 2 = Intermediate &nbsp; 🥇 Level 3 = Advanced</div>
         <div className="space-y-2 mb-4">
-          {instructors.map(i => (
-            <div key={i} className="flex justify-between items-center bg-gray-50 border border-gray-200 rounded-lg p-3">
-              <span className="font-medium text-gray-800">{i}</span>
-              <button onClick={() => handleRemoveInstructor(i)} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200">
-                ลบ
-              </button>
-            </div>
-          ))}
+          {instructors.map(i => {
+            const name = getInstName(i);
+            const level = typeof i === 'object' ? (parseInt(i.level) || 1) : 1;
+            const badge = INSTRUCTOR_LEVELS.find(l => l.value === level)?.badge || '🥉';
+            return (
+              <div key={name} className="flex justify-between items-center bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{badge}</span>
+                  <span className="font-medium text-gray-800">{name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select value={level} onChange={e => handleChangeInstructorLevel(name, e.target.value)}
+                    className="text-xs border rounded px-2 py-1 bg-white">
+                    {INSTRUCTOR_LEVELS.map(l => <option key={l.value} value={l.value}>{l.badge} {l.label}</option>)}
+                  </select>
+                  <button onClick={() => handleRemoveInstructor(name)} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200">
+                    ลบ
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
-          <input type="text" value={newInstructor} onChange={(e) => setNewInstructor(e.target.value)} placeholder="ชื่อผู้สอนใหม่"
-            className="w-full border border-blue-200 bg-white rounded px-3 py-2 text-sm" onKeyPress={(e) => e.key === "Enter" && handleAddInstructor()} />
+          <div className="flex gap-2">
+            <input type="text" value={newInstructor} onChange={(e) => setNewInstructor(e.target.value)} placeholder="ชื่อผู้สอนใหม่"
+              className="flex-1 border border-blue-200 bg-white rounded px-3 py-2 text-sm" onKeyPress={(e) => e.key === "Enter" && handleAddInstructor()} />
+            <select value={newInstructorLevel} onChange={e => setNewInstructorLevel(e.target.value)}
+              className="border border-blue-200 bg-white rounded px-2 py-2 text-sm">
+              {INSTRUCTOR_LEVELS.map(l => <option key={l.value} value={l.value}>{l.badge} Lv.{l.value}</option>)}
+            </select>
+          </div>
           <button onClick={handleAddInstructor} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors">
             + เพิ่มผู้สอนใหม่
           </button>

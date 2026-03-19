@@ -542,6 +542,11 @@
                     <div className="max-w-6xl mx-auto px-4">
                         <div className="flex gap-2 mt-4 border-b border-gray-200 flex-wrap">
                             <TabButton
+                                active={activeTab === 'classes'}
+                                onClick={() => setActiveTab('classes')}
+                                label="รับสอนคลาส"
+                            />
+                            <TabButton
                                 active={activeTab === 'availability'}
                                 onClick={() => setActiveTab('availability')}
                                 label="ลงวันว่าง"
@@ -566,6 +571,7 @@
 
                     {/* Content */}
                     <div className="max-w-6xl mx-auto px-4 py-6">
+                        {activeTab === 'classes' && <ClassPickerTab instructor={authenticatedInstructor} />}
                         {activeTab === 'availability' && <AvailabilityTab instructor={authenticatedInstructor} />}
                         {activeTab === 'schedule' && <ScheduleTab instructor={authenticatedInstructor} />}
                         {activeTab === 'earnings' && <EarningsTab instructor={authenticatedInstructor} />}
@@ -591,6 +597,186 @@
             );
         }
 
+        // ═══ v2: Class Picker Tab (ผู้สอนเลือกคลาสที่จะสอน) ═══
+        function ClassPickerTab({ instructor }) {
+            const [classes, setClasses] = useState([]);
+            const [classInstructors, setClassInstructors] = useState([]);
+            const [courses, setCourses] = useState([]);
+            const [instructors, setInstructors] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [msg, setMsg] = useState('');
+
+            // Load data
+            useEffect(() => {
+                try {
+                    setClasses(JSON.parse(localStorage.getItem('jia_classes') || '[]'));
+                    setClassInstructors(JSON.parse(localStorage.getItem('jia_class_instructors') || '[]'));
+                    setCourses(JSON.parse(localStorage.getItem('jia_courses') || '[]'));
+                    setInstructors(JSON.parse(localStorage.getItem('jia_instructors') || '[]'));
+                } catch(e) {}
+            }, []);
+
+            // My level
+            const myLevel = useMemo(() => {
+                const me = instructors.find(i => (typeof i === 'object' ? i.name : i) === instructor);
+                return me && typeof me === 'object' ? (parseInt(me.level) || 1) : 1;
+            }, [instructors, instructor]);
+
+            const levelBadge = myLevel >= 3 ? '🥇' : myLevel >= 2 ? '🥈' : '🥉';
+
+            // Classes I can teach (level >= required) and still need instructors
+            const availableClasses = useMemo(() => {
+                return classes
+                    .filter(cls => {
+                        // ต้อง waiting_instructor
+                        if (cls.status !== 'waiting_instructor') return false;
+                        // ต้อง level ถึง
+                        const course = courses.find(c => c.key === cls.courseKey);
+                        const reqLevel = course ? (parseInt(course.requiredLevel) || 1) : 1;
+                        if (myLevel < reqLevel) return false;
+                        // ต้องยังไม่ได้ assign ตัวเอง
+                        if (classInstructors.some(ci => ci.classId === cls.id && ci.instructor === instructor)) return false;
+                        // ต้องยังไม่ครบจำนวนผู้สอน
+                        const assigned = classInstructors.filter(ci => ci.classId === cls.id).length;
+                        if (assigned >= (parseInt(cls.requiredInstructors) || 1)) return false;
+                        return true;
+                    })
+                    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+            }, [classes, classInstructors, courses, myLevel, instructor]);
+
+            // Classes I'm already teaching
+            const myClasses = useMemo(() => {
+                const myClassIds = classInstructors.filter(ci => ci.instructor === instructor).map(ci => ci.classId);
+                return classes.filter(c => myClassIds.includes(c.id)).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+            }, [classes, classInstructors, instructor]);
+
+            // Accept a class
+            const acceptClass = async (cls) => {
+                // Check time conflict
+                const conflict = myClasses.find(mc => mc.date === cls.date && mc.timeSlot === cls.timeSlot);
+                if (conflict) {
+                    alert('เวลาชนกับคลาส: ' + conflict.courseName + ' วันที่ ' + cls.date + ' ' + cls.timeSlot);
+                    return;
+                }
+
+                setLoading(true);
+                setMsg('');
+
+                // Try API first
+                if (window.JIA_API_URL) {
+                    try {
+                        await postToGAS({ action: 'acceptClass', classId: cls.id, instructor: instructor, assignedBy: instructor });
+                    } catch(e) {
+                        console.warn('API acceptClass failed, saving locally:', e);
+                    }
+                }
+
+                // Save locally
+                const newCi = { id: 'ci_' + Date.now(), classId: cls.id, instructor: instructor, assignedBy: instructor, assignedAt: new Date().toISOString() };
+                const nextCi = [...classInstructors, newCi];
+                setClassInstructors(nextCi);
+                localStorage.setItem('jia_class_instructors', JSON.stringify(nextCi));
+
+                // Update class status
+                const assigned = nextCi.filter(ci => ci.classId === cls.id).length;
+                const needed = parseInt(cls.requiredInstructors) || 1;
+                const newStatus = assigned >= needed ? 'ready' : 'waiting_instructor';
+                const nextClasses = classes.map(c => c.id === cls.id ? { ...c, currentInstructors: assigned, status: newStatus } : c);
+                setClasses(nextClasses);
+                localStorage.setItem('jia_classes', JSON.stringify(nextClasses));
+
+                setLoading(false);
+                setMsg('✅ รับสอนคลาส ' + cls.courseName + ' สำเร็จ!');
+                setTimeout(() => setMsg(''), 3000);
+            };
+
+            const fmt = (d) => d ? new Date(d).toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: '2-digit' }) : '-';
+
+            return (
+                <div>
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold text-teal-700">รับสอนคลาส</h2>
+                        <span className="bg-teal-100 text-teal-700 px-3 py-1 rounded-full text-sm font-semibold">
+                            {levelBadge} Level {myLevel}
+                        </span>
+                    </div>
+
+                    {msg && <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg mb-4 text-sm font-semibold">{msg}</div>}
+
+                    {/* My Classes */}
+                    {myClasses.length > 0 && (
+                        <div className="mb-6">
+                            <h3 className="font-semibold text-gray-600 mb-2">คลาสที่ฉันรับสอนแล้ว ({myClasses.length})</h3>
+                            <div className="space-y-2">
+                                {myClasses.map(cls => (
+                                    <div key={cls.id} className="bg-teal-50 border border-teal-200 rounded-xl p-4 flex justify-between items-center">
+                                        <div>
+                                            <div className="font-bold text-teal-800">{cls.courseName}</div>
+                                            <div className="text-sm text-teal-600">{fmt(cls.date)} | {cls.timeSlot}</div>
+                                            {cls.place && <div className="text-xs text-gray-500">📍 {cls.place}</div>}
+                                        </div>
+                                        <span className={'px-2 py-1 rounded-full text-xs font-semibold ' + (cls.status === 'ready' ? 'bg-blue-100 text-blue-700' : cls.status === 'waiting_instructor' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600')}>
+                                            {cls.status === 'ready' ? '🔵 พร้อม' : cls.status === 'waiting_instructor' ? '🟡 รอผู้สอนเพิ่ม' : cls.status}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Available Classes */}
+                    <h3 className="font-semibold text-gray-600 mb-2">คลาสที่รอผู้สอน ({availableClasses.length})</h3>
+                    {availableClasses.length === 0 ? (
+                        <div className="text-center text-gray-400 py-12 bg-white rounded-xl">
+                            <div className="text-4xl mb-3">✅</div>
+                            <p>ไม่มีคลาสที่รอผู้สอนในตอนนี้</p>
+                            <p className="text-xs mt-1">คลาสที่ Level สูงกว่าของคุณจะไม่แสดง</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {availableClasses.map(cls => {
+                                const course = courses.find(c => c.key === cls.courseKey);
+                                const reqLevel = course ? (parseInt(course.requiredLevel) || 1) : 1;
+                                const assigned = classInstructors.filter(ci => ci.classId === cls.id).length;
+                                const needed = parseInt(cls.requiredInstructors) || 1;
+                                return (
+                                    <div key={cls.id} className="bg-white rounded-xl p-5 shadow-sm border-l-4 border-yellow-400">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h4 className="font-bold text-lg text-gray-800">{cls.courseName}</h4>
+                                                <div className="text-sm text-gray-600 mt-1">
+                                                    📅 {fmt(cls.date)} | ⏰ {cls.timeSlot}
+                                                </div>
+                                                <div className="flex flex-wrap gap-2 mt-2">
+                                                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
+                                                        Level {reqLevel} ขึ้นไป
+                                                    </span>
+                                                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                                                        ผู้สอน {assigned}/{needed} คน
+                                                    </span>
+                                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                                        {cls.maxStudents} ที่นั่ง
+                                                    </span>
+                                                    {cls.place && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">📍 {cls.place}</span>}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => acceptClass(cls)}
+                                                disabled={loading}
+                                                className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2 rounded-lg font-semibold text-sm transition-colors disabled:opacity-50 flex-shrink-0"
+                                            >
+                                                {loading ? '...' : '✋ รับสอน'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
         // Instructor Selection Screen
         function InstructorSelectionScreen({ instructors, onSelect }) {
             return (
@@ -601,17 +787,23 @@
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-2xl">
-                        {instructors.map((instructor) => (
-                            <button
-                                key={instructor}
-                                onClick={() => onSelect(instructor)}
-                                className="instructor-card bg-white rounded-xl shadow-md p-8 hover:shadow-lg border-2 border-transparent hover:border-teal-300 active:border-teal-500"
-                            >
-                                <div className="text-4xl mb-3 text-center">👨‍🏫</div>
-                                <p className="text-xl font-bold text-gray-800 text-center">{instructor}</p>
-                                <p className="text-sm text-gray-500 text-center mt-2">แตะเพื่อเข้า</p>
-                            </button>
-                        ))}
+                        {instructors.map((inst) => {
+                            const name = typeof inst === 'object' ? inst.name : inst;
+                            const level = typeof inst === 'object' ? (parseInt(inst.level) || 1) : 1;
+                            const badge = level >= 3 ? '🥇' : level >= 2 ? '🥈' : '🥉';
+                            return (
+                                <button
+                                    key={name}
+                                    onClick={() => onSelect(name)}
+                                    className="instructor-card bg-white rounded-xl shadow-md p-8 hover:shadow-lg border-2 border-transparent hover:border-teal-300 active:border-teal-500"
+                                >
+                                    <div className="text-4xl mb-3 text-center">👨‍🏫</div>
+                                    <p className="text-xl font-bold text-gray-800 text-center">{name}</p>
+                                    <p className="text-sm text-teal-600 text-center mt-1">{badge} Level {level}</p>
+                                    <p className="text-sm text-gray-500 text-center mt-2">แตะเพื่อเข้า</p>
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
             );

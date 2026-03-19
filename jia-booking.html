@@ -653,12 +653,14 @@
         }
         try {
             console.log('📡 กำลังโหลดข้อมูลจาก API...');
-            const [courses, avail, bookings, promoCodes, settings] = await Promise.all([
+            const [courses, avail, bookings, promoCodes, settings, classes, classInstructors] = await Promise.all([
                 jiaApiGet('getData', { sheet: 'courses' }),
                 jiaApiGet('getData', { sheet: 'instructor_avail' }),
                 jiaApiGet('getData', { sheet: 'bookings' }),
                 jiaApiGet('getData', { sheet: 'promo_codes' }),
-                jiaApiGet('getData', { sheet: 'settings' })
+                jiaApiGet('getData', { sheet: 'settings' }),
+                jiaApiGet('getData', { sheet: 'classes' }),
+                jiaApiGet('getData', { sheet: 'class_instructors' })
             ]);
 
             if (Array.isArray(courses)) {
@@ -694,6 +696,7 @@
                 promoCodes.forEach(p => {
                     promoMap[p.code] = {
                         discount: Number(p.discount) || 0,
+                        discountUnit: p.discountUnit || 'baht',
                         used: p.used === true || p.used === 'true',
                         staffName: p.staffName || '',
                         usedAt: p.usedAt || '',
@@ -707,6 +710,14 @@
                 const settingsMap = {};
                 settings.forEach(s => { settingsMap[s.key] = s.value; });
                 localStorage.setItem('jia_payment_settings', JSON.stringify(settingsMap));
+            }
+
+            // v2: classes (คลาสที่ Admin เปิด)
+            if (Array.isArray(classes)) {
+                localStorage.setItem('jia_classes', JSON.stringify(classes));
+            }
+            if (Array.isArray(classInstructors)) {
+                localStorage.setItem('jia_class_instructors', JSON.stringify(classInstructors));
             }
 
             console.log('✅ โหลดข้อมูลจาก API สำเร็จ');
@@ -959,6 +970,9 @@
             const [showPrivacyNotice, setShowPrivacyNotice] = useState(false);
             const [availableCourses, setAvailableCourses] = useState([]);
             const [paymentSettings, setPaymentSettings] = useState({});
+            // v2: classes
+            const [classes, setClasses] = useState([]);
+            const [useClassMode, setUseClassMode] = useState(false); // true = ใช้ class system ใหม่
 
             useEffect(() => {
                 const availData = localStorage.getItem('jia_instructor_avail');
@@ -991,6 +1005,16 @@
                     if (ps) setPaymentSettings(JSON.parse(ps));
                 } catch(e) {}
 
+                // v2: Load classes
+                try {
+                    const cls = JSON.parse(localStorage.getItem('jia_classes') || '[]');
+                    if (cls.length > 0) {
+                        setClasses(cls);
+                        setUseClassMode(true);
+                        console.log('📋 Class mode ON —', cls.filter(c => c.status === 'ready').length, 'ready classes');
+                    }
+                } catch(e) {}
+
                 // Load available courses
                 const courses = getCourses();
                 setAvailableCourses(courses);
@@ -1018,14 +1042,31 @@
                 setPdpaConsented(true);
             };
 
+            // v2: ดึง ready classes สำหรับคอร์สที่เลือก
+            const getReadyClassesForCourse = (courseKey) => {
+                if (!useClassMode) return [];
+                return classes.filter(c => c.status === 'ready' && c.courseKey === courseKey);
+            };
+
             const isDateAvailable = (dateStr) => {
+                if (useClassMode && selectedCourse) {
+                    // v2: ตรวจจาก classes ที่ ready
+                    return getReadyClassesForCourse(selectedCourse.key).some(c => c.date === dateStr);
+                }
+                // fallback: ใช้ instructor availability เดิม
                 return instructorAvailability[dateStr] && instructorAvailability[dateStr].length > 0;
             };
 
             const getAvailableTimeSlotsForDate = (dateStr) => {
+                if (useClassMode && selectedCourse) {
+                    // v2: ดึง time slots จาก ready classes
+                    return getReadyClassesForCourse(selectedCourse.key)
+                        .filter(c => c.date === dateStr)
+                        .map(c => c.timeSlot);
+                }
+                // fallback
                 const slots = instructorAvailability[dateStr];
                 if (!slots) return [];
-                // Use course-specific time slots if available, otherwise default
                 const courseSlots = selectedCourse?.timeSlots || TIME_SLOTS;
                 return courseSlots.filter(slot => slots.includes(slot));
             };
@@ -1041,9 +1082,21 @@
                             const codeData = promoCodes[code];
                             if (!codeData.used) {
                                 const label = code.startsWith('JIA-') ? 'คูปองคอร์สออนไลน์' : 'โค้ดส่วนลด';
+                                const unit = codeData.discountUnit || 'baht';
+                                let discAmt = Number(codeData.discount) || 0;
+                                let discLabel = '';
+                                if (unit === 'free' || discAmt >= 100 && unit === 'percent') {
+                                    discLabel = '🎁 ฟรี!';
+                                    // จะคำนวณ discount จริงตอน submit
+                                    discAmt = 999999; // flag ว่าฟรี
+                                } else if (unit === 'percent') {
+                                    discLabel = 'ลด ' + discAmt + '%';
+                                } else {
+                                    discLabel = 'ลด ฿' + discAmt;
+                                }
                                 setPromoValid(true);
-                                setPromoFeedback(`${label} ลด ฿${codeData.discount} ✓`);
-                                setDiscountAmount(codeData.discount);
+                                setPromoFeedback(`${label} ${discLabel} ✓`);
+                                setDiscountAmount(discAmt);
                             } else {
                                 setPromoValid(false);
                                 setPromoFeedback('โค้ดนี้ถูกใช้แล้ว ✗');
@@ -1182,6 +1235,8 @@
                         tel: customerPhone,
                         courseType: selectedCourse.key,
                         courseName: selectedCourse.label,
+                        classId: (useClassMode && selectedCourse && selectedDate && selectedTime) ?
+                            (classes.find(c => c.status === 'ready' && c.courseKey === selectedCourse.key && c.date === selectedDate && c.timeSlot === selectedTime)?.id || '') : '',
                         channel: promoCode.startsWith('SALE-') ? 'ผ่านเซลล์' : promoCode.startsWith('JIA-') ? 'คอร์สออนไลน์' : 'ซื้อเอง (เว็บ)',
                         package: packageName,
                         totalPeople: 1,
