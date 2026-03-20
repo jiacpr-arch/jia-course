@@ -1048,7 +1048,7 @@ function AppContent() {
             toggleSession={toggleSession} updateSessionDate={updateSessionDate}
             updateBooking={updateBooking} deleteBooking={deleteBooking} enrolled={enrolled} cfg={cfg} courseKeys={courseKeys} staff={staff} instructors={instructors} courses={courses} />
         )}
-        {tab === 6 && <CalendarView sessions={sessions} bookings={bookings} courses={courses} cfg={cfg} customers={customers} />}
+        {tab === 6 && <CalendarView sessions={sessions} bookings={bookings} courses={courses} cfg={cfg} customers={customers} classes={classes} classInstructors={classInstructors} />}
         {tab === 7 && <ErrorBoundary><PromoCodeManager promoCodes={promoCodes} savePromoCodes={savePromoCodes} staff={staff} /></ErrorBoundary>}
         {tab === 8 && <InstructorSchedule bookings={bookings} instructors={instructors} classes={classes} classInstructors={classInstructors} />}
         {tab === 9 && <CourseSettings courses={courses} saveCourses={saveCourses} staff={staff} saveStaff={saveStaff} instructors={instructors} saveInstructors={saveInstructors} enrolled={enrolled} />}
@@ -2286,7 +2286,7 @@ function Schedule({ sessions, bookings, customers, toggleSession, updateSessionD
 }
 
 // ─── Calendar View ───
-function CalendarView({ sessions, bookings, courses, cfg, customers }) {
+function CalendarView({ sessions, bookings, courses, cfg, customers, classes = [], classInstructors = [] }) {
   const [year, setYear] = useState(new Date().getFullYear() + 543);
   const [month, setMonth] = useState(new Date().getMonth());
   const [selectedDate, setSelectedDate] = useState(null);
@@ -2329,12 +2329,20 @@ function CalendarView({ sessions, bookings, courses, cfg, customers }) {
     // จาก sessions: นับจำนวน done/pending
     sessions.forEach(s => {
       if (!s.date) return;
-      if (!map[s.date]) map[s.date] = { courses: {}, bookings: [], sessionsDone: 0, sessionsPending: 0 };
+      if (!map[s.date]) map[s.date] = { courses: {}, bookings: [], classes: [], sessionsDone: 0, sessionsPending: 0 };
       if (s.done) map[s.date].sessionsDone++;
       else map[s.date].sessionsPending++;
     });
+    // จาก classes (เปิดคลาส)
+    classes.forEach(cls => {
+      if (!cls.date) return;
+      if (!map[cls.date]) map[cls.date] = { courses: {}, bookings: [], classes: [], sessionsDone: 0, sessionsPending: 0 };
+      if (!map[cls.date].classes) map[cls.date].classes = [];
+      const instructorList = classInstructors.filter(ci => ci.classId === cls.id).map(ci => ci.instructor);
+      map[cls.date].classes.push({ ...cls, instructorNames: instructorList });
+    });
     return map;
-  }, [bookings, sessions, cfg]);
+  }, [bookings, sessions, classes, classInstructors, cfg]);
 
   // popup data
   const popupData = useMemo(() => {
@@ -2409,33 +2417,37 @@ function CalendarView({ sessions, bookings, courses, cfg, customers }) {
         {days.map(d => {
           const dd = dayData[d.date];
           const courseCount = dd ? Object.keys(dd.courses).length : 0;
+          const classCount = dd && dd.classes ? dd.classes.length : 0;
           const totalPeople = dd ? Object.values(dd.courses).reduce((sum, c) => sum + c.people, 0) : 0;
           const isToday = d.date === todayStr;
           const isPast = d.date < todayStr;
           const isSelected = d.date === selectedDate;
-          const hasCourse = courseCount > 0;
+          const hasData = courseCount > 0 || classCount > 0;
           const hasFullCourse = dd && Object.values(dd.courses).some(c => c.people >= c.max);
 
           let bgClass = 'bg-gray-50 border-gray-200 text-gray-500';
-          if (hasCourse && isPast) bgClass = 'bg-green-50 border-green-200 text-green-700';
-          else if (hasCourse && hasFullCourse) bgClass = 'bg-orange-50 border-orange-300 text-orange-700';
-          else if (hasCourse) bgClass = 'bg-blue-50 border-blue-300 text-blue-700';
-          if (isToday) bgClass = hasCourse ? 'bg-blue-100 border-blue-400 text-blue-800 ring-2 ring-blue-400' : 'bg-yellow-50 border-yellow-300 text-yellow-700 ring-2 ring-yellow-300';
+          if (hasData && isPast) bgClass = 'bg-green-50 border-green-200 text-green-700';
+          else if (hasData && hasFullCourse) bgClass = 'bg-orange-50 border-orange-300 text-orange-700';
+          else if (hasData) bgClass = 'bg-blue-50 border-blue-300 text-blue-700';
+          if (isToday) bgClass = hasData ? 'bg-blue-100 border-blue-400 text-blue-800 ring-2 ring-blue-400' : 'bg-yellow-50 border-yellow-300 text-yellow-700 ring-2 ring-yellow-300';
           if (isSelected) bgClass += ' ring-2 ring-indigo-500 shadow-md';
 
           return (
-            <div key={d.date} onClick={() => hasCourse && setSelectedDate(isSelected ? null : d.date)}
-              className={`border rounded-lg p-1 text-center text-xs font-medium min-h-[56px] transition-all ${bgClass} ${hasCourse ? 'cursor-pointer hover:shadow-md' : ''}`}>
+            <div key={d.date} onClick={() => hasData && setSelectedDate(isSelected ? null : d.date)}
+              className={`border rounded-lg p-1 text-center text-xs font-medium min-h-[56px] transition-all ${bgClass} ${hasData ? 'cursor-pointer hover:shadow-md' : ''}`}>
               <div className={`font-bold ${isToday ? 'text-sm' : ''}`}>{d.day}</div>
-              {hasCourse && (
+              {hasData && (
                 <div className="mt-0.5">
                   <div className="text-[10px] leading-tight truncate">
-                    {Object.values(dd.courses).slice(0, 2).map((c, i) => (
-                      <div key={i} className="truncate">{c.label.length > 8 ? c.label.slice(0, 8) + '..' : c.label}</div>
+                    {dd.classes && dd.classes.slice(0, 2).map((cls, i) => (
+                      <div key={'cls'+i} className="truncate text-teal-600">{(cls.courseName || cls.courseKey || '').length > 8 ? (cls.courseName || cls.courseKey || '').slice(0,8)+'..' : (cls.courseName || cls.courseKey || '')}</div>
                     ))}
-                    {courseCount > 2 && <div>+{courseCount - 2}</div>}
+                    {Object.values(dd.courses).slice(0, Math.max(0, 2 - classCount)).map((c, i) => (
+                      <div key={'bk'+i} className="truncate">{c.label.length > 8 ? c.label.slice(0, 8) + '..' : c.label}</div>
+                    ))}
+                    {(courseCount + classCount) > 2 && <div>+{courseCount + classCount - 2}</div>}
                   </div>
-                  <div className="text-[10px] mt-0.5 font-bold">{totalPeople} คน</div>
+                  {totalPeople > 0 && <div className="text-[10px] mt-0.5 font-bold">{totalPeople} คน</div>}
                 </div>
               )}
             </div>
@@ -2459,7 +2471,36 @@ function CalendarView({ sessions, bookings, courses, cfg, customers }) {
             <button onClick={() => setSelectedDate(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
           </div>
 
-          {/* คอร์สในวันนี้ */}
+          {/* คลาสเรียน (จากเปิดคลาส) */}
+          {dayData[selectedDate]?.classes?.length > 0 && (
+            <div className="space-y-2 mb-4">
+              <p className="text-xs font-semibold text-teal-600 uppercase tracking-wide">คลาสเรียน</p>
+              {dayData[selectedDate].classes.map((cls, i) => {
+                const statusColors = { ready: 'bg-blue-100 text-blue-700', waiting_instructor: 'bg-yellow-100 text-yellow-700', full: 'bg-green-100 text-green-700', done: 'bg-gray-100 text-gray-600' };
+                const statusLabels = { ready: 'พร้อม', waiting_instructor: 'รอผู้สอน', full: 'เต็ม', done: 'สอนแล้ว' };
+                return (
+                  <div key={i} className="bg-white rounded-lg p-3 border border-teal-100">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-semibold text-sm text-gray-800">{cls.courseName || cls.courseKey}</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${statusColors[cls.status] || 'bg-gray-100 text-gray-600'}`}>
+                        {statusLabels[cls.status] || cls.status}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      {cls.timeSlot && <span>⏰ {cls.timeSlot}</span>}
+                      {cls.place && <span className="ml-2">📍 {cls.place}</span>}
+                      <span className="ml-2">👥 {cls.maxStudents || 0} คน</span>
+                    </div>
+                    {cls.instructorNames && cls.instructorNames.length > 0 && (
+                      <div className="text-xs text-teal-700 mt-1">🎓 ผู้สอน: {cls.instructorNames.join(', ')}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* คอร์สในวันนี้ (จากระบบจอง) */}
           {popupData.courses.length > 0 ? (
             <div className="space-y-3 mb-4">
               <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">คอร์สในวันนี้</p>
