@@ -727,17 +727,34 @@
                 setLoading(true);
                 setMsg('');
 
-                // Try API first
+                // ── บันทึกผ่าน API (source of truth) ──
+                let apiSuccess = false;
+                let apiResult = null;
                 if (window.JIA_API_URL) {
                     try {
-                        await jiaApiGet('acceptClass', { classId: cls.id, instructor: instructor, assignedBy: instructor });
+                        apiResult = await jiaApiGet('acceptClass', { classId: cls.id, instructor: instructor, assignedBy: instructor });
+                        console.log('acceptClass result:', JSON.stringify(apiResult));
+                        if (apiResult && apiResult.success) {
+                            apiSuccess = true;
+                        } else if (apiResult && apiResult.error) {
+                            setLoading(false);
+                            setMsg('❌ ' + (apiResult.error || 'รับคลาสไม่สำเร็จ'));
+                            setTimeout(() => setMsg(''), 5000);
+                            return; // หยุดเลย ไม่ save local
+                        }
                     } catch(e) {
-                        console.warn('API acceptClass failed, saving locally:', e);
+                        console.error('API acceptClass failed:', e);
+                        setLoading(false);
+                        setMsg('❌ เชื่อมต่อ server ไม่สำเร็จ: ' + e.message);
+                        setTimeout(() => setMsg(''), 5000);
+                        return; // หยุดเลย ไม่ save local
                     }
                 }
 
-                // Save locally
-                const newCi = { id: 'ci_' + Date.now(), classId: cls.id, instructor: instructor, assignedBy: instructor, assignedAt: new Date().toISOString() };
+                // Save locally (sync กับ API)
+                const newCi = apiResult && apiResult.success
+                    ? { id: 'ci_' + Date.now(), classId: cls.id, instructor: instructor, assignedBy: instructor, assignedAt: new Date().toISOString() }
+                    : { id: 'ci_' + Date.now(), classId: cls.id, instructor: instructor, assignedBy: instructor, assignedAt: new Date().toISOString() };
                 const nextCi = [...classInstructors, newCi];
                 setClassInstructors(nextCi);
                 localStorage.setItem('jia_class_instructors', JSON.stringify(nextCi));
@@ -751,7 +768,7 @@
                 localStorage.setItem('jia_classes', JSON.stringify(nextClasses));
 
                 setLoading(false);
-                setMsg('✅ รับสอนคลาส ' + cls.courseName + ' สำเร็จ!');
+                setMsg(apiSuccess ? '✅ รับสอนคลาส ' + cls.courseName + ' สำเร็จ!' : '⚠️ บันทึกในเครื่องแล้ว แต่ยังไม่ได้ sync กับ server');
                 setTimeout(() => setMsg(''), 3000);
             };
 
