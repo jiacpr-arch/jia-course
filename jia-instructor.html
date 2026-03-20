@@ -172,16 +172,26 @@
             }
             window.JIA_AUTH_USER = { username: sessionUser.username, name: check.name, role: check.role };
 
-            // Load data
-            const [courses, avail, bookings, instructors, quals, classes, classInstructors] = await Promise.all([
-                jiaApiGet('getData', { sheet: 'courses' }),
-                jiaApiGet('getData', { sheet: 'instructor_avail' }),
-                jiaApiGet('getData', { sheet: 'bookings' }),
-                jiaApiGet('getData', { sheet: 'instructors' }),
-                jiaApiGet('getData', { sheet: 'instructor_quals' }),
-                jiaApiGet('getData', { sheet: 'classes' }),
-                jiaApiGet('getData', { sheet: 'class_instructors' })
-            ]);
+            // Load data (with 10s timeout to prevent hang)
+            const timeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
+            let courses, avail, bookings, instructors, quals, classes, classInstructors;
+            try {
+                [courses, avail, bookings, instructors, quals, classes, classInstructors] = await Promise.race([
+                    Promise.all([
+                        jiaApiGet('getData', { sheet: 'courses' }),
+                        jiaApiGet('getData', { sheet: 'instructor_avail' }),
+                        jiaApiGet('getData', { sheet: 'bookings' }),
+                        jiaApiGet('getData', { sheet: 'instructors' }),
+                        jiaApiGet('getData', { sheet: 'instructor_quals' }),
+                        jiaApiGet('getData', { sheet: 'classes' }),
+                        jiaApiGet('getData', { sheet: 'class_instructors' })
+                    ]),
+                    timeout(10000)
+                ]);
+            } catch(e) {
+                console.warn('⚠️ Data load timeout/error, using localStorage fallback:', e.message);
+                return true; // fallback to localStorage
+            }
 
             if (Array.isArray(courses)) {
                 courses.forEach(c => {
