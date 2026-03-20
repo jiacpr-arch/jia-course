@@ -304,8 +304,8 @@ function renderAdminPanel(userInfo) {
 
             <div class="border-t pt-6">
                 <h2 class="font-bold text-gray-800 mb-4">สร้างรหัสเชิญ</h2>
-                <div class="flex gap-2 mb-4">
-                    <select id="code-role" class="input-field" style="flex:1">
+                <div class="flex gap-2 mb-2">
+                    <select id="code-role" class="input-field" style="flex:1" onchange="toggleLevelSelect()">
                         <option value="admin">แอดมิน / หน้างาน</option>
                         <option value="sales">เซลล์</option>
                         <option value="instructor">ผู้สอน</option>
@@ -313,6 +313,14 @@ function renderAdminPanel(userInfo) {
                     <button onclick="handleGenCode()" class="btn-primary" style="width:auto; padding: 14px 24px;">
                         สร้าง
                     </button>
+                </div>
+                <div id="level-select-row" class="mb-4 hidden">
+                    <label class="text-sm text-gray-600 mb-1 block">ระดับผู้สอน (Level)</label>
+                    <select id="code-level" class="input-field">
+                        <option value="1">Level 1 - ผู้ช่วย</option>
+                        <option value="2">Level 2 - ผู้สอนหลัก</option>
+                        <option value="3">Level 3 - ผู้สอนอาวุโส</option>
+                    </select>
                 </div>
 
                 <div id="code-result" class="hidden bg-green-50 rounded-xl p-4 text-center">
@@ -464,18 +472,36 @@ function handleSignOut() {
 // ADMIN: INVITE CODES
 // ═══════════════════════════════════════════════════════════
 
+function toggleLevelSelect() {
+    const role = document.getElementById('code-role').value;
+    const levelRow = document.getElementById('level-select-row');
+    if (role === 'instructor') {
+        levelRow.classList.remove('hidden');
+    } else {
+        levelRow.classList.add('hidden');
+    }
+}
+
 async function handleGenCode() {
     const role = document.getElementById('code-role').value;
     const user = JSON.parse(sessionStorage.getItem('jia_user') || '{}');
+    const params = {
+        role: role,
+        username: user.username || 'admin'
+    };
+
+    // ถ้าเป็นผู้สอน → ส่ง level ไปด้วย
+    if (role === 'instructor') {
+        const levelEl = document.getElementById('code-level');
+        params.level = levelEl ? levelEl.value : '1';
+    }
 
     try {
-        const result = await apiGet('genCode', {
-            role: role,
-            username: user.username || 'admin'
-        });
+        const result = await apiGet('genCode', params);
 
         if (result.success) {
-            document.getElementById('code-display').textContent = result.code;
+            const levelText = (role === 'instructor' && result.level) ? ' (Level ' + result.level + ')' : '';
+            document.getElementById('code-display').textContent = result.code + levelText;
             document.getElementById('code-result').classList.remove('hidden');
             loadExistingCodes();
         } else {
