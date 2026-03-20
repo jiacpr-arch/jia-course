@@ -173,12 +173,14 @@
             window.JIA_AUTH_USER = { username: sessionUser.username, name: check.name, role: check.role };
 
             // Load data
-            const [courses, avail, bookings, instructors, quals] = await Promise.all([
+            const [courses, avail, bookings, instructors, quals, classes, classInstructors] = await Promise.all([
                 jiaApiGet('getData', { sheet: 'courses' }),
                 jiaApiGet('getData', { sheet: 'instructor_avail' }),
                 jiaApiGet('getData', { sheet: 'bookings' }),
                 jiaApiGet('getData', { sheet: 'instructors' }),
-                jiaApiGet('getData', { sheet: 'instructor_quals' })
+                jiaApiGet('getData', { sheet: 'instructor_quals' }),
+                jiaApiGet('getData', { sheet: 'classes' }),
+                jiaApiGet('getData', { sheet: 'class_instructors' })
             ]);
 
             if (Array.isArray(courses)) {
@@ -202,9 +204,11 @@
                 localStorage.setItem('jia_instructor_quals', JSON.stringify(qualsObj));
             }
             if (Array.isArray(instructors)) {
-                const names = instructors.map(i => i.name);
-                localStorage.setItem('jia_instructors', JSON.stringify(names));
+                // เก็บเป็น object เต็ม (มี name + level) เพื่อให้ ClassPickerTab ใช้ได้
+                localStorage.setItem('jia_instructors', JSON.stringify(instructors));
             }
+            if (Array.isArray(classes)) localStorage.setItem('jia_classes', JSON.stringify(classes));
+            if (Array.isArray(classInstructors)) localStorage.setItem('jia_class_instructors', JSON.stringify(classInstructors));
 
             console.log('✅ โหลดข้อมูลสำเร็จ — ผู้สอน:', check.name);
             return true;
@@ -478,7 +482,7 @@
             const [authenticatedInstructor, setAuthenticatedInstructor] = useState(() => {
                 return selectedInstructor && sessionStorage.getItem(`jia_instructor_auth_${selectedInstructor}`) === "true" ? selectedInstructor : null;
             });
-            const [activeTab, setActiveTab] = useState('availability');
+            const [activeTab, setActiveTab] = useState('classes');
 
             const instructors = JSON.parse(localStorage.getItem('jia_instructors') || '[]');
 
@@ -665,7 +669,7 @@
                 // Try API first
                 if (window.JIA_API_URL) {
                     try {
-                        await postToGAS({ action: 'acceptClass', classId: cls.id, instructor: instructor, assignedBy: instructor });
+                        await jiaApiGet('acceptClass', { classId: cls.id, instructor: instructor, assignedBy: instructor });
                     } catch(e) {
                         console.warn('API acceptClass failed, saving locally:', e);
                     }
