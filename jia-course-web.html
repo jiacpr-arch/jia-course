@@ -173,9 +173,19 @@ window.JIA_DATA_READY = (async function() {
             _set('jia_instructor_quals', JSON.stringify(qualsObj));
         }
         _safeSave('jia_promo_codes', data.promo_codes);
-        // v2: classes
-        _safeSave('jia_classes', data.classes);
-        _safeSave('jia_class_instructors', data.class_instructors);
+        // v2: classes — ใช้ API เป็น source of truth เสมอ (เพราะผู้สอนอาจกดรับคลาสจากหน้าอื่น)
+        if (Array.isArray(data.classes) && data.classes.length > 0) {
+            _set('jia_classes', JSON.stringify(data.classes));
+            console.log('📥 jia_classes ← API (' + data.classes.length + ' rows) [always trust API]');
+        } else {
+            _safeSave('jia_classes', data.classes);
+        }
+        if (Array.isArray(data.class_instructors)) {
+            _set('jia_class_instructors', JSON.stringify(data.class_instructors));
+            console.log('📥 jia_class_instructors ← API (' + data.class_instructors.length + ' rows) [always trust API]');
+        } else {
+            _safeSave('jia_class_instructors', data.class_instructors);
+        }
         if (data.pdpa_log) _set('jia_pdpa_log', JSON.stringify(data.pdpa_log));
         if (data.settings) {
             data.settings.forEach(s => {
@@ -589,7 +599,17 @@ function AppContent() {
       const savedInstructors = JSON.parse(localStorage.getItem("jia_instructors") || "null");
       setInstructors(Array.isArray(savedInstructors) ? savedInstructors : DEFAULT_INSTRUCTORS);
       setInstructorAvail(JSON.parse(localStorage.getItem("jia_instructor_avail") || "[]"));
-      setPromoCodes(JSON.parse(localStorage.getItem("jia_promo_codes") || "[]"));
+      // promoCodes อาจเป็น array หรือ object (จากหน้า booking) — ต้อง normalize
+      const rawPromo = JSON.parse(localStorage.getItem("jia_promo_codes") || "[]");
+      if (Array.isArray(rawPromo)) {
+        setPromoCodes(rawPromo);
+      } else if (rawPromo && typeof rawPromo === 'object') {
+        // แปลง object { "SALE-XXX": {discount, used, ...} } → array [{code, discount, used, ...}]
+        const arr = Object.entries(rawPromo).map(([code, data]) => ({ ...data, code, id: code }));
+        setPromoCodes(arr);
+      } else {
+        setPromoCodes([]);
+      }
       // v2
       setClasses(JSON.parse(localStorage.getItem("jia_classes") || "[]"));
       setClassInstructors(JSON.parse(localStorage.getItem("jia_class_instructors") || "[]"));
@@ -645,6 +665,31 @@ function AppContent() {
     setSaving(true); setSaveStatus('saving');
     showToast('💾 กำลังบันทึกทั้งหมด...');
 
+    // ── ดึง classes + class_instructors ล่าสุดจาก API ก่อน (ผู้สอนอาจกดรับจากหน้าอื่น) ──
+    let latestClasses = classes;
+    let latestCI = classInstructors;
+    try {
+      const [apiClasses, apiCI] = await Promise.all([
+        jiaApiGet('getData', { sheet: 'classes' }),
+        jiaApiGet('getData', { sheet: 'class_instructors' })
+      ]);
+      if (Array.isArray(apiClasses) && apiClasses.length > 0) {
+        // merge: ใช้ API เป็นฐาน แต่ถ้า local มีคลาสที่ API ไม่มี (สร้างใหม่ยังไม่ sync) → เพิ่มเข้าไป
+        const apiIds = new Set(apiClasses.map(c => c.id));
+        const localOnly = classes.filter(c => c.id && !apiIds.has(c.id));
+        latestClasses = [...apiClasses, ...localOnly];
+        setClasses(latestClasses); save('jia_classes', latestClasses);
+      }
+      if (Array.isArray(apiCI)) {
+        const apiCIIds = new Set(apiCI.map(ci => ci.id));
+        const localOnlyCI = classInstructors.filter(ci => ci.id && !apiCIIds.has(ci.id));
+        latestCI = [...apiCI, ...localOnlyCI];
+        setClassInstructors(latestCI); save('jia_class_instructors', latestCI);
+      }
+    } catch(mergeErr) {
+      console.warn('⚠️ ดึงข้อมูลคลาสล่าสุดไม่ได้ ใช้ข้อมูล local:', mergeErr.message);
+    }
+
     // รวมข้อมูลทุก sheet เป็น object เดียว
     const allData = {
       customers: customers,
@@ -655,9 +700,9 @@ function AppContent() {
       instructors: instructors.map((inst, i) => typeof inst === 'object' ? inst : { id: 'inst' + (i+1), name: inst, level: 1 }),
       instructor_avail: instructorAvail,
       promo_codes: promoCodes,
-      // v2
-      classes: classes,
-      class_instructors: classInstructors,
+      // v2 — ใช้ข้อมูลที่ merge แล้ว
+      classes: latestClasses,
+      class_instructors: latestCI,
     };
 
     try {
