@@ -916,6 +916,10 @@ function AppContent() {
     cls.id = uid(); cls.createdAt = today(); cls.currentInstructors = 0; cls.status = 'waiting_instructor';
     const next = [...classes, cls];
     saveClasses(next);
+    // ── Auto-save to Google Sheets ทันที ──
+    jiaApiPost('saveRow', { sheet: 'classes' }, cls)
+      .then(r => { if(r) console.log('✅ คลาสใหม่ sync:', r); })
+      .catch(e => console.warn('⚠️ sync คลาสใหม่ไม่ได้:', e.message));
     return cls;
   }, [classes, saveClasses]);
 
@@ -927,6 +931,8 @@ function AppContent() {
   const deleteClass = useCallback((id) => {
     saveClasses(classes.filter(c => c.id !== id));
     saveClassInstructors(classInstructors.filter(ci => ci.classId !== id));
+    // ── Auto-delete from Google Sheets ──
+    jiaApiGet('deleteRow', { sheet: 'classes', key: id, keyCol: 'id' }).catch(e => console.warn('⚠️ delete class sync:', e.message));
   }, [classes, classInstructors, saveClasses, saveClassInstructors]);
 
   const assignInstructor = useCallback((classId, instructorName, assignedBy) => {
@@ -941,6 +947,18 @@ function AppContent() {
       const count = nextCi.filter(ci => ci.classId === classId).length;
       const needed = parseInt(cls.requiredInstructors) || 1;
       updateClass(classId, { currentInstructors: count, status: count >= needed ? 'ready' : 'waiting_instructor' });
+    }
+    // ── Auto-save to Google Sheets ทันที ──
+    jiaApiPost('saveRow', { sheet: 'class_instructors' }, newCi)
+      .then(r => { if(r) console.log('✅ assign instructor sync:', r); })
+      .catch(e => console.warn('⚠️ assign sync:', e.message));
+    // อัพเดทสถานะคลาสใน Sheets ด้วย
+    if (cls) {
+      const count2 = nextCi.filter(ci => ci.classId === classId).length;
+      const needed2 = parseInt(cls.requiredInstructors) || 1;
+      jiaApiPost('updateRow', { sheet: 'classes', key: classId, keyCol: 'id' },
+        { currentInstructors: count2, status: count2 >= needed2 ? 'ready' : 'waiting_instructor' }
+      ).catch(e => console.warn('⚠️ update class status:', e.message));
     }
   }, [classes, classInstructors, saveClassInstructors, updateClass]);
 
