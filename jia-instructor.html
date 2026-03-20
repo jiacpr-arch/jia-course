@@ -156,16 +156,35 @@
             return true;
         }
         try {
+            // ─── DEBUG: แสดงสถานะ session ───
+            const _dbg = (msg) => { console.log('🔍 DEBUG:', msg); window.__DEBUG_LOG = (window.__DEBUG_LOG || '') + msg + '\n'; };
+
             // ตรวจ session จาก sessionStorage
             const saved = sessionStorage.getItem('jia_user');
-            if (!saved) { window.location.href = LOGIN_PAGE; return false; }
+            _dbg('session: ' + (saved || 'NULL'));
+            if (!saved) {
+                _dbg('❌ ไม่มี session → redirect login');
+                window.location.href = LOGIN_PAGE; return false;
+            }
             const sessionUser = JSON.parse(saved);
-            if (!sessionUser.username) { window.location.href = LOGIN_PAGE; return false; }
+            _dbg('username: ' + (sessionUser.username || 'EMPTY'));
+            if (!sessionUser.username) {
+                _dbg('❌ ไม่มี username → redirect login');
+                window.location.href = LOGIN_PAGE; return false;
+            }
 
             // Check role
-            const check = await jiaApiGet('checkUsername', { username: sessionUser.username });
-            if (!check.registered || check.role !== 'instructor') {
-                alert('คุณไม่มีสิทธิ์เข้าหน้าผู้สอน');
+            let check;
+            try {
+                check = await jiaApiGet('checkUsername', { username: sessionUser.username });
+                _dbg('checkUsername result: ' + JSON.stringify(check));
+            } catch(apiErr) {
+                _dbg('⚠️ checkUsername error: ' + apiErr.message + ' → ใช้ session เดิม');
+                check = { registered: true, role: sessionUser.role, name: sessionUser.name };
+            }
+            if (!check || !check.registered || check.role !== 'instructor') {
+                _dbg('❌ role ไม่ใช่ instructor: ' + JSON.stringify(check));
+                alert('DEBUG: check=' + JSON.stringify(check) + '\nsession=' + saved);
                 sessionStorage.removeItem('jia_user');
                 window.location.href = LOGIN_PAGE;
                 return false;
