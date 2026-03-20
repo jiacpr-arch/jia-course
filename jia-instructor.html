@@ -523,15 +523,29 @@
         }
 
         function App() {
+            // ── ผู้สอน login แล้ว → ใช้ชื่อจาก session เลย ไม่ต้องเลือกอีก ──
+            const authUser = window.JIA_AUTH_USER || {};
+            const loggedInName = authUser.name || '';
+
             const [selectedInstructor, setSelectedInstructor] = useState(() => {
-                return sessionStorage.getItem('selectedInstructor');
+                return loggedInName || sessionStorage.getItem('selectedInstructor');
             });
             const [authenticatedInstructor, setAuthenticatedInstructor] = useState(() => {
+                // ถ้า login ผ่าน jia-login แล้ว → authenticated ทันที
+                if (loggedInName) return loggedInName;
                 return selectedInstructor && sessionStorage.getItem(`jia_instructor_auth_${selectedInstructor}`) === "true" ? selectedInstructor : null;
             });
             const [activeTab, setActiveTab] = useState('classes');
 
             const instructors = JSON.parse(localStorage.getItem('jia_instructors') || '[]');
+
+            // ถ้า login แล้ว → set session ให้เรียบร้อย
+            useEffect(() => {
+                if (loggedInName && !sessionStorage.getItem('selectedInstructor')) {
+                    sessionStorage.setItem('selectedInstructor', loggedInName);
+                    sessionStorage.setItem(`jia_instructor_auth_${loggedInName}`, 'true');
+                }
+            }, [loggedInName]);
 
             const handleSelectInstructor = (instructor) => {
                 setSelectedInstructor(instructor);
