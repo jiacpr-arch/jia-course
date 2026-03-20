@@ -235,6 +235,24 @@
             if (Array.isArray(instructors)) {
                 // เก็บเป็น object เต็ม (มี name + level) เพื่อให้ ClassPickerTab ใช้ได้
                 localStorage.setItem('jia_instructors', JSON.stringify(instructors));
+
+                // ── Auto-register: ถ้าผู้สอนยังไม่อยู่ใน instructors sheet → เพิ่มอัตโนมัติ ──
+                const myName = check.name;
+                const alreadyIn = instructors.find(i => i.name === myName);
+                if (!alreadyIn && myName) {
+                    console.log('🔄 ผู้สอน "' + myName + '" ยังไม่อยู่ใน instructors → เพิ่มอัตโนมัติ...');
+                    try {
+                        const ensureResult = await jiaApiGet('ensureInstructor', { name: myName, username: sessionUser.username });
+                        if (ensureResult && ensureResult.success) {
+                            console.log('✅ เพิ่มผู้สอนสำเร็จ:', ensureResult.action);
+                            // อัพเดท instructors list ใน localStorage
+                            instructors.push(ensureResult.instructor || { id: 'inst_auto', name: myName, level: 1 });
+                            localStorage.setItem('jia_instructors', JSON.stringify(instructors));
+                        }
+                    } catch(ensErr) {
+                        console.warn('⚠️ ensureInstructor error:', ensErr.message);
+                    }
+                }
             }
             if (Array.isArray(classes)) localStorage.setItem('jia_classes', JSON.stringify(classes));
             if (Array.isArray(classInstructors)) localStorage.setItem('jia_class_instructors', JSON.stringify(classInstructors));
