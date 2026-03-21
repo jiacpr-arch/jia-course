@@ -99,7 +99,7 @@ function showToast(message, isError) {
 window.JIA_AUTH_USER = null;
 window.JIA_DATA_READY = (async function() {
     try {
-        const saved = sessionStorage.getItem('jia_user');
+        const saved = localStorage.getItem('jia_user') || sessionStorage.getItem('jia_user');
         if (!saved) { window.location.href = LOGIN_PAGE; return false; }
         const sessionUser = JSON.parse(saved);
         if (!sessionUser.username) { window.location.href = LOGIN_PAGE; return false; }
@@ -107,6 +107,7 @@ window.JIA_DATA_READY = (async function() {
         const check = await jiaApiGet('checkUsername', { username: sessionUser.username });
         if (!check.registered || check.role !== 'sales') {
             alert('คุณไม่มีสิทธิ์เข้าหน้าเซลล์');
+            localStorage.removeItem('jia_user');
             sessionStorage.removeItem('jia_user');
             window.location.href = LOGIN_PAGE;
             return false;
@@ -283,7 +284,7 @@ function SalesApp() {
     setCustomers(next); save('jia_customers', next);
   }, [customers, save]);
 
-  const logout = () => { sessionStorage.removeItem('jia_user'); window.location.href = LOGIN_PAGE; };
+  const logout = () => { localStorage.removeItem('jia_user'); sessionStorage.removeItem('jia_user'); window.location.href = LOGIN_PAGE; };
 
   // Bottom nav tabs (main 5 for mobile)
   const mobileNavTabs = TABS.filter(t => ['dashboard','myBookings','newBooking','myCustomers','earnings'].includes(t.id));
@@ -318,7 +319,7 @@ function SalesApp() {
       {/* Content */}
       <main className="main-content max-w-5xl mx-auto px-3 md:px-4 py-4 md:py-6">
         {tab === 'dashboard' && <DashboardTab bookings={myBookings} customers={myCustomers} sessions={sessions} cfg={cfg}
-          commissions={commissions} userName={user.name} setTab={setTab} />}
+          commissions={commissions} classes={classes} userName={user.name} setTab={setTab} />}
         {tab === 'myBookings' && <MyBookingsTab bookings={myBookings} customers={customers} sessions={sessions} cfg={cfg} />}
         {tab === 'newBooking' && <NewBookingTab customers={customers} allCustomers={customers} addCustomer={addCustomer} addBooking={addBooking}
           courses={courses} cfg={cfg} staff={staff} instructors={instructors} promoCodes={promoCodes} enrolled={enrolled} userName={user.name} />}
@@ -326,7 +327,7 @@ function SalesApp() {
           cfg={cfg} updateCustomer={updateCustomer} updateBooking={updateBooking} courses={courses} instructors={instructors} />}
         {tab === 'calendar' && <CalendarTab bookings={myBookings} customers={customers} cfg={cfg} />}
         {tab === 'promo' && <PromoTab promoCodes={promoCodes} />}
-        {tab === 'earnings' && <EarningsTab bookings={myBookings} commissions={commissions} userName={user.name} />}
+        {tab === 'earnings' && <EarningsTab bookings={myBookings} commissions={commissions} classes={classes} userName={user.name} />}
       </main>
 
       {/* Mobile Bottom Navigation */}
@@ -350,7 +351,7 @@ function SalesApp() {
 // ═══════════════════════════════════════════════════════════
 // DASHBOARD — หน้าแรก สรุปภาพรวม + Quick Actions
 // ═══════════════════════════════════════════════════════════
-function DashboardTab({ bookings, customers, sessions, cfg, commissions, userName, setTab }) {
+function DashboardTab({ bookings, customers, sessions, cfg, commissions, classes, userName, setTab }) {
   const t = today();
 
   const todayBookings = useMemo(() => bookings.filter(b => b.startDate === t), [bookings, t]);
@@ -365,15 +366,30 @@ function DashboardTab({ bookings, customers, sessions, cfg, commissions, userNam
   const monthRevenue = monthBookings.reduce((s, b) => s + (parseFloat(b.finalPrice) || 0), 0);
   const monthPeople = monthBookings.reduce((s, b) => s + (parseInt(b.totalPeople) || 1), 0);
 
-  // Commission
-  const commissionPct = useMemo(() => {
+  // Commission — per class
+  const fallbackPct = useMemo(() => {
     if (Array.isArray(commissions)) {
       const entry = commissions.find(c => c.staffName === userName);
       return entry ? parseFloat(entry.commission) || 0 : 0;
     }
     return parseFloat(commissions[userName]) || 0;
   }, [commissions, userName]);
-  const monthCommission = monthRevenue * (commissionPct / 100);
+
+  const monthCommission = useMemo(() => {
+    return monthBookings.reduce((sum, bk) => {
+      const price = parseFloat(bk.finalPrice) || 0;
+      // หาค่าคอมจากคลาส
+      let pct = fallbackPct;
+      if (bk.classId) {
+        const cls = (classes || []).find(c => c.id === bk.classId);
+        if (cls && cls.salesCommission > 0) pct = parseFloat(cls.salesCommission);
+      } else {
+        const matched = (classes || []).find(c => c.date === bk.startDate && c.timeSlot === bk.timeSlot && (c.courseKey === bk.courseType || c.courseName === bk.courseType));
+        if (matched && matched.salesCommission > 0) pct = parseFloat(matched.salesCommission);
+      }
+      return sum + (price * pct / 100);
+    }, 0);
+  }, [monthBookings, classes, fallbackPct]);
 
   // Greeting
   const hour = new Date().getHours();
@@ -428,7 +444,7 @@ function DashboardTab({ bookings, customers, sessions, cfg, commissions, userNam
             <div className="text-xl font-bold text-blue-600">฿{fmtPrice(monthRevenue)}</div>
           </div>
           <div className="bg-white rounded-xl border p-4">
-            <div className="text-xs text-gray-500">คอมมิชชั่น ({commissionPct}%)</div>
+            <div className="text-xs text-gray-500">คอมมิชชั่น</div>
             <div className="text-xl font-bold text-emerald-600">฿{fmtPrice(monthCommission)}</div>
           </div>
           <div className="bg-white rounded-xl border p-4">
@@ -1187,32 +1203,52 @@ function PromoTab({ promoCodes }) {
 // ═══════════════════════════════════════════════════════════
 // TAB 6: รายได้ (Earnings)
 // ═══════════════════════════════════════════════════════════
-function EarningsTab({ bookings, commissions, userName }) {
+function EarningsTab({ bookings, commissions, classes, userName }) {
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
   });
 
-  // Get commission % for this user
-  const commissionPct = useMemo(() => {
-    // commissions can be object {name: "%"} or array [{staffName, commission}]
+  // Fallback commission % (from settings) — ใช้กรณีคลาสไม่มี salesCommission
+  const fallbackPct = useMemo(() => {
     if (Array.isArray(commissions)) {
       const entry = commissions.find(c => c.staffName === userName);
       return entry ? parseFloat(entry.commission) || 0 : 0;
     }
-    const val = commissions[userName];
-    return val ? parseFloat(val) || 0 : 0;
+    return parseFloat(commissions[userName]) || 0;
   }, [commissions, userName]);
+
+  // Match booking → class → salesCommission %
+  const getCommissionPct = (bk) => {
+    // 1) ถ้า booking มี classId → หาจาก class ตรงๆ
+    if (bk.classId) {
+      const cls = (classes || []).find(c => c.id === bk.classId);
+      if (cls && cls.salesCommission > 0) return parseFloat(cls.salesCommission);
+    }
+    // 2) ถ้าไม่มี classId → จับคู่ date + timeSlot + courseType
+    const matched = (classes || []).find(c => c.date === bk.startDate && c.timeSlot === bk.timeSlot && (c.courseKey === bk.courseType || c.courseName === bk.courseType));
+    if (matched && matched.salesCommission > 0) return parseFloat(matched.salesCommission);
+    // 3) fallback → ใช้ % จาก settings
+    return fallbackPct;
+  };
 
   // Filter bookings by selected month
   const monthBookings = useMemo(() => {
     return bookings.filter(b => (b.startDate || b.createdAt || '').startsWith(selectedMonth));
   }, [bookings, selectedMonth]);
 
-  // Calculate totals
-  const totalRevenue = useMemo(() => monthBookings.reduce((sum, b) => sum + (parseFloat(b.finalPrice) || 0), 0), [monthBookings]);
-  const totalCommission = totalRevenue * (commissionPct / 100);
-  const totalBookings = monthBookings.length;
-  const totalPeople = monthBookings.reduce((sum, b) => sum + (parseInt(b.totalPeople) || 1), 0);
+  // Calculate per-booking commission
+  const bookingsWithComm = useMemo(() => {
+    return monthBookings.map(b => {
+      const price = parseFloat(b.finalPrice) || 0;
+      const pct = getCommissionPct(b);
+      return { ...b, commPct: pct, commission: price * pct / 100 };
+    });
+  }, [monthBookings, classes, fallbackPct]);
+
+  const totalRevenue = bookingsWithComm.reduce((s, b) => s + (parseFloat(b.finalPrice) || 0), 0);
+  const totalCommission = bookingsWithComm.reduce((s, b) => s + b.commission, 0);
+  const totalBookings = bookingsWithComm.length;
+  const totalPeople = bookingsWithComm.reduce((s, b) => s + (parseInt(b.totalPeople) || 1), 0);
 
   // Generate month options (last 12 months)
   const monthOptions = useMemo(() => {
@@ -1231,57 +1267,41 @@ function EarningsTab({ bookings, commissions, userName }) {
   // Group by course type
   const byCourse = useMemo(() => {
     const map = {};
-    monthBookings.forEach(b => {
+    bookingsWithComm.forEach(b => {
       const key = b.courseType || 'อื่นๆ';
-      if (!map[key]) map[key] = { count: 0, people: 0, revenue: 0 };
+      if (!map[key]) map[key] = { count: 0, people: 0, revenue: 0, commission: 0 };
       map[key].count++;
       map[key].people += parseInt(b.totalPeople) || 1;
       map[key].revenue += parseFloat(b.finalPrice) || 0;
+      map[key].commission += b.commission;
     });
     return Object.entries(map).sort((a, b) => b[1].revenue - a[1].revenue);
-  }, [monthBookings]);
+  }, [bookingsWithComm]);
 
   return (
-    <div>
-      <h2 className="text-xl font-bold mb-4">💰 รายได้ค่าคอมมิชชั่น</h2>
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold">💰 รายได้ค่าคอมมิชชั่น</h2>
 
       {/* Month Selector */}
-      <div className="mb-4">
-        <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
-          className="border rounded-lg p-2 text-sm bg-white">
-          {monthOptions.map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
-        </select>
-      </div>
-
-      {/* Commission Rate */}
-      {commissionPct > 0 ? (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-4">
-          <div className="text-sm text-emerald-600">อัตราคอมมิชชั่นของคุณ</div>
-          <div className="text-3xl font-bold text-emerald-700">{commissionPct}%</div>
-        </div>
-      ) : (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-4">
-          <div className="text-sm text-yellow-700">⚠️ ยังไม่ได้ตั้งค่าอัตราคอมมิชชั่น — กรุณาติดต่อ Admin</div>
-        </div>
-      )}
+      <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
+        className="border rounded-xl p-2.5 text-sm bg-white w-full md:w-auto input-focus">
+        {monthOptions.map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
+      </select>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 gap-3">
         <div className="bg-white rounded-xl border p-4 text-center">
           <div className="text-xs text-gray-500">จำนวนจอง</div>
           <div className="text-2xl font-bold text-gray-800">{totalBookings}</div>
-        </div>
-        <div className="bg-white rounded-xl border p-4 text-center">
-          <div className="text-xs text-gray-500">จำนวนคน</div>
-          <div className="text-2xl font-bold text-gray-800">{totalPeople}</div>
+          <div className="text-xs text-gray-400">{totalPeople} คน</div>
         </div>
         <div className="bg-white rounded-xl border p-4 text-center">
           <div className="text-xs text-gray-500">ยอดขายรวม</div>
-          <div className="text-2xl font-bold text-blue-600">{fmtPrice(totalRevenue)} ฿</div>
+          <div className="text-2xl font-bold text-blue-600">฿{fmtPrice(totalRevenue)}</div>
         </div>
-        <div className="bg-white rounded-xl border p-4 text-center">
-          <div className="text-xs text-gray-500">คอมมิชชั่น</div>
-          <div className="text-2xl font-bold text-emerald-600">{fmtPrice(totalCommission)} ฿</div>
+        <div className="col-span-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl p-5 text-center">
+          <div className="text-sm opacity-90">คอมมิชชั่นรวม</div>
+          <div className="text-3xl font-bold mt-1">฿{fmtPrice(totalCommission)}</div>
         </div>
       </div>
 
@@ -1291,28 +1311,20 @@ function EarningsTab({ bookings, commissions, userName }) {
           <div className="px-4 py-3 bg-gray-50 border-b">
             <h3 className="font-semibold text-sm">รายละเอียดตามคอร์ส</h3>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-gray-50 text-gray-500 text-xs">
-                <th className="text-left px-4 py-2">คอร์ส</th>
-                <th className="text-center px-2 py-2">จำนวนจอง</th>
-                <th className="text-center px-2 py-2">คน</th>
-                <th className="text-right px-4 py-2">ยอดขาย</th>
-                <th className="text-right px-4 py-2">คอมมิชชั่น</th>
-              </tr>
-            </thead>
-            <tbody>
-              {byCourse.map(([course, data]) => (
-                <tr key={course} className="border-b last:border-0">
-                  <td className="px-4 py-3 font-medium">{course}</td>
-                  <td className="text-center px-2 py-3">{data.count}</td>
-                  <td className="text-center px-2 py-3">{data.people}</td>
-                  <td className="text-right px-4 py-3">{fmtPrice(data.revenue)} ฿</td>
-                  <td className="text-right px-4 py-3 text-emerald-600 font-semibold">{fmtPrice(data.revenue * commissionPct / 100)} ฿</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="divide-y">
+            {byCourse.map(([course, data]) => (
+              <div key={course} className="px-4 py-3 flex justify-between items-center">
+                <div>
+                  <div className="font-medium text-sm">{course}</div>
+                  <div className="text-xs text-gray-400">{data.count} จอง · {data.people} คน</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm text-gray-600">฿{fmtPrice(data.revenue)}</div>
+                  <div className="text-sm font-bold text-emerald-600">+฿{fmtPrice(data.commission)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : (
         <div className="bg-white rounded-xl border p-8 text-center text-gray-400">
@@ -1321,19 +1333,19 @@ function EarningsTab({ bookings, commissions, userName }) {
       )}
 
       {/* Booking Details */}
-      {monthBookings.length > 0 && (
-        <div className="mt-4">
-          <h3 className="font-semibold text-sm mb-2 text-gray-600">📋 รายการจองในเดือนนี้</h3>
+      {bookingsWithComm.length > 0 && (
+        <div>
+          <h3 className="font-semibold text-sm mb-2 text-gray-600">📋 รายการจอง</h3>
           <div className="space-y-2">
-            {monthBookings.map(b => (
-              <div key={b.id} className="bg-white rounded-lg border p-3 flex justify-between items-center">
+            {bookingsWithComm.map(b => (
+              <div key={b.id} className="card-hover bg-white rounded-xl border p-3 flex justify-between items-center">
                 <div>
                   <div className="font-medium text-sm">{b.name || 'ไม่ทราบชื่อ'}</div>
-                  <div className="text-xs text-gray-500">{b.courseType} · {b.startDate} · {b.totalPeople || 1} คน</div>
+                  <div className="text-xs text-gray-500">{b.courseType} · {fmt(b.startDate)} · {b.totalPeople || 1} คน</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-semibold">{fmtPrice(parseFloat(b.finalPrice) || 0)} ฿</div>
-                  <div className="text-xs text-emerald-600">+{fmtPrice((parseFloat(b.finalPrice) || 0) * commissionPct / 100)} ฿</div>
+                  <div className="text-sm font-semibold">฿{fmtPrice(parseFloat(b.finalPrice) || 0)}</div>
+                  <div className="text-xs text-emerald-600 font-medium">+฿{fmtPrice(b.commission)} ({b.commPct}%)</div>
                 </div>
               </div>
             ))}

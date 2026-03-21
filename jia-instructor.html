@@ -107,8 +107,8 @@
             // ─── DEBUG: แสดงสถานะ session ───
             const _dbg = (msg) => { console.log('🔍 DEBUG:', msg); window.__DEBUG_LOG = (window.__DEBUG_LOG || '') + msg + '\n'; };
 
-            // ตรวจ session จาก sessionStorage
-            const saved = sessionStorage.getItem('jia_user');
+            // ตรวจ session จาก localStorage หรือ sessionStorage
+            const saved = localStorage.getItem('jia_user') || sessionStorage.getItem('jia_user');
             _dbg('session: ' + (saved || 'NULL'));
             if (!saved) {
                 _dbg('❌ ไม่มี session → redirect login');
@@ -133,6 +133,7 @@
             if (!check || !check.registered || check.role !== 'instructor') {
                 _dbg('❌ role ไม่ใช่ instructor: ' + JSON.stringify(check));
                 alert('DEBUG: check=' + JSON.stringify(check) + '\nsession=' + saved);
+                localStorage.removeItem('jia_user');
                 sessionStorage.removeItem('jia_user');
                 window.location.href = LOGIN_PAGE;
                 return false;
@@ -511,6 +512,7 @@
                 setAuthenticatedInstructor(null);
                 setSelectedInstructor(null);
                 sessionStorage.removeItem('selectedInstructor');
+                localStorage.removeItem('jia_user');
                 sessionStorage.removeItem('jia_user');
                 setActiveTab('availability');
                 window.location.href = './jia-login.html';
@@ -1184,31 +1186,53 @@
         function EarningsTab({ instructor }) {
             const [classes, setClasses] = useState([]);
             const [classInstructors, setClassInstructors] = useState([]);
+            const [bookings, setBookings] = useState([]);
             const [currentDate, setCurrentDate] = useState(new Date());
 
             useEffect(() => {
                 try {
                     setClasses(JSON.parse(localStorage.getItem('jia_classes') || '[]'));
                     setClassInstructors(JSON.parse(localStorage.getItem('jia_class_instructors') || '[]'));
+                    setBookings(JSON.parse(localStorage.getItem('jia_bookings') || '[]'));
                 } catch(e) {}
             }, []);
 
-            const previousMonth = () => {
-                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
-            };
-
-            const nextMonth = () => {
-                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
-            };
+            const previousMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+            const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
 
             // Get classes I'm assigned to teach
             const myClassIds = useMemo(() => {
                 return new Set(classInstructors.filter(ci => ci.instructor === instructor).map(ci => ci.classId));
             }, [classInstructors, instructor]);
 
-            const myClasses = useMemo(() => {
-                return classes.filter(c => myClassIds.has(c.id));
-            }, [classes, myClassIds]);
+            const myClasses = useMemo(() => classes.filter(c => myClassIds.has(c.id)), [classes, myClassIds]);
+
+            // Count students per class (from bookings)
+            const studentsPerClass = useMemo(() => {
+                const map = {};
+                bookings.forEach(b => {
+                    // Match by classId or by date+timeSlot+courseType
+                    let cid = b.classId;
+                    if (!cid) {
+                        const matched = classes.find(c => c.date === b.startDate && c.timeSlot === b.timeSlot && (c.courseKey === b.courseType || c.courseName === b.courseType));
+                        if (matched) cid = matched.id;
+                    }
+                    if (cid) map[cid] = (map[cid] || 0) + (parseInt(b.totalPeople) || 1);
+                });
+                return map;
+            }, [bookings, classes]);
+
+            // Calculate pay per class: perStudent × students, capped at max
+            const calcPay = (cls) => {
+                const perStudent = parseFloat(cls.instructorPayPerStudent) || 0;
+                const maxPay = parseFloat(cls.instructorPayMax) || 0;
+                const students = studentsPerClass[cls.id] || 0;
+                if (perStudent <= 0) return { pay: 0, students, perStudent: 0, maxPay: 0, capped: false };
+                let pay = perStudent * students;
+                const capped = maxPay > 0 && pay > maxPay;
+                if (capped) pay = maxPay;
+                return { pay, students, perStudent, maxPay, capped };
+            };
 
             // Filter by current month
             const monthClasses = useMemo(() => {
@@ -1219,77 +1243,80 @@
             }, [myClasses, currentDate]);
 
             // Calculate totals
-            const totalEarnings = monthClasses.reduce((sum, c) => sum + (parseFloat(c.instructorPay) || 0), 0);
+            const totalEarnings = monthClasses.reduce((sum, c) => sum + calcPay(c).pay, 0);
             const completedClasses = monthClasses.filter(c => c.status === 'completed');
-            const confirmedEarnings = completedClasses.reduce((sum, c) => sum + (parseFloat(c.instructorPay) || 0), 0);
+            const confirmedEarnings = completedClasses.reduce((sum, c) => sum + calcPay(c).pay, 0);
             const pendingEarnings = totalEarnings - confirmedEarnings;
+            const totalStudents = monthClasses.reduce((sum, c) => sum + (studentsPerClass[c.id] || 0), 0);
 
             return (
                 <div className="space-y-6">
                     <div className="flex justify-between items-center">
-                        <h2 className="text-2xl font-bold text-gray-800">สรุปรายได้</h2>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={previousMonth}
-                                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
-                            >
-                                ◀
-                            </button>
-                            <span className="px-4 py-2 font-semibold text-gray-700 bg-gray-100 rounded min-w-max">
+                        <h2 className="text-xl md:text-2xl font-bold text-gray-800">สรุปรายได้</h2>
+                        <div className="flex gap-1">
+                            <button onClick={previousMonth} className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors">◀</button>
+                            <span className="px-3 py-2 font-semibold text-gray-700 bg-gray-100 rounded-lg text-sm min-w-max">
                                 {getThaiMonthYear(currentDate)}
                             </span>
-                            <button
-                                onClick={nextMonth}
-                                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
-                            >
-                                ▶
-                            </button>
+                            <button onClick={nextMonth} className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors">▶</button>
                         </div>
                     </div>
 
                     {/* Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="earnings-card bg-gradient-to-br from-teal-500 to-teal-600 text-white rounded-lg shadow-md p-6">
-                            <p className="text-sm opacity-90 mb-1">รายได้รวม</p>
-                            <p className="text-3xl font-bold">{totalEarnings.toLocaleString()} ฿</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="earnings-card bg-gradient-to-br from-teal-500 to-teal-600 text-white rounded-xl shadow-md p-4">
+                            <p className="text-xs opacity-90">รายได้รวม</p>
+                            <p className="text-2xl font-bold mt-1">{totalEarnings.toLocaleString()} ฿</p>
                         </div>
-                        <div className="earnings-card bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg shadow-md p-6">
-                            <p className="text-sm opacity-90 mb-1">สอนแล้ว (ยืนยัน)</p>
-                            <p className="text-3xl font-bold">{confirmedEarnings.toLocaleString()} ฿</p>
-                            <p className="text-xs opacity-75 mt-1">{completedClasses.length} คลาส</p>
+                        <div className="earnings-card bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl shadow-md p-4">
+                            <p className="text-xs opacity-90">สอนแล้ว</p>
+                            <p className="text-2xl font-bold mt-1">{confirmedEarnings.toLocaleString()} ฿</p>
+                            <p className="text-[10px] opacity-75">{completedClasses.length} คลาส</p>
                         </div>
-                        <div className="earnings-card bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg shadow-md p-6">
-                            <p className="text-sm opacity-90 mb-1">รอสอน</p>
-                            <p className="text-3xl font-bold">{pendingEarnings.toLocaleString()} ฿</p>
-                            <p className="text-xs opacity-75 mt-1">{monthClasses.length - completedClasses.length} คลาส</p>
+                        <div className="earnings-card bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl shadow-md p-4">
+                            <p className="text-xs opacity-90">รอสอน</p>
+                            <p className="text-2xl font-bold mt-1">{pendingEarnings.toLocaleString()} ฿</p>
+                            <p className="text-[10px] opacity-75">{monthClasses.length - completedClasses.length} คลาส</p>
+                        </div>
+                        <div className="earnings-card bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-xl shadow-md p-4">
+                            <p className="text-xs opacity-90">นักเรียนรวม</p>
+                            <p className="text-2xl font-bold mt-1">{totalStudents} คน</p>
+                            <p className="text-[10px] opacity-75">{monthClasses.length} คลาส</p>
                         </div>
                     </div>
 
                     {/* Class Breakdown */}
-                    <div className="bg-white rounded-lg shadow-sm p-6">
-                        <h3 className="text-xl font-bold text-gray-800 mb-4">รายละเอียดคลาส</h3>
+                    <div className="bg-white rounded-xl shadow-sm p-4 md:p-6">
+                        <h3 className="text-lg font-bold text-gray-800 mb-4">รายละเอียดคลาส</h3>
 
                         {monthClasses.length === 0 ? (
                             <div className="text-center py-8">
-                                <p className="text-gray-500">ไม่มีคลาสที่รับสอนในเดือนนี้</p>
+                                <p className="text-gray-400">ไม่มีคลาสที่รับสอนในเดือนนี้</p>
                             </div>
                         ) : (
                             <div className="space-y-3">
                                 {monthClasses.map((cls) => {
-                                    const pay = parseFloat(cls.instructorPay) || 0;
+                                    const { pay, students, perStudent, maxPay, capped } = calcPay(cls);
                                     const isCompleted = cls.status === 'completed';
                                     return (
-                                        <div key={cls.id} className={`flex justify-between items-center p-4 rounded-lg border ${isCompleted ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
-                                            <div>
-                                                <p className="font-semibold text-gray-800">{cls.courseName || cls.courseKey}</p>
-                                                <p className="text-sm text-gray-600">{formatThaiDate(new Date(cls.date))} · {cls.timeSlot}</p>
-                                                {cls.place && <p className="text-xs text-gray-400">📍 {cls.place}</p>}
+                                        <div key={cls.id} className={`card-hover p-4 rounded-xl border ${isCompleted ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="font-semibold text-gray-800">{cls.courseName || cls.courseKey}</p>
+                                                    <p className="text-sm text-gray-500">{formatThaiDate(new Date(cls.date))} · {cls.timeSlot}</p>
+                                                    {cls.place && <p className="text-xs text-gray-400">📍 {cls.place}</p>}
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className={`text-lg font-bold ${isCompleted ? 'text-green-600' : 'text-blue-600'}`}>{pay.toLocaleString()} ฿</p>
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                        {isCompleted ? '✅ สอนแล้ว' : '⏳ รอสอน'}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className={`text-lg font-bold ${isCompleted ? 'text-green-600' : 'text-blue-600'}`}>{pay.toLocaleString()} ฿</p>
-                                                <span className={`text-xs px-2 py-0.5 rounded-full ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                    {isCompleted ? '✅ สอนแล้ว' : '⏳ รอสอน'}
-                                                </span>
+                                            <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-x-3">
+                                                <span>👥 {students} คน</span>
+                                                {perStudent > 0 && <span>× {perStudent.toLocaleString()} บาท/คน</span>}
+                                                {capped && <span className="text-amber-600 font-medium">⚠️ ถึง max {maxPay.toLocaleString()} ฿</span>}
                                             </div>
                                         </div>
                                     );
@@ -1298,7 +1325,7 @@
                         )}
                     </div>
 
-                    {monthClasses.some(c => !c.instructorPay || parseFloat(c.instructorPay) === 0) && (
+                    {monthClasses.some(c => !c.instructorPayPerStudent || parseFloat(c.instructorPayPerStudent) === 0) && (
                         <div className="text-center text-sm text-yellow-600 pb-4">
                             ⚠️ บางคลาสยังไม่ได้ตั้งค่าค่าสอน — กรุณาติดต่อ Admin
                         </div>

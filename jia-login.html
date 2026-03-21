@@ -61,6 +61,17 @@
 
         .tab-active { border-bottom: 3px solid var(--jia-red); color: var(--jia-red); font-weight: 700; }
         .tab-inactive { border-bottom: 3px solid transparent; color: #888; }
+
+        .pin-box {
+            width: 48px; height: 56px;
+            border: 2px solid #e0e0e0; border-radius: 12px;
+            text-align: center; font-size: 24px; font-weight: 700;
+            outline: none; transition: border-color 0.3s;
+            background: #f9f9f9;
+        }
+        .pin-box:focus { border-color: var(--jia-red); background: white; box-shadow: 0 0 0 3px rgba(200,16,46,0.1); }
+        @media (max-width: 400px) { .pin-box { width: 40px; height: 48px; font-size: 20px; } }
+        @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-6px)} 80%{transform:translateX(6px)} }
     </style>
 </head>
 <body>
@@ -134,89 +145,246 @@ async function hashPassword(password) {
 // ═══════════════════════════════════════════════════════════
 
 const app = document.getElementById('app');
+let currentMode = 'choose'; // 'choose', 'staff-pin', 'admin-login', 'register'
 
 // ═══════════════════════════════════════════════════════════
-// RENDER: LOGIN SCREEN
+// RENDER: ROLE CHOOSER (Landing)
 // ═══════════════════════════════════════════════════════════
 
-function renderLoginScreen() {
+function renderChooseScreen() {
+    currentMode = 'choose';
     app.innerHTML = `
-        <div class="card p-10 max-w-md w-full fade-in">
+        <div class="card p-8 max-w-md w-full fade-in">
             <div class="text-center mb-8">
                 <h1 class="text-4xl font-bold jia-red mb-2">JIA</h1>
                 <p class="text-xl font-semibold text-gray-700">TRAINER CENTER</p>
                 <p class="text-sm text-gray-500 mt-2">ระบบจัดการคลาส CPR/AED</p>
             </div>
 
-            <!-- Tabs: Login / Register -->
-            <div class="flex mb-6">
-                <button id="tab-login" onclick="showTab('login')" class="flex-1 text-center pb-3 cursor-pointer tab-active">
-                    เข้าสู่ระบบ
+            <div class="space-y-3 mb-6">
+                <button onclick="renderStaffPinScreen('sales')" class="w-full bg-emerald-50 hover:bg-emerald-100 rounded-2xl p-5 transition-all text-left flex items-center gap-4 border-2 border-transparent hover:border-emerald-300" style="cursor:pointer">
+                    <span class="text-3xl">🟢</span>
+                    <div>
+                        <p class="font-bold text-emerald-800 text-lg">เซลล์</p>
+                        <p class="text-sm text-emerald-600">เข้าระบบด้วย PIN</p>
+                    </div>
                 </button>
-                <button id="tab-register" onclick="showTab('register')" class="flex-1 text-center pb-3 cursor-pointer tab-inactive">
-                    ลงทะเบียน
+                <button onclick="renderStaffPinScreen('instructor')" class="w-full bg-amber-50 hover:bg-amber-100 rounded-2xl p-5 transition-all text-left flex items-center gap-4 border-2 border-transparent hover:border-amber-300" style="cursor:pointer">
+                    <span class="text-3xl">🟡</span>
+                    <div>
+                        <p class="font-bold text-amber-800 text-lg">ผู้สอน</p>
+                        <p class="text-sm text-amber-600">เข้าระบบด้วย PIN</p>
+                    </div>
                 </button>
-            </div>
-
-            <!-- Login Form -->
-            <div id="form-login">
-                <div class="mb-4">
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">ชื่อผู้ใช้ (Username)</label>
-                    <input type="text" id="login-username" class="input-field" placeholder="เช่น admin" autocomplete="username" />
-                </div>
-                <div class="mb-6">
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">รหัสผ่าน</label>
-                    <input type="password" id="login-password" class="input-field" placeholder="รหัสผ่าน" autocomplete="current-password" />
-                </div>
-                <div id="login-error" class="hidden bg-red-50 text-red-700 rounded-xl p-4 mb-4 text-sm"></div>
-                <button onclick="handleLogin()" id="login-btn" class="btn-primary">
-                    เข้าสู่ระบบ
-                </button>
-                <p class="text-center text-sm text-gray-400 mt-4">ลืมรหัสผ่าน? แจ้ง Admin เพื่อรีเซ็ตให้</p>
-            </div>
-
-            <!-- Register Form -->
-            <div id="form-register" class="hidden">
-                <div class="mb-4">
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">รหัสเชิญ (Invite Code)</label>
-                    <input type="text" id="reg-code" class="input-field" placeholder="เช่น SALE-A1B2C3"
-                        style="text-transform: uppercase; letter-spacing: 2px; text-align: center; font-size: 18px;" />
-                    <p class="text-xs text-gray-400 mt-2">ขอรหัสเชิญจากแอดมิน</p>
-                </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">ชื่อที่แสดง</label>
-                    <input type="text" id="reg-name" class="input-field" placeholder="เช่น สมชาย" />
-                </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">ชื่อผู้ใช้ (Username)</label>
-                    <input type="text" id="reg-username" class="input-field" placeholder="เช่น somchai" autocomplete="username" />
-                    <p class="text-xs text-gray-400 mt-1">ใช้สำหรับ login ครั้งต่อไป</p>
-                </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">ตั้งรหัสผ่าน</label>
-                    <input type="password" id="reg-password" class="input-field" placeholder="อย่างน้อย 4 ตัว" autocomplete="new-password" />
-                </div>
-                <div class="mb-6">
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">ยืนยันรหัสผ่าน</label>
-                    <input type="password" id="reg-password2" class="input-field" placeholder="พิมพ์รหัสผ่านอีกครั้ง" autocomplete="new-password" />
-                </div>
-                <div id="register-error" class="hidden bg-red-50 text-red-700 rounded-xl p-4 mb-4 text-sm"></div>
-                <button onclick="handleRegister()" id="register-btn" class="btn-primary">
-                    ลงทะเบียน
+                <button onclick="renderAdminLoginScreen()" class="w-full bg-blue-50 hover:bg-blue-100 rounded-2xl p-5 transition-all text-left flex items-center gap-4 border-2 border-transparent hover:border-blue-300" style="cursor:pointer">
+                    <span class="text-3xl">🔵</span>
+                    <div>
+                        <p class="font-bold text-blue-800 text-lg">แอดมิน</p>
+                        <p class="text-sm text-blue-600">เข้าระบบด้วย Username</p>
+                    </div>
                 </button>
             </div>
 
-            <div class="border-t pt-6 mt-6">
-                <p class="text-sm text-gray-500 text-center">สำหรับพนักงาน, เซลล์, และผู้สอน</p>
-                <p class="text-xs text-gray-400 mt-2 text-center">ลูกค้าจองคลาสได้ที่ <a href="${PAGES.booking}" class="jia-red underline">หน้าจองคลาส</a></p>
+            <div class="border-t pt-4 mt-2">
+                <p class="text-xs text-gray-400 text-center">ลูกค้าจองคลาสได้ที่ <a href="${PAGES.booking}" class="jia-red underline">หน้าจองคลาส</a></p>
+                <p class="text-xs text-gray-400 mt-2 text-center">ยังไม่มีบัญชี? <a href="#" onclick="renderRegisterScreen(); return false;" class="jia-red underline">ลงทะเบียนด้วยรหัสเชิญ</a></p>
             </div>
         </div>`;
+}
 
-    // Enter key handlers
+// ═══════════════════════════════════════════════════════════
+// RENDER: STAFF PIN CARD (Sales / Instructor)
+// ═══════════════════════════════════════════════════════════
+
+function renderStaffPinScreen(role) {
+    currentMode = 'staff-pin';
+    const isInstructor = role === 'instructor';
+    const roleName = isInstructor ? 'ผู้สอน' : 'เซลล์';
+    const roleIcon = isInstructor ? '🟡' : '🟢';
+    const roleColor = isInstructor ? 'amber' : 'emerald';
+
+    app.innerHTML = `
+        <div class="card p-8 max-w-sm w-full fade-in">
+            <button onclick="renderChooseScreen()" class="text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1" style="cursor:pointer">
+                ← กลับ
+            </button>
+
+            <div class="text-center mb-6">
+                <div class="text-5xl mb-3">${roleIcon}</div>
+                <h2 class="text-2xl font-bold text-gray-800">${roleName}</h2>
+                <p class="text-sm text-gray-500 mt-1">กรอกชื่อผู้ใช้และ PIN เพื่อเข้าระบบ</p>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-600 mb-2">ชื่อผู้ใช้</label>
+                <input type="text" id="pin-username" class="input-field text-center" placeholder="เช่น somchai" autocomplete="username"
+                    style="font-size: 18px; letter-spacing: 1px;" />
+            </div>
+
+            <div class="mb-5">
+                <label class="block text-sm font-semibold text-gray-600 mb-2">PIN</label>
+                <div class="flex gap-2 justify-center" id="pin-boxes">
+                    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-idx="0" />
+                    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-idx="1" />
+                    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-idx="2" />
+                    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-idx="3" />
+                    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-idx="4" />
+                    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-idx="5" />
+                </div>
+                <p class="text-xs text-gray-400 text-center mt-2">ใส่ PIN 4-6 หลัก</p>
+            </div>
+
+            <div id="pin-error" class="hidden bg-red-50 text-red-700 rounded-xl p-3 mb-4 text-sm text-center"></div>
+
+            <button onclick="handlePinLogin('${role}')" id="pin-login-btn" class="btn-primary" style="font-size:18px; padding:16px;">
+                เข้าสู่ระบบ
+            </button>
+
+            <p class="text-center text-xs text-gray-400 mt-4">ลืม PIN? แจ้ง Admin รีเซ็ตให้</p>
+        </div>`;
+
+    // PIN box auto-advance logic
+    setupPinBoxes();
+    document.getElementById('pin-username').focus();
+    document.getElementById('pin-username').addEventListener('keydown', e => {
+        if (e.key === 'Enter') { document.querySelector('.pin-box').focus(); }
+    });
+}
+
+function setupPinBoxes() {
+    const boxes = document.querySelectorAll('.pin-box');
+    boxes.forEach((box, i) => {
+        box.addEventListener('input', (e) => {
+            const val = e.target.value;
+            if (val && i < boxes.length - 1) {
+                boxes[i + 1].focus();
+            }
+            // Auto-submit when last box filled
+            if (val && i === boxes.length - 1) {
+                const pin = getPinValue();
+                if (pin.length >= 4) {
+                    document.getElementById('pin-login-btn').focus();
+                }
+            }
+        });
+        box.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' && !box.value && i > 0) {
+                boxes[i - 1].focus();
+                boxes[i - 1].value = '';
+            }
+            if (e.key === 'Enter') {
+                const pinBtn = document.getElementById('pin-login-btn');
+                if (pinBtn) pinBtn.click();
+            }
+        });
+        // Allow paste of full PIN
+        box.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const paste = (e.clipboardData || window.clipboardData).getData('text').trim();
+            for (let j = 0; j < Math.min(paste.length, boxes.length); j++) {
+                boxes[j].value = paste[j];
+            }
+            const focusIdx = Math.min(paste.length, boxes.length - 1);
+            boxes[focusIdx].focus();
+        });
+    });
+}
+
+function getPinValue() {
+    const boxes = document.querySelectorAll('.pin-box');
+    return Array.from(boxes).map(b => b.value).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER: ADMIN LOGIN SCREEN
+// ═══════════════════════════════════════════════════════════
+
+function renderAdminLoginScreen() {
+    currentMode = 'admin-login';
+    app.innerHTML = `
+        <div class="card p-8 max-w-md w-full fade-in">
+            <button onclick="renderChooseScreen()" class="text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1" style="cursor:pointer">
+                ← กลับ
+            </button>
+
+            <div class="text-center mb-6">
+                <div class="text-5xl mb-3">🔵</div>
+                <h2 class="text-2xl font-bold text-gray-800">แอดมิน</h2>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">ชื่อผู้ใช้ (Username)</label>
+                <input type="text" id="login-username" class="input-field" placeholder="เช่น admin" autocomplete="username" />
+            </div>
+            <div class="mb-6">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">รหัสผ่าน</label>
+                <input type="password" id="login-password" class="input-field" placeholder="รหัสผ่าน" autocomplete="current-password" />
+            </div>
+            <div id="login-error" class="hidden bg-red-50 text-red-700 rounded-xl p-4 mb-4 text-sm"></div>
+            <button onclick="handleLogin()" id="login-btn" class="btn-primary">
+                เข้าสู่ระบบ
+            </button>
+            <p class="text-center text-sm text-gray-400 mt-4">ลืมรหัสผ่าน? แจ้ง Admin เพื่อรีเซ็ตให้</p>
+        </div>`;
+
     document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
-    document.getElementById('reg-password2').addEventListener('keydown', e => { if (e.key === 'Enter') handleRegister(); });
     document.getElementById('login-username').focus();
 }
+
+// ═══════════════════════════════════════════════════════════
+// RENDER: REGISTER SCREEN
+// ═══════════════════════════════════════════════════════════
+
+function renderRegisterScreen() {
+    currentMode = 'register';
+    app.innerHTML = `
+        <div class="card p-8 max-w-md w-full fade-in">
+            <button onclick="renderChooseScreen()" class="text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1" style="cursor:pointer">
+                ← กลับ
+            </button>
+
+            <div class="text-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">ลงทะเบียน</h2>
+                <p class="text-sm text-gray-500 mt-1">ใช้รหัสเชิญจากแอดมิน</p>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">รหัสเชิญ (Invite Code)</label>
+                <input type="text" id="reg-code" class="input-field" placeholder="เช่น SALE-A1B2C3"
+                    style="text-transform: uppercase; letter-spacing: 2px; text-align: center; font-size: 18px;" />
+                <p class="text-xs text-gray-400 mt-2">ขอรหัสเชิญจากแอดมิน</p>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">ชื่อที่แสดง</label>
+                <input type="text" id="reg-name" class="input-field" placeholder="เช่น สมชาย" />
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">ชื่อผู้ใช้ (Username)</label>
+                <input type="text" id="reg-username" class="input-field" placeholder="เช่น somchai" autocomplete="username" />
+                <p class="text-xs text-gray-400 mt-1">ใช้สำหรับ login ครั้งต่อไป</p>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">ตั้ง PIN (4-6 หลัก)</label>
+                <input type="password" inputmode="numeric" id="reg-password" class="input-field" placeholder="เช่น 1234" maxlength="6"
+                    style="text-align:center; font-size:24px; letter-spacing:8px;" autocomplete="new-password" />
+                <p class="text-xs text-gray-400 mt-1">ใช้ตัวเลข 4-6 หลัก</p>
+            </div>
+            <div class="mb-6">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">ยืนยัน PIN</label>
+                <input type="password" inputmode="numeric" id="reg-password2" class="input-field" placeholder="พิมพ์ PIN อีกครั้ง" maxlength="6"
+                    style="text-align:center; font-size:24px; letter-spacing:8px;" autocomplete="new-password" />
+            </div>
+            <div id="register-error" class="hidden bg-red-50 text-red-700 rounded-xl p-4 mb-4 text-sm"></div>
+            <button onclick="handleRegister()" id="register-btn" class="btn-primary">
+                ลงทะเบียน
+            </button>
+        </div>`;
+
+    document.getElementById('reg-password2').addEventListener('keydown', e => { if (e.key === 'Enter') handleRegister(); });
+}
+
+// Legacy alias
+function renderLoginScreen() { renderChooseScreen(); }
 
 function showTab(tab) {
     const tabLogin = document.getElementById('tab-login');
@@ -349,9 +517,89 @@ function renderAdminPanel(userInfo) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// SESSION HELPERS — use localStorage for persistence
+// ═══════════════════════════════════════════════════════════
+
+function saveSession(user) {
+    const data = JSON.stringify({ username: user.username, name: user.name, role: user.role, loginAt: Date.now() });
+    localStorage.setItem('jia_user', data);
+    sessionStorage.setItem('jia_user', data); // keep backward compat
+}
+function clearSession() {
+    localStorage.removeItem('jia_user');
+    sessionStorage.removeItem('jia_user');
+}
+function getSavedSession() {
+    const ls = localStorage.getItem('jia_user');
+    if (ls) try { return JSON.parse(ls); } catch(e) {}
+    const ss = sessionStorage.getItem('jia_user');
+    if (ss) try { return JSON.parse(ss); } catch(e) {}
+    return null;
+}
+
+// ═══════════════════════════════════════════════════════════
 // AUTH ACTIONS
 // ═══════════════════════════════════════════════════════════
 
+// PIN login for Sales / Instructor
+async function handlePinLogin(role) {
+    const username = document.getElementById('pin-username').value.trim();
+    const pin = getPinValue();
+    const errEl = document.getElementById('pin-error');
+    const btn = document.getElementById('pin-login-btn');
+
+    if (!username) {
+        errEl.textContent = 'กรุณากรอกชื่อผู้ใช้';
+        errEl.classList.remove('hidden');
+        return;
+    }
+    if (pin.length < 4) {
+        errEl.textContent = 'กรุณากรอก PIN อย่างน้อย 4 หลัก';
+        errEl.classList.remove('hidden');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'กำลังตรวจสอบ...';
+    errEl.classList.add('hidden');
+
+    try {
+        const pinHash = await hashPassword(pin);
+        const result = await apiGet('loginPassword', { username, password: pinHash });
+
+        if (result.success) {
+            if (result.role !== role) {
+                errEl.textContent = 'บัญชีนี้ไม่ใช่' + (role === 'sales' ? 'เซลล์' : 'ผู้สอน');
+                errEl.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'เข้าสู่ระบบ';
+                return;
+            }
+            saveSession(result);
+            renderSuccessScreen(result.role, result.name);
+        } else {
+            errEl.textContent = result.message || 'PIN ไม่ถูกต้อง';
+            errEl.classList.remove('hidden');
+            btn.disabled = false;
+            btn.textContent = 'เข้าสู่ระบบ';
+            // Shake animation + clear PIN
+            document.getElementById('pin-boxes').style.animation = 'shake 0.4s';
+            setTimeout(() => {
+                document.getElementById('pin-boxes').style.animation = '';
+                document.querySelectorAll('.pin-box').forEach(b => b.value = '');
+                document.querySelector('.pin-box').focus();
+            }, 400);
+        }
+    } catch (err) {
+        console.error('PIN login error:', err);
+        errEl.textContent = 'ไม่สามารถเชื่อมต่อ server ได้';
+        errEl.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'เข้าสู่ระบบ';
+    }
+}
+
+// Admin login (username + full password)
 async function handleLogin() {
     const username = document.getElementById('login-username').value.trim();
     const password = document.getElementById('login-password').value;
@@ -376,12 +624,7 @@ async function handleLogin() {
         });
 
         if (result.success) {
-            // Save session
-            sessionStorage.setItem('jia_user', JSON.stringify({
-                username: result.username,
-                name: result.name,
-                role: result.role
-            }));
+            saveSession(result);
 
             if (result.role === 'admin') {
                 renderAdminPanel(result);
@@ -418,9 +661,9 @@ async function handleRegister() {
     if (!username) { showRegError('กรุณาใส่ชื่อผู้ใช้'); return; }
     if (username.length < 3) { showRegError('ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร'); return; }
     if (/[^a-zA-Z0-9._-]/.test(username)) { showRegError('ชื่อผู้ใช้ใช้ได้เฉพาะ a-z, 0-9, . _ -'); return; }
-    if (!password) { showRegError('กรุณาตั้งรหัสผ่าน'); return; }
-    if (password.length < 4) { showRegError('รหัสผ่านต้องมีอย่างน้อย 4 ตัว'); return; }
-    if (password !== password2) { showRegError('รหัสผ่านไม่ตรงกัน'); return; }
+    if (!password) { showRegError('กรุณาตั้ง PIN'); return; }
+    if (password.length < 4) { showRegError('PIN ต้องมีอย่างน้อย 4 หลัก'); return; }
+    if (password !== password2) { showRegError('PIN ไม่ตรงกัน'); return; }
 
     btn.disabled = true;
     btn.textContent = 'กำลังลงทะเบียน...';
@@ -436,13 +679,7 @@ async function handleRegister() {
         });
 
         if (result.success) {
-            // Save session
-            sessionStorage.setItem('jia_user', JSON.stringify({
-                username: username,
-                name: result.name,
-                role: result.role
-            }));
-
+            saveSession({ username, name: result.name, role: result.role });
             renderSuccessScreen(result.role, result.name);
         } else {
             showRegError(result.message || result.error || 'ลงทะเบียนไม่สำเร็จ');
@@ -464,8 +701,8 @@ function showRegError(msg) {
 }
 
 function handleSignOut() {
-    sessionStorage.removeItem('jia_user');
-    renderLoginScreen();
+    clearSession();
+    renderChooseScreen();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -484,7 +721,7 @@ function toggleLevelSelect() {
 
 async function handleGenCode() {
     const role = document.getElementById('code-role').value;
-    const user = JSON.parse(sessionStorage.getItem('jia_user') || '{}');
+    const user = getSavedSession() || {};
     const params = {
         role: role,
         username: user.username || 'admin'
@@ -578,7 +815,7 @@ async function handleResetPassword(username, displayName) {
     if (newPass.length < 4) { alert('รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร'); return; }
     try {
         const hashed = await hashPassword(newPass.trim());
-        const saved = JSON.parse(sessionStorage.getItem('jia_user'));
+        const saved = getSavedSession();
         const result = await apiGet('resetPassword', {
             adminUser: saved.username,
             targetUser: username,
@@ -633,19 +870,25 @@ async function loadUsers() {
 // ═══════════════════════════════════════════════════════════
 
 (function init() {
-    const saved = sessionStorage.getItem('jia_user');
-    if (saved) {
-        try {
-            const user = JSON.parse(saved);
-            if (user.role === 'admin') {
-                renderAdminPanel(user);
-            } else {
-                renderSuccessScreen(user.role, user.name);
+    const user = getSavedSession();
+    if (user && user.username) {
+        // Already logged in → go straight to their page
+        if (user.role === 'admin') {
+            renderAdminPanel(user);
+        } else {
+            // Auto-redirect for sales/instructor (no success screen needed)
+            const page = PAGES[user.role];
+            if (page) {
+                // Also ensure sessionStorage is set for backward compat
+                sessionStorage.setItem('jia_user', JSON.stringify(user));
+                window.location.href = page;
+                return;
             }
-            return;
-        } catch(e) {}
+            renderSuccessScreen(user.role, user.name);
+        }
+        return;
     }
-    renderLoginScreen();
+    renderChooseScreen();
 })();
 </script>
 
