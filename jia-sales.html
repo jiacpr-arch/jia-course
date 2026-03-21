@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JIA Sales Portal</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: { fontFamily: { sans: ['"Noto Sans Thai"', 'sans-serif'] } } } };
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  body { font-family: 'Noto Sans Thai', sans-serif; margin: 0; }
+  .custom-scroll::-webkit-scrollbar { height: 4px; }
+  .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  .strikethrough { text-decoration: line-through; color: #999; }
+  /* Mobile bottom nav */
+  @media (max-width: 768px) {
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; }
+    .main-content { padding-bottom: 80px; }
+    .top-tabs { display: none; }
+  }
+  @media (min-width: 769px) {
+    .bottom-nav { display: none; }
+  }
+  /* Smooth card hover */
+  .card-hover { transition: transform 0.15s, box-shadow 0.15s; }
+  .card-hover:active { transform: scale(0.98); }
+  @media (min-width: 769px) { .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); } }
+  /* Pulse animation for today badge */
+  @keyframes softpulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+  .pulse-badge { animation: softpulse 2s ease-in-out infinite; }
+  /* Input focus ring */
+  .input-focus:focus { outline: none; box-shadow: 0 0 0 3px rgba(16,185,129,0.2); border-color: #10b981; }
+  /* Safe area for notched phones */
+  .safe-bottom { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- ═══ API Bridge + Auth ═══ -->
+<script>
+const JIA_API_URL = "https://script.google.com/macros/s/AKfycbyAbzjf6EyBdgv_h3k72CyesYG72voz_-ss3GpiniwI8YU8JKTBi2i8bVKhpQTXamt-YA/exec";
+const LOGIN_PAGE = "./jia-login.html";
+
+async function jiaApiGet(action, params = {}) {
+    if (!JIA_API_URL) return null;
+    const url = new URL(JIA_API_URL);
+    url.searchParams.set('action', action);
+    Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
+    return (await fetch(url.toString())).json();
+}
+async function jiaApiPost(action, params = {}, body = {}) {
+    if (!JIA_API_URL) return null;
+    const url = new URL(JIA_API_URL);
+    url.searchParams.set('action', action);
+    Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
+    url.searchParams.set('data', btoa(unescape(encodeURIComponent(JSON.stringify(body)))));
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            const res = await fetch(url.toString(), { redirect: 'follow' });
+            return await res.json();
+        } catch(err) {
+            try {
+                const name = '_jiaPost' + Date.now() + Math.random().toString(36).slice(2);
+                const result = await new Promise((resolve, reject) => {
+                    let done = false;
+                    const cleanup = () => { done = true; delete window[name]; if (script.parentNode) script.remove(); };
+                    window[name] = (data) => { cleanup(); resolve(data); };
+                    const script = document.createElement('script');
+                    script.onerror = () => { cleanup(); reject(new Error('JSONP failed')); };
+                    script.src = url.toString() + '&callback=' + name;
+                    setTimeout(() => { if (!done) { cleanup(); reject(new Error('JSONP timeout')); } }, 15000);
+                    document.head.appendChild(script);
+                });
+                return result;
+            } catch(e2) {
+                if (attempt === 2) throw e2;
+                await new Promise(r => setTimeout(r, 1500));
+            }
+        }
+    }
+}
+function showToast(message, isError) {
+    const existing = document.getElementById('jia-toast');
+    if (existing) existing.remove();
+    const t = document.createElement('div');
+    t.id = 'jia-toast'; t.textContent = message;
+    t.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:12px 24px;border-radius:12px;color:#fff;font-size:14px;z-index:99999;transition:opacity 0.3s;box-shadow:0 4px 16px rgba(0,0,0,0.2);' + (isError ? 'background:#dc2626;' : 'background:#059669;');
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 3000);
+}
+
+// ─── Auth + Data Loading ───
+window.JIA_AUTH_USER = null;
+window.JIA_DATA_READY = (async function() {
+    try {
+        const saved = sessionStorage.getItem('jia_user');
+        if (!saved) { window.location.href = LOGIN_PAGE; return false; }
+        const sessionUser = JSON.parse(saved);
+        if (!sessionUser.username) { window.location.href = LOGIN_PAGE; return false; }
+
+        const check = await jiaApiGet('checkUsername', { username: sessionUser.username });
+        if (!check.registered || check.role !== 'sales') {
+            alert('คุณไม่มีสิทธิ์เข้าหน้าเซลล์');
+            sessionStorage.removeItem('jia_user');
+            window.location.href = LOGIN_PAGE;
+            return false;
+        }
+        window.JIA_AUTH_USER = { username: sessionUser.username, name: check.name, role: check.role };
+
+        const data = await jiaApiGet('getAllData', { username: sessionUser.username });
+        if (data.error) { console.error(data.error); return true; }
+
+        const courses = data.courses || [];
+        courses.forEach(c => {
+            if (typeof c.timeSlots === 'string') try { c.timeSlots = JSON.parse(c.timeSlots); } catch(e) {}
+            ['price','discountPrice','flexPrice','fixedPrice','max','durationHours','totalDays'].forEach(k => {
+                if (typeof c[k] === 'string') c[k] = Number(c[k]);
+            });
+        });
+
+        const _set = localStorage.setItem.bind(localStorage);
+        const _safeSave = (key, apiData) => {
+            const apiArr = Array.isArray(apiData) ? apiData : [];
+            const existing = localStorage.getItem(key);
+            let localArr = []; try { localArr = JSON.parse(existing) || []; } catch(e) {}
+            if (!Array.isArray(localArr)) localArr = [];
+            if (apiArr.length > 0 && apiArr.length >= localArr.length) _set(key, JSON.stringify(apiArr));
+            else if (localArr.length > 0) { /* keep local */ }
+            else _set(key, JSON.stringify([]));
+        };
+        _safeSave('jia_customers', data.customers);
+        _safeSave('jia_bookings', data.bookings);
+        _safeSave('jia_sessions', data.sessions);
+        _safeSave('jia_courses', courses);
+        _safeSave('jia_staff', (data.staff || []).map(s => typeof s === 'object' ? s.name : s));
+        _safeSave('jia_instructors', (data.instructors || []).map(i => typeof i === 'object' ? i.name : i));
+        _safeSave('jia_instructor_avail', data.instructor_avail);
+        _safeSave('jia_promo_codes', data.promo_codes);
+        if (Array.isArray(data.classes)) _set('jia_classes', JSON.stringify(data.classes));
+        if (Array.isArray(data.class_instructors)) _set('jia_class_instructors', JSON.stringify(data.class_instructors));
+        console.log('✅ Sales data loaded — ' + check.name);
+        return true;
+    } catch(err) {
+        console.error('❌ Load error:', err);
+        return true;
+    }
+})();
+
+async function postToGAS(fields) {
+    const body = new URLSearchParams();
+    Object.entries(fields).forEach(([k, v]) => body.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v)));
+    try { await fetch(JIA_API_URL, { method: 'POST', mode: 'no-cors', body }); return { ok: true }; } catch(e) { return { ok: false }; }
+}
+</script>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo, useCallback } = React;
+
+// ─── Helpers ───
+const uid = () => 'bk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+const today = () => new Date().toISOString().slice(0, 10);
+const fmt = (d) => { if (!d) return '-'; try { return new Date(d + 'T00:00:00').toLocaleDateString('th-TH', {day:'numeric',month:'short',year:'numeric'}); } catch(e) { return d; } };
+const fmtPrice = (p) => Number(p || 0).toLocaleString();
+const b64 = (obj) => btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+const TIME_SLOTS_DEFAULT = ["11:00-13:00", "14:00-16:00", "17:00-19:00"];
+function getAllTimeSlots(courses) {
+  if (!courses || courses.length === 0) return [...TIME_SLOTS_DEFAULT];
+  const all = new Set();
+  courses.forEach(c => { (Array.isArray(c.timeSlots) ? c.timeSlots : TIME_SLOTS_DEFAULT).forEach(s => all.add(s)); });
+  return [...all].sort();
+}
+
+const CPR_PACKAGES = [
+  { key: "flex", label: "Flexible (เลื่อนได้ไม่จำกัด)", price: 600 },
+  { key: "fixed", label: "Fixed (เลื่อนได้ 1 ครั้ง)", price: 500 },
+];
+const CHANNELS = ["Walk-in", "โทรศัพท์", "LINE", "Facebook", "Instagram", "เว็บไซต์", "ผ่านเซลล์", "อื่นๆ"];
+const PAYMENTS = ["เงินสด", "ธนาคาร", "Prompt Pay", "ลงชื่อสัญญา"];
+
+const TABS = [
+  { id: 'dashboard', label: 'หน้าหลัก', icon: '🏠', mobileLabel: 'หน้าหลัก' },
+  { id: 'myBookings', label: '📋 การจอง', icon: '📋', mobileLabel: 'การจอง' },
+  { id: 'newBooking', label: '➕ จองใหม่', icon: '➕', mobileLabel: 'จองใหม่' },
+  { id: 'myCustomers', label: '👥 ลูกค้า', icon: '👥', mobileLabel: 'ลูกค้า' },
+  { id: 'calendar', label: '📅 ปฏิทิน', icon: '📅', mobileLabel: 'ปฏิทิน' },
+  { id: 'earnings', label: '💰 รายได้', icon: '💰', mobileLabel: 'รายได้' },
+  { id: 'promo', label: '🏷️ โปรโม', icon: '🏷️', mobileLabel: 'โปรโม' },
+];
+
+// ─── Loading Screen ───
+function App() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => { window.JIA_DATA_READY.then(() => setReady(true)); }, []);
+  if (!ready) return (
+    <div className="min-h-screen flex items-center justify-center bg-emerald-50">
+      <div className="text-center">
+        <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-emerald-700 font-medium">กำลังโหลดข้อมูล...</p>
+      </div>
+    </div>
+  );
+  if (!window.JIA_AUTH_USER) return null;
+  return <SalesApp />;
+}
+
+// ─── Main Sales App ───
+function SalesApp() {
+  const user = window.JIA_AUTH_USER;
+  const [tab, setTab] = useState('dashboard');
+  const load = (k, fallback) => { try { return JSON.parse(localStorage.getItem(k)) || fallback; } catch(e) { return fallback; } };
+
+  const [customers, setCustomers] = useState(() => load('jia_customers', []));
+  const [bookings, setBookings] = useState(() => load('jia_bookings', []));
+  const [sessions, setSessions] = useState(() => load('jia_sessions', []));
+  const [courses, setCourses] = useState(() => load('jia_courses', []));
+  const [staff, setStaff] = useState(() => load('jia_staff', []));
+  const [instructors, setInstructors] = useState(() => load('jia_instructors', []));
+  const [promoCodes, setPromoCodes] = useState(() => load('jia_promo_codes', []));
+  const [commissions, setCommissions] = useState(() => load('jia_staff_commissions', {}));
+  const [classes, setClasses] = useState(() => load('jia_classes', []));
+  const gsUrl = localStorage.getItem('jia_gs_url') || '';
+
+  const save = useCallback((key, data) => { localStorage.setItem(key, JSON.stringify(data)); }, []);
+
+  const cfg = useCallback((key) => {
+    const c = courses.find(c => c.key === key);
+    return c || { label: key, price: 0, discountPrice: 0, timeSlots: TIME_SLOTS_DEFAULT, max: 999 };
+  }, [courses]);
+
+  const enrolled = useMemo(() => {
+    const map = {};
+    bookings.forEach(b => { map[b.courseType] = (map[b.courseType] || 0) + (Number(b.totalPeople) || 1); });
+    return map;
+  }, [bookings]);
+
+  // ─── My bookings only ───
+  const myBookings = useMemo(() =>
+    bookings.filter(b => b.salesStaff === user.name || b.createdBy === user.name),
+    [bookings, user.name]
+  );
+  const myCustomerIds = useMemo(() => new Set(myBookings.map(b => b.customerId)), [myBookings]);
+  const myCustomers = useMemo(() => customers.filter(c => myCustomerIds.has(c.id)), [customers, myCustomerIds]);
+
+  // ─── Actions ───
+  const addBooking = useCallback(async (bk) => {
+    bk.id = uid(); bk.createdAt = today();
+    const next = [...bookings, bk];
+    setBookings(next); save('jia_bookings', next);
+    if (gsUrl) postToGAS({ action: 'addBooking', data: b64(bk) }).catch(() => {});
+    jiaApiPost('notifyBooking', {}, bk).catch(() => {});
+    const slist = Array.from({ length: Number(bk.totalPeople) || 1 }, (_, i) => ({
+      id: uid(), bookingId: bk.id, customerId: bk.customerId,
+      sessionNo: i + 1, done: false, date: "", note: ""
+    }));
+    const nextS = [...sessions, ...slist];
+    setSessions(nextS); save('jia_sessions', nextS);
+    slist.forEach(s => { if (gsUrl) postToGAS({ action: 'addSession', data: b64(s) }).catch(() => {}); });
+    showToast('✅ บันทึกการจองสำเร็จ');
+  }, [bookings, sessions, gsUrl, save]);
+
+  const updateBooking = useCallback((id, data) => {
+    const next = bookings.map(b => b.id === id ? { ...b, ...data } : b);
+    setBookings(next); save('jia_bookings', next);
+    if (gsUrl) postToGAS({ action: 'addBooking', data: b64({ id, ...data }) }).catch(() => {});
+  }, [bookings, gsUrl, save]);
+
+  const addCustomer = useCallback(async (c) => {
+    const newCust = { id: uid(), ...c, createdAt: today() };
+    const next = [...customers, newCust];
+    setCustomers(next); save('jia_customers', next);
+    if (gsUrl) postToGAS({ action: 'addCustomer', data: b64(newCust) }).catch(() => {});
+    return newCust;
+  }, [customers, gsUrl, save]);
+
+  const updateCustomer = useCallback((id, data) => {
+    const next = customers.map(c => c.id === id ? { ...c, ...data } : c);
+    setCustomers(next); save('jia_customers', next);
+  }, [customers, save]);
+
+  const logout = () => { sessionStorage.removeItem('jia_user'); window.location.href = LOGIN_PAGE; };
+
+  // Bottom nav tabs (main 5 for mobile)
+  const mobileNavTabs = TABS.filter(t => ['dashboard','myBookings','newBooking','myCustomers','earnings'].includes(t.id));
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header — compact on mobile */}
+      <header className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg">
+        <div className="max-w-5xl mx-auto px-4 py-3 md:py-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight">JIA SALES</h1>
+            <p className="text-emerald-100 text-xs md:text-sm">{user.name}</p>
+          </div>
+          <button onClick={logout} className="bg-emerald-800 hover:bg-emerald-900 px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-colors">
+            ออกจากระบบ
+          </button>
+        </div>
+      </header>
+
+      {/* Desktop Tab Nav */}
+      <nav className="top-tabs bg-white border-b shadow-sm sticky top-0 z-40">
+        <div className="max-w-5xl mx-auto px-4 flex gap-0 overflow-x-auto custom-scroll">
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`px-3 md:px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                tab === t.id ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-gray-500 hover:text-emerald-600'
+              }`}>{t.label}</button>
+          ))}
+        </div>
+      </nav>
+
+      {/* Content */}
+      <main className="main-content max-w-5xl mx-auto px-3 md:px-4 py-4 md:py-6">
+        {tab === 'dashboard' && <DashboardTab bookings={myBookings} customers={myCustomers} sessions={sessions} cfg={cfg}
+          commissions={commissions} userName={user.name} setTab={setTab} />}
+        {tab === 'myBookings' && <MyBookingsTab bookings={myBookings} customers={customers} sessions={sessions} cfg={cfg} />}
+        {tab === 'newBooking' && <NewBookingTab customers={customers} allCustomers={customers} addCustomer={addCustomer} addBooking={addBooking}
+          courses={courses} cfg={cfg} staff={staff} instructors={instructors} promoCodes={promoCodes} enrolled={enrolled} userName={user.name} />}
+        {tab === 'myCustomers' && <MyCustomersTab customers={myCustomers} bookings={myBookings} sessions={sessions}
+          cfg={cfg} updateCustomer={updateCustomer} updateBooking={updateBooking} courses={courses} instructors={instructors} />}
+        {tab === 'calendar' && <CalendarTab bookings={myBookings} customers={customers} cfg={cfg} />}
+        {tab === 'promo' && <PromoTab promoCodes={promoCodes} />}
+        {tab === 'earnings' && <EarningsTab bookings={myBookings} commissions={commissions} userName={user.name} />}
+      </main>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="bottom-nav bg-white border-t shadow-lg safe-bottom">
+        <div className="flex justify-around items-center py-1">
+          {mobileNavTabs.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`flex flex-col items-center py-2 px-1 min-w-0 flex-1 transition-colors ${
+                tab === t.id ? 'text-emerald-600' : 'text-gray-400'
+              }`}>
+              <span className="text-xl leading-none">{t.icon}</span>
+              <span className="text-[10px] mt-0.5 truncate w-full text-center font-medium">{t.mobileLabel}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// DASHBOARD — หน้าแรก สรุปภาพรวม + Quick Actions
+// ═══════════════════════════════════════════════════════════
+function DashboardTab({ bookings, customers, sessions, cfg, commissions, userName, setTab }) {
+  const t = today();
+
+  const todayBookings = useMemo(() => bookings.filter(b => b.startDate === t), [bookings, t]);
+  const upcomingBookings = useMemo(() =>
+    bookings.filter(b => b.startDate > t).sort((a,b) => (a.startDate||'').localeCompare(b.startDate||'')).slice(0, 5),
+    [bookings, t]
+  );
+
+  // This month stats
+  const monthPrefix = t.slice(0, 7);
+  const monthBookings = useMemo(() => bookings.filter(b => (b.startDate || b.createdAt || '').startsWith(monthPrefix)), [bookings, monthPrefix]);
+  const monthRevenue = monthBookings.reduce((s, b) => s + (parseFloat(b.finalPrice) || 0), 0);
+  const monthPeople = monthBookings.reduce((s, b) => s + (parseInt(b.totalPeople) || 1), 0);
+
+  // Commission
+  const commissionPct = useMemo(() => {
+    if (Array.isArray(commissions)) {
+      const entry = commissions.find(c => c.staffName === userName);
+      return entry ? parseFloat(entry.commission) || 0 : 0;
+    }
+    return parseFloat(commissions[userName]) || 0;
+  }, [commissions, userName]);
+  const monthCommission = monthRevenue * (commissionPct / 100);
+
+  // Greeting
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'สวัสดีตอนเช้า' : hour < 17 ? 'สวัสดีตอนบ่าย' : 'สวัสดีตอนเย็น';
+
+  return (
+    <div className="space-y-5">
+      {/* Greeting */}
+      <div className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 text-white rounded-2xl p-5 shadow-lg">
+        <p className="text-emerald-100 text-sm">{greeting}</p>
+        <h2 className="text-2xl font-bold mt-1">{userName}</h2>
+        <div className="flex items-center gap-4 mt-3 text-sm">
+          <div className="bg-white/20 rounded-lg px-3 py-1.5">
+            <span className="font-bold text-lg">{todayBookings.length}</span> <span className="text-emerald-100">จองวันนี้</span>
+          </div>
+          <div className="bg-white/20 rounded-lg px-3 py-1.5">
+            <span className="font-bold text-lg">{customers.length}</span> <span className="text-emerald-100">ลูกค้า</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-3 gap-3">
+        <button onClick={() => setTab('newBooking')}
+          className="card-hover bg-white rounded-xl border-2 border-emerald-100 p-4 text-center hover:border-emerald-300">
+          <div className="text-2xl mb-1">➕</div>
+          <div className="text-xs font-semibold text-gray-700">จองใหม่</div>
+        </button>
+        <button onClick={() => setTab('myCustomers')}
+          className="card-hover bg-white rounded-xl border-2 border-emerald-100 p-4 text-center hover:border-emerald-300">
+          <div className="text-2xl mb-1">👥</div>
+          <div className="text-xs font-semibold text-gray-700">ลูกค้า</div>
+        </button>
+        <button onClick={() => setTab('calendar')}
+          className="card-hover bg-white rounded-xl border-2 border-emerald-100 p-4 text-center hover:border-emerald-300">
+          <div className="text-2xl mb-1">📅</div>
+          <div className="text-xs font-semibold text-gray-700">ปฏิทิน</div>
+        </button>
+      </div>
+
+      {/* Monthly Summary */}
+      <div>
+        <h3 className="font-bold text-gray-800 mb-3">สรุปเดือนนี้</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-white rounded-xl border p-4">
+            <div className="text-xs text-gray-500">ยอดจอง</div>
+            <div className="text-xl font-bold text-gray-800">{monthBookings.length} <span className="text-sm font-normal text-gray-500">รายการ</span></div>
+            <div className="text-xs text-gray-400 mt-0.5">{monthPeople} คน</div>
+          </div>
+          <div className="bg-white rounded-xl border p-4">
+            <div className="text-xs text-gray-500">ยอดขาย</div>
+            <div className="text-xl font-bold text-blue-600">฿{fmtPrice(monthRevenue)}</div>
+          </div>
+          <div className="bg-white rounded-xl border p-4">
+            <div className="text-xs text-gray-500">คอมมิชชั่น ({commissionPct}%)</div>
+            <div className="text-xl font-bold text-emerald-600">฿{fmtPrice(monthCommission)}</div>
+          </div>
+          <div className="bg-white rounded-xl border p-4">
+            <div className="text-xs text-gray-500">ลูกค้าทั้งหมด</div>
+            <div className="text-xl font-bold text-gray-800">{customers.length}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Today's Bookings */}
+      {todayBookings.length > 0 && (
+        <div>
+          <h3 className="font-bold text-gray-800 mb-3">การจองวันนี้</h3>
+          <div className="space-y-2">
+            {todayBookings.map(bk => (
+              <div key={bk.id} className="card-hover bg-white rounded-xl border-l-4 border-l-green-400 border p-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-semibold text-gray-800">{bk.name}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{cfg(bk.courseType).label} · {bk.totalPeople} คน · {bk.timeSlot}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-emerald-600">฿{fmtPrice(bk.finalPrice)}</div>
+                    <span className="pulse-badge inline-block text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium mt-0.5">วันนี้</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Upcoming */}
+      {upcomingBookings.length > 0 && (
+        <div>
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="font-bold text-gray-800">กำลังจะมา</h3>
+            <button onClick={() => setTab('myBookings')} className="text-xs text-emerald-600 font-medium">ดูทั้งหมด →</button>
+          </div>
+          <div className="space-y-2">
+            {upcomingBookings.map(bk => (
+              <div key={bk.id} className="card-hover bg-white rounded-xl border p-3 flex justify-between items-center">
+                <div>
+                  <div className="font-medium text-sm text-gray-800">{bk.name}</div>
+                  <div className="text-xs text-gray-500">{fmt(bk.startDate)} · {bk.timeSlot}</div>
+                </div>
+                <div className="text-xs text-gray-500">{cfg(bk.courseType).label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {todayBookings.length === 0 && upcomingBookings.length === 0 && (
+        <div className="bg-white rounded-2xl border-2 border-dashed border-emerald-200 p-8 text-center">
+          <div className="text-4xl mb-3">📋</div>
+          <div className="text-gray-600 font-medium">ยังไม่มีการจอง</div>
+          <button onClick={() => setTab('newBooking')}
+            className="mt-3 bg-emerald-600 text-white px-6 py-2 rounded-full text-sm font-semibold hover:bg-emerald-700 transition-colors">
+            + จองคอร์สใหม่
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB 1: การจองของฉัน
+// ═══════════════════════════════════════════════════════════
+function MyBookingsTab({ bookings, customers, sessions, cfg }) {
+  const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const t = today();
+
+  const filtered = useMemo(() => {
+    let list = [...bookings];
+    if (filter === 'today') list = list.filter(b => b.startDate === t);
+    else if (filter === 'upcoming') list = list.filter(b => b.startDate > t);
+    else if (filter === 'past') list = list.filter(b => b.startDate < t);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter(b => (b.name || '').toLowerCase().includes(q) || (b.tel || '').includes(q));
+    }
+    return list.sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''));
+  }, [bookings, filter, search, t]);
+
+  const stats = useMemo(() => ({
+    total: bookings.length,
+    today: bookings.filter(b => b.startDate === t).length,
+    upcoming: bookings.filter(b => b.startDate > t).length,
+    revenue: bookings.reduce((s, b) => s + (Number(b.finalPrice) || 0), 0),
+  }), [bookings, t]);
+
+  return (
+    <div className="space-y-4">
+      {/* Compact stat row */}
+      <div className="flex gap-2 overflow-x-auto custom-scroll pb-1">
+        <div className="flex-shrink-0 bg-emerald-600 text-white rounded-xl px-4 py-3 min-w-[90px] text-center">
+          <div className="text-xl font-bold">{stats.total}</div>
+          <div className="text-[10px] opacity-80">ทั้งหมด</div>
+        </div>
+        <div className="flex-shrink-0 bg-green-500 text-white rounded-xl px-4 py-3 min-w-[90px] text-center">
+          <div className="text-xl font-bold">{stats.today}</div>
+          <div className="text-[10px] opacity-80">วันนี้</div>
+        </div>
+        <div className="flex-shrink-0 bg-teal-500 text-white rounded-xl px-4 py-3 min-w-[90px] text-center">
+          <div className="text-xl font-bold">{stats.upcoming}</div>
+          <div className="text-[10px] opacity-80">กำลังจะมา</div>
+        </div>
+        <div className="flex-shrink-0 bg-amber-500 text-white rounded-xl px-4 py-3 min-w-[100px] text-center">
+          <div className="text-lg font-bold">฿{fmtPrice(stats.revenue)}</div>
+          <div className="text-[10px] opacity-80">ยอดขาย</div>
+        </div>
+      </div>
+
+      {/* Filter + Search */}
+      <div className="space-y-2">
+        <div className="flex gap-1.5 overflow-x-auto custom-scroll pb-1">
+          {[['all','ทั้งหมด'],['today','วันนี้'],['upcoming','กำลังจะมา'],['past','ผ่านแล้ว']].map(([k,l]) => (
+            <button key={k} onClick={() => setFilter(k)}
+              className={`flex-shrink-0 text-xs font-medium px-3 py-2 rounded-full transition-colors ${
+                filter === k ? 'bg-emerald-600 text-white' : 'bg-white text-gray-600 border border-gray-200'
+              }`}>{l}</button>
+          ))}
+        </div>
+        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+          placeholder="ค้นหาชื่อ/เบอร์..."
+          className="w-full border border-gray-200 bg-white rounded-xl px-4 py-2.5 text-sm input-focus" />
+      </div>
+
+      {/* Booking Cards */}
+      <div className="space-y-2">
+        {filtered.length === 0 ? (
+          <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-8 text-center">
+            <div className="text-4xl mb-2">📋</div>
+            <div className="text-gray-500">ไม่มีการจอง</div>
+          </div>
+        ) : filtered.map(bk => {
+          const bkSessions = sessions.filter(s => s.bookingId === bk.id);
+          const done = bkSessions.filter(s => s.done).length;
+          const isPaid = bk.paymentStatus === 'ชำระแล้ว' || bk.paymentMode === 'โอนเงิน (ตรวจแล้ว)';
+          const isPending = bk.paymentStatus === 'รอตรวจสอบ';
+          const isToday = bk.startDate === t;
+          const rCount = Number(bk.rescheduleCount) || 0;
+          const pct = bkSessions.length > 0 ? Math.round((done / bkSessions.length) * 100) : 0;
+
+          return (
+            <div key={bk.id} className={`card-hover bg-white rounded-xl p-4 space-y-2 ${
+              isToday ? 'border-l-4 border-l-green-400 border border-green-200' : 'border border-gray-200'
+            }`}>
+              {/* Row 1: Name + badges */}
+              <div className="flex justify-between items-start gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-bold text-sm flex-shrink-0">
+                    {(bk.name || '?')[0]}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-gray-800 text-sm truncate">{bk.name}</div>
+                    <div className="text-[11px] text-gray-400">{bk.tel}</div>
+                  </div>
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  {isToday && <span className="pulse-badge text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">วันนี้</span>}
+                  {isPaid ? <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">ชำระแล้ว</span>
+                    : isPending ? <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">รอตรวจ</span>
+                    : <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-medium">รอชำระ</span>}
+                </div>
+              </div>
+
+              {/* Row 2: Key info */}
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-600">
+                <span>{cfg(bk.courseType).label}</span>
+                <span>👥 {bk.totalPeople}</span>
+                <span>📅 {fmt(bk.startDate)}</span>
+                <span>⏰ {bk.timeSlot}</span>
+                <span className="font-semibold text-emerald-600">฿{fmtPrice(bk.finalPrice)}</span>
+              </div>
+
+              {rCount > 0 && <div className="text-[11px] text-orange-600 bg-orange-50 px-2 py-0.5 rounded-lg inline-block">เลื่อน {rCount} ครั้ง</div>}
+
+              {/* Progress */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                  <div className="bg-emerald-500 h-1.5 rounded-full transition-all" style={{ width: pct + '%' }} />
+                </div>
+                <span className="text-[10px] text-gray-400 flex-shrink-0">{done}/{bkSessions.length}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB 2: จองคอร์ส
+// ═══════════════════════════════════════════════════════════
+function NewBookingTab({ customers, allCustomers, addCustomer, addBooking, courses, cfg, staff, instructors, promoCodes, enrolled, userName }) {
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [showNewCust, setShowNewCust] = useState(false);
+  const [custName, setCustName] = useState('');
+  const [custTel, setCustTel] = useState('');
+  const [courseType, setCourseType] = useState('');
+  const [channel, setChannel] = useState('');
+  const [totalPeople, setTotalPeople] = useState('');
+  const [paymentMode, setPaymentMode] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [timeSlot, setTimeSlot] = useState('');
+  const [instructor, setInstructor] = useState('');
+  const [note, setNote] = useState('');
+  const [cprPackage, setCprPackage] = useState('');
+  const [discountCode, setDiscountCode] = useState('');
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pendingBk, setPendingBk] = useState(null);
+  const [custSearch, setCustSearch] = useState('');
+
+  const courseConfig = cfg(courseType);
+  const finalPrice = courseConfig.price || 0;
+  const canBook = courseType && channel && totalPeople && paymentMode && startDate && timeSlot && selectedCustomer && (courseType !== 'CPR' || cprPackage);
+  const dynSlots = getAllTimeSlots(courses);
+
+  const filteredCusts = useMemo(() => {
+    if (!custSearch.trim()) return allCustomers;
+    const q = custSearch.toLowerCase();
+    return allCustomers.filter(c => (c.name||'').toLowerCase().includes(q) || (c.tel||'').includes(q));
+  }, [allCustomers, custSearch]);
+
+  const handleSubmit = () => {
+    if (!canBook) return;
+    const bk = {
+      customerId: selectedCustomer.id, name: selectedCustomer.name, tel: selectedCustomer.tel,
+      courseType, channel, totalPeople: Number(totalPeople), finalPrice,
+      paymentMode, startDate, timeSlot, salesStaff: userName, instructor, note, cprPackage,
+      discountCode: discountCode.toUpperCase() || '',
+      createdBy: userName, rescheduleCount: 0,
+    };
+    setPendingBk(bk);
+    setShowConfirm(true);
+  };
+
+  const confirmSubmit = async () => {
+    if (!pendingBk) return;
+    await addBooking(pendingBk);
+    setShowConfirm(false); setPendingBk(null);
+    setCourseType(''); setChannel(''); setTotalPeople(''); setPaymentMode('');
+    setStartDate(''); setTimeSlot(''); setInstructor(''); setNote('');
+    setSelectedCustomer(null); setCprPackage(''); setDiscountCode('');
+  };
+
+  const handleAddCust = async () => {
+    if (!custName || !custTel) return;
+    const c = await addCustomer({ name: custName, tel: custTel, note: '' });
+    setSelectedCustomer(c);
+    setCustName(''); setCustTel(''); setShowNewCust(false);
+  };
+
+  // Default to today's date and 1 person
+  useEffect(() => {
+    if (!startDate) setStartDate(today());
+    if (!totalPeople) setTotalPeople('1');
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      {/* Step 1: Customer */}
+      <div className="bg-white rounded-2xl border border-emerald-100 p-4 md:p-6">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="bg-emerald-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">1</span>
+          <h2 className="font-bold text-base text-emerald-800">เลือกลูกค้า</h2>
+        </div>
+        {!selectedCustomer ? (
+          <div className="space-y-3">
+            <input type="text" value={custSearch} onChange={e => setCustSearch(e.target.value)}
+              placeholder="พิมพ์ชื่อหรือเบอร์โทร..."
+              className="w-full border border-emerald-200 bg-emerald-50 rounded-xl px-4 py-3 text-sm input-focus" />
+            <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
+              {filteredCusts.slice(0, 20).map(c => (
+                <button key={c.id} onClick={() => setSelectedCustomer(c)}
+                  className="card-hover text-left px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition-colors flex justify-between items-center">
+                  <div>
+                    <div className="font-semibold text-sm text-gray-800">{c.name}</div>
+                    <div className="text-xs text-gray-500">{c.tel}</div>
+                  </div>
+                  <span className="text-emerald-400 text-lg">→</span>
+                </button>
+              ))}
+              {filteredCusts.length === 0 && <p className="text-sm text-gray-400 text-center py-4">ไม่พบ — เพิ่มลูกค้าใหม่ด้านล่าง</p>}
+            </div>
+            <button onClick={() => setShowNewCust(true)}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-colors text-sm">
+              + เพิ่มลูกค้าใหม่
+            </button>
+          </div>
+        ) : (
+          <div className="flex justify-between items-center p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-200 rounded-full flex items-center justify-center text-emerald-700 font-bold text-lg">
+                {(selectedCustomer.name || '?')[0]}
+              </div>
+              <div>
+                <div className="font-semibold text-gray-800">{selectedCustomer.name}</div>
+                <div className="text-sm text-gray-500">{selectedCustomer.tel}</div>
+              </div>
+            </div>
+            <button onClick={() => setSelectedCustomer(null)}
+              className="text-xs bg-white text-emerald-600 px-3 py-2 rounded-lg border border-emerald-300 hover:bg-emerald-50 font-medium">เปลี่ยน</button>
+          </div>
+        )}
+      </div>
+
+      {/* New Customer Inline */}
+      {showNewCust && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 md:p-6 space-y-3">
+          <h2 className="font-bold text-base text-emerald-800">ลูกค้าใหม่</h2>
+          <input type="text" placeholder="ชื่อเต็ม" value={custName} onChange={e => setCustName(e.target.value)}
+            className="w-full border border-emerald-200 bg-white rounded-xl px-4 py-3 text-sm input-focus" />
+          <input type="tel" placeholder="เบอร์โทร" value={custTel} onChange={e => setCustTel(e.target.value)}
+            className="w-full border border-emerald-200 bg-white rounded-xl px-4 py-3 text-sm input-focus" />
+          <div className="flex gap-2">
+            <button onClick={handleAddCust} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl">บันทึก</button>
+            <button onClick={() => setShowNewCust(false)} className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-xl">ยกเลิก</button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 2: Booking Details */}
+      {selectedCustomer && (
+        <div className="bg-white rounded-2xl border border-emerald-100 p-4 md:p-6 space-y-4">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="bg-emerald-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">2</span>
+            <h2 className="font-bold text-base text-emerald-800">รายละเอียดการจอง</h2>
+          </div>
+
+          {/* Course Selection — big cards */}
+          <div>
+            <label className="text-xs font-medium text-gray-500 block mb-2">เลือกคอร์ส *</label>
+            <div className="grid grid-cols-2 gap-2">
+              {courses.map(c => (
+                <button key={c.key} onClick={() => setCourseType(c.key)}
+                  className={`card-hover p-3 rounded-xl border-2 text-left transition-colors ${
+                    courseType === c.key ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 bg-white hover:border-emerald-200'
+                  }`}>
+                  <div className="font-semibold text-sm text-gray-800">{c.label}</div>
+                  <div className="text-xs text-emerald-600 font-medium mt-0.5">฿{fmtPrice(c.price)}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {courseType === 'CPR' && (
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-2">แพ็กเกจ *</label>
+              <div className="grid grid-cols-2 gap-2">
+                {CPR_PACKAGES.map(p => (
+                  <button key={p.key} onClick={() => setCprPackage(p.key)}
+                    className={`card-hover p-3 rounded-xl border-2 text-left transition-colors ${
+                      cprPackage === p.key ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 bg-white hover:border-emerald-200'
+                    }`}>
+                    <div className="font-semibold text-sm text-gray-800">{p.key === 'flex' ? 'Flexible' : 'Fixed'}</div>
+                    <div className="text-xs text-gray-500">{p.key === 'flex' ? 'เลื่อนได้ไม่จำกัด' : 'เลื่อนได้ 1 ครั้ง'}</div>
+                    <div className="text-xs text-emerald-600 font-medium mt-0.5">฿{fmtPrice(p.price)}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Date, Time, People — compact row */}
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">วันที่ *</label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm input-focus" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">เวลา *</label>
+              <select value={timeSlot} onChange={e => setTimeSlot(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-2 py-2.5 text-sm input-focus">
+                <option value="">เลือก</option>
+                {dynSlots.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">จำนวนคน *</label>
+              <input type="number" value={totalPeople} onChange={e => setTotalPeople(e.target.value)} min="1"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm input-focus" />
+            </div>
+          </div>
+
+          {/* Channel & Payment — quick select buttons */}
+          <div>
+            <label className="text-xs font-medium text-gray-500 block mb-2">ช่องทาง *</label>
+            <div className="flex flex-wrap gap-1.5">
+              {CHANNELS.map(c => (
+                <button key={c} onClick={() => setChannel(c)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    channel === c ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-emerald-50'
+                  }`}>{c}</button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-500 block mb-2">การชำระ *</label>
+            <div className="flex flex-wrap gap-1.5">
+              {PAYMENTS.map(p => (
+                <button key={p} onClick={() => setPaymentMode(p)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    paymentMode === p ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-emerald-50'
+                  }`}>{p}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Instructor */}
+          <div>
+            <label className="text-xs font-medium text-gray-500 block mb-1">ผู้สอน</label>
+            <select value={instructor} onChange={e => setInstructor(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm input-focus">
+              <option value="">ยังไม่เลือก</option>
+              {instructors.map(i => <option key={i} value={i}>{i}</option>)}
+            </select>
+          </div>
+
+          {/* Optional fields — collapsible */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">โค้ดส่วนลด</label>
+              <input type="text" value={discountCode} onChange={e => setDiscountCode(e.target.value)}
+                placeholder="JIA-XXXXXX"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm input-focus" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">หมายเหตุ</label>
+              <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="เพิ่มเติม"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm input-focus" />
+            </div>
+          </div>
+
+          {/* Price Summary */}
+          {courseType && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex justify-between items-center">
+              <span className="text-sm text-gray-600">ราคารวม</span>
+              <span className="text-xl font-bold text-emerald-700">฿{fmtPrice(finalPrice)}</span>
+            </div>
+          )}
+
+          <button onClick={handleSubmit} disabled={!canBook}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-colors text-base">
+            ตรวจสอบและยืนยัน
+          </button>
+        </div>
+      )}
+
+      {/* Confirmation Dialog */}
+      {showConfirm && pendingBk && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-emerald-800 text-center">ยืนยันการจอง</h2>
+            <p className="text-sm text-gray-500 text-center">กรุณาตรวจสอบข้อมูลก่อนบันทึก</p>
+            <div className="bg-emerald-50 rounded-xl p-4 space-y-2">
+              {[
+                ['ลูกค้า', pendingBk.name],
+                ['เบอร์โทร', pendingBk.tel],
+              ].map(([l,v]) => <div key={l} className="flex justify-between text-sm"><span className="text-gray-600">{l}</span><span className="font-semibold text-gray-800">{v}</span></div>)}
+              <hr className="border-emerald-200" />
+              {[
+                ['คอร์ส', cfg(pendingBk.courseType).label],
+                pendingBk.cprPackage && ['แพ็กเกจ', pendingBk.cprPackage === 'flex' ? 'Flexible' : 'Fixed'],
+                ['จำนวนคน', pendingBk.totalPeople + ' คน'],
+              ].filter(Boolean).map(([l,v]) => <div key={l} className="flex justify-between text-sm"><span className="text-gray-600">{l}</span><span className="font-semibold text-gray-800">{v}</span></div>)}
+              <hr className="border-emerald-200" />
+              {[
+                ['วันที่', fmt(pendingBk.startDate)],
+                ['เวลา', pendingBk.timeSlot],
+                ['ผู้สอน', pendingBk.instructor],
+                ['ช่องทาง', pendingBk.channel],
+                ['การชำระ', pendingBk.paymentMode],
+              ].map(([l,v]) => <div key={l} className="flex justify-between text-sm"><span className="text-gray-600">{l}</span><span className="font-semibold text-gray-800">{v}</span></div>)}
+              {pendingBk.discountCode && <div className="flex justify-between text-sm"><span className="text-gray-600">โค้ดส่วนลด</span><span className="font-semibold text-green-600">{pendingBk.discountCode}</span></div>}
+              <hr className="border-emerald-200" />
+              <div className="flex justify-between text-base">
+                <span className="font-bold text-gray-700">ราคารวม</span>
+                <span className="font-bold text-emerald-700">{fmtPrice(pendingBk.finalPrice)} บาท</span>
+              </div>
+              {pendingBk.note && <div className="text-xs text-gray-500 pt-1">หมายเหตุ: {pendingBk.note}</div>}
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => { setShowConfirm(false); setPendingBk(null); }}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-xl transition-colors">แก้ไข</button>
+              <button onClick={confirmSubmit}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-colors">ยืนยันการจอง</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB 3: ลูกค้าของฉัน
+// ═══════════════════════════════════════════════════════════
+function MyCustomersTab({ customers, bookings, sessions, cfg, updateCustomer, updateBooking, courses, instructors }) {
+  const [editId, setEditId] = useState(null);
+  const [editBkId, setEditBkId] = useState(null);
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-700">
+        ลูกค้าของคุณทั้งหมด {customers.length} ราย
+      </div>
+      {customers.length === 0 ? (
+        <div className="bg-white rounded-xl border p-8 text-center">
+          <div className="text-4xl mb-2">👥</div>
+          <div className="text-gray-500">ยังไม่มีลูกค้า</div>
+        </div>
+      ) : customers.map(cust => {
+        const custBks = bookings.filter(b => b.customerId === cust.id);
+        return (
+          <div key={cust.id} className="bg-white rounded-xl border border-emerald-100 p-5">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-800">{cust.name}</h3>
+                <p className="text-sm text-gray-500">{cust.tel}</p>
+              </div>
+              <button onClick={() => setEditId(editId === cust.id ? null : cust.id)}
+                className="text-xs bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg hover:bg-emerald-200">
+                {editId === cust.id ? 'ปิด' : 'แก้ไข'}
+              </button>
+            </div>
+
+            {editId === cust.id && (
+              <div className="bg-emerald-50 p-3 rounded-lg mb-4 space-y-2">
+                <input type="text" value={cust.name} onChange={e => updateCustomer(cust.id, { name: e.target.value })}
+                  className="w-full border border-emerald-200 bg-white rounded px-2 py-1 text-sm" />
+                <input type="tel" value={cust.tel} onChange={e => updateCustomer(cust.id, { tel: e.target.value })}
+                  className="w-full border border-emerald-200 bg-white rounded px-2 py-1 text-sm" />
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {custBks.length === 0 ? <p className="text-sm text-gray-500">ไม่มีการจอง</p> :
+                custBks.map(bk => {
+                  const bkSessions = sessions.filter(s => s.bookingId === bk.id);
+                  const done = bkSessions.filter(s => s.done).length;
+                  const rCount = Number(bk.rescheduleCount) || 0;
+                  const maxR = bk.cprPackage === 'fixed' ? 1 : bk.cprPackage === 'flex' ? 999 : 2;
+                  const canR = rCount < maxR;
+
+                  return (
+                    <div key={bk.id} className="border border-emerald-100 rounded-lg p-3 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="font-semibold text-sm text-gray-800">{cfg(bk.courseType).label} • {bk.totalPeople} คน</div>
+                          <div className="text-xs text-gray-500 space-y-0.5">
+                            <div>📅 {fmt(bk.startDate)} {bk.timeSlot}</div>
+                            <div>💰 {fmtPrice(bk.finalPrice)} บาท • {bk.paymentMode}</div>
+                            <div>🎓 {bk.instructor}</div>
+                          </div>
+                        </div>
+                        <button onClick={() => setEditBkId(editBkId === bk.id ? null : bk.id)}
+                          className={`text-xs px-2 py-1 rounded ${canR ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-gray-100 text-gray-500'}`}
+                          disabled={!canR && editBkId !== bk.id}>
+                          {editBkId === bk.id ? 'ปิด' : `เลื่อน (${rCount}/${maxR === 999 ? '∞' : maxR})`}
+                        </button>
+                      </div>
+
+                      {editBkId === bk.id && (
+                        <RescheduleForm bk={bk} updateBooking={updateBooking} canR={canR} rCount={rCount} maxR={maxR}
+                          courses={courses} onDone={() => setEditBkId(null)} />
+                      )}
+
+                      <div className="text-xs text-gray-600 pt-1">
+                        <span className="font-medium">{done}/{bkSessions.length} เรียนแล้ว</span>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                          <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: (bkSessions.length > 0 ? Math.round((done / bkSessions.length) * 100) : 0) + '%' }} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              }
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function RescheduleForm({ bk, updateBooking, canR, rCount, maxR, courses, onDone }) {
+  const [newDate, setNewDate] = useState(bk.startDate);
+  const [newTime, setNewTime] = useState(bk.timeSlot);
+  const dynSlots = getAllTimeSlots(courses);
+
+  const handleSave = () => {
+    if (!canR) { showToast('❌ ครบจำนวนครั้งที่เลื่อนได้แล้ว', true); return; }
+    const changed = newDate !== bk.startDate || newTime !== bk.timeSlot;
+    if (!changed) { onDone(); return; }
+    updateBooking(bk.id, { startDate: newDate, timeSlot: newTime, rescheduleCount: rCount + 1 });
+    showToast('✅ เลื่อนวันสำเร็จ');
+    onDone();
+  };
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+      <div className={`text-xs px-2 py-1 rounded ${canR ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+        เลื่อนแล้ว {rCount}/{maxR === 999 ? '∞' : maxR} ครั้ง {!canR && '— ไม่สามารถเลื่อนได้อีก'}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-xs font-medium text-gray-700 block mb-1">วันที่ใหม่</label>
+          <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} disabled={!canR}
+            className={`w-full border rounded px-2 py-1 text-xs ${canR ? 'border-amber-200 bg-white' : 'border-gray-300 bg-gray-100 cursor-not-allowed'}`} />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-700 block mb-1">เวลาใหม่</label>
+          <select value={newTime} onChange={e => setNewTime(e.target.value)} disabled={!canR}
+            className={`w-full border rounded px-2 py-1 text-xs ${canR ? 'border-amber-200 bg-white' : 'border-gray-300 bg-gray-100 cursor-not-allowed'}`}>
+            {dynSlots.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={handleSave} disabled={!canR}
+          className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white text-xs font-semibold py-2 rounded">บันทึก</button>
+        <button onClick={onDone} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 text-xs font-semibold py-2 rounded">ยกเลิก</button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB 4: ปฏิทิน
+// ═══════════════════════════════════════════════════════════
+function CalendarTab({ bookings, customers, cfg }) {
+  const [viewDate, setViewDate] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState(null);
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthLabel = new Date(year, month).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+
+  const cells = useMemo(() => {
+    const arr = [];
+    for (let i = 0; i < firstDay; i++) arr.push(null);
+    for (let i = 1; i <= daysInMonth; i++) arr.push(i);
+    return arr;
+  }, [firstDay, daysInMonth]);
+
+  const getDateStr = (day) => `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  const getDayBks = (day) => bookings.filter(b => b.startDate === getDateStr(day));
+  const todayStr = today();
+
+  const selectedBks = selectedDay ? getDayBks(selectedDay) : [];
+
+  return (
+    <div className="space-y-4">
+      {/* Calendar */}
+      <div className="bg-white rounded-2xl border p-3 md:p-4">
+        <div className="flex justify-between items-center mb-3">
+          <button onClick={() => setViewDate(new Date(year, month - 1))}
+            className="bg-emerald-100 text-emerald-700 w-9 h-9 rounded-full flex items-center justify-center hover:bg-emerald-200 transition-colors text-lg">◀</button>
+          <h2 className="text-base md:text-lg font-bold text-gray-800">{monthLabel}</h2>
+          <button onClick={() => setViewDate(new Date(year, month + 1))}
+            className="bg-emerald-100 text-emerald-700 w-9 h-9 rounded-full flex items-center justify-center hover:bg-emerald-200 transition-colors text-lg">▶</button>
+        </div>
+        <div className="grid grid-cols-7 gap-0.5 md:gap-1 mb-1">
+          {['อา','จ','อ','พ','พฤ','ศ','ส'].map(d => (
+            <div key={d} className="text-center text-[10px] md:text-xs font-bold text-gray-400 py-1">{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-0.5 md:gap-1">
+          {cells.map((day, idx) => {
+            if (!day) return <div key={idx} className="aspect-square" />;
+            const bks = getDayBks(day);
+            const isToday = getDateStr(day) === todayStr;
+            const isSel = selectedDay === day;
+            return (
+              <button key={idx} onClick={() => setSelectedDay(day)}
+                className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs md:text-sm transition-all
+                  ${isSel ? 'bg-emerald-600 text-white shadow-md scale-105' : isToday ? 'bg-green-100 text-green-700 font-bold' : 'hover:bg-emerald-50 text-gray-700'}`}>
+                <span>{day}</span>
+                {bks.length > 0 && <span className={`text-[9px] md:text-[10px] font-bold ${isSel ? 'text-emerald-100' : 'text-emerald-600'}`}>{bks.length}</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Selected Day Detail */}
+      {selectedDay && (
+        <div className="bg-white rounded-2xl border p-4">
+          <h3 className="font-bold text-gray-800 mb-3 text-sm">
+            {selectedDay} {monthLabel} ({selectedBks.length} การจอง)
+          </h3>
+          <div className="space-y-2">
+            {selectedBks.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-4">ไม่มีการจองวันนี้</p>
+            ) : selectedBks.map(bk => (
+              <div key={bk.id} className="card-hover bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex justify-between items-center">
+                <div>
+                  <div className="font-semibold text-sm text-gray-800">{bk.name}</div>
+                  <div className="text-xs text-gray-500">{cfg(bk.courseType).label} · {bk.totalPeople} คน · {bk.timeSlot}</div>
+                </div>
+                <div className="text-sm font-bold text-emerald-600">฿{fmtPrice(bk.finalPrice)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB 5: โค้ดโปรโม (read-only)
+// ═══════════════════════════════════════════════════════════
+function PromoTab({ promoCodes }) {
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold text-gray-800">โค้ดโปรโมชั่น</h2>
+      {(!promoCodes || promoCodes.length === 0) ? (
+        <div className="bg-white rounded-xl border p-8 text-center text-gray-500">ไม่มีโค้ดโปรโม</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {promoCodes.map((p, i) => (
+            <div key={i} className="bg-white rounded-xl border border-emerald-100 p-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="font-bold text-emerald-700 text-lg">{p.code}</div>
+                  {p.description && <div className="text-xs text-gray-500 mt-1">{p.description}</div>}
+                </div>
+                <span className={`text-xs px-2 py-1 rounded-full font-medium ${p.used ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>
+                  {p.used ? 'ใช้แล้ว' : 'ใช้ได้'}
+                </span>
+              </div>
+              <div className="mt-2 text-sm text-gray-600">
+                ส่วนลด: <span className="font-semibold text-emerald-600">{fmtPrice(p.discount || 0)} บาท</span>
+              </div>
+              {p.usedBy && <div className="text-xs text-gray-400 mt-1">ใช้โดย: {p.usedBy}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB 6: รายได้ (Earnings)
+// ═══════════════════════════════════════════════════════════
+function EarningsTab({ bookings, commissions, userName }) {
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  });
+
+  // Get commission % for this user
+  const commissionPct = useMemo(() => {
+    // commissions can be object {name: "%"} or array [{staffName, commission}]
+    if (Array.isArray(commissions)) {
+      const entry = commissions.find(c => c.staffName === userName);
+      return entry ? parseFloat(entry.commission) || 0 : 0;
+    }
+    const val = commissions[userName];
+    return val ? parseFloat(val) || 0 : 0;
+  }, [commissions, userName]);
+
+  // Filter bookings by selected month
+  const monthBookings = useMemo(() => {
+    return bookings.filter(b => (b.startDate || b.createdAt || '').startsWith(selectedMonth));
+  }, [bookings, selectedMonth]);
+
+  // Calculate totals
+  const totalRevenue = useMemo(() => monthBookings.reduce((sum, b) => sum + (parseFloat(b.finalPrice) || 0), 0), [monthBookings]);
+  const totalCommission = totalRevenue * (commissionPct / 100);
+  const totalBookings = monthBookings.length;
+  const totalPeople = monthBookings.reduce((sum, b) => sum + (parseInt(b.totalPeople) || 1), 0);
+
+  // Generate month options (last 12 months)
+  const monthOptions = useMemo(() => {
+    const opts = [];
+    const d = new Date();
+    for (let i = 0; i < 12; i++) {
+      const y = d.getFullYear(); const m = d.getMonth() + 1;
+      const val = y + '-' + String(m).padStart(2, '0');
+      const label = new Date(y, m - 1).toLocaleDateString('th-TH', { year: 'numeric', month: 'long' });
+      opts.push({ val, label });
+      d.setMonth(d.getMonth() - 1);
+    }
+    return opts;
+  }, []);
+
+  // Group by course type
+  const byCourse = useMemo(() => {
+    const map = {};
+    monthBookings.forEach(b => {
+      const key = b.courseType || 'อื่นๆ';
+      if (!map[key]) map[key] = { count: 0, people: 0, revenue: 0 };
+      map[key].count++;
+      map[key].people += parseInt(b.totalPeople) || 1;
+      map[key].revenue += parseFloat(b.finalPrice) || 0;
+    });
+    return Object.entries(map).sort((a, b) => b[1].revenue - a[1].revenue);
+  }, [monthBookings]);
+
+  return (
+    <div>
+      <h2 className="text-xl font-bold mb-4">💰 รายได้ค่าคอมมิชชั่น</h2>
+
+      {/* Month Selector */}
+      <div className="mb-4">
+        <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
+          className="border rounded-lg p-2 text-sm bg-white">
+          {monthOptions.map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
+        </select>
+      </div>
+
+      {/* Commission Rate */}
+      {commissionPct > 0 ? (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-4">
+          <div className="text-sm text-emerald-600">อัตราคอมมิชชั่นของคุณ</div>
+          <div className="text-3xl font-bold text-emerald-700">{commissionPct}%</div>
+        </div>
+      ) : (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-4">
+          <div className="text-sm text-yellow-700">⚠️ ยังไม่ได้ตั้งค่าอัตราคอมมิชชั่น — กรุณาติดต่อ Admin</div>
+        </div>
+      )}
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="bg-white rounded-xl border p-4 text-center">
+          <div className="text-xs text-gray-500">จำนวนจอง</div>
+          <div className="text-2xl font-bold text-gray-800">{totalBookings}</div>
+        </div>
+        <div className="bg-white rounded-xl border p-4 text-center">
+          <div className="text-xs text-gray-500">จำนวนคน</div>
+          <div className="text-2xl font-bold text-gray-800">{totalPeople}</div>
+        </div>
+        <div className="bg-white rounded-xl border p-4 text-center">
+          <div className="text-xs text-gray-500">ยอดขายรวม</div>
+          <div className="text-2xl font-bold text-blue-600">{fmtPrice(totalRevenue)} ฿</div>
+        </div>
+        <div className="bg-white rounded-xl border p-4 text-center">
+          <div className="text-xs text-gray-500">คอมมิชชั่น</div>
+          <div className="text-2xl font-bold text-emerald-600">{fmtPrice(totalCommission)} ฿</div>
+        </div>
+      </div>
+
+      {/* By Course Breakdown */}
+      {byCourse.length > 0 ? (
+        <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="px-4 py-3 bg-gray-50 border-b">
+            <h3 className="font-semibold text-sm">รายละเอียดตามคอร์ส</h3>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-gray-50 text-gray-500 text-xs">
+                <th className="text-left px-4 py-2">คอร์ส</th>
+                <th className="text-center px-2 py-2">จำนวนจอง</th>
+                <th className="text-center px-2 py-2">คน</th>
+                <th className="text-right px-4 py-2">ยอดขาย</th>
+                <th className="text-right px-4 py-2">คอมมิชชั่น</th>
+              </tr>
+            </thead>
+            <tbody>
+              {byCourse.map(([course, data]) => (
+                <tr key={course} className="border-b last:border-0">
+                  <td className="px-4 py-3 font-medium">{course}</td>
+                  <td className="text-center px-2 py-3">{data.count}</td>
+                  <td className="text-center px-2 py-3">{data.people}</td>
+                  <td className="text-right px-4 py-3">{fmtPrice(data.revenue)} ฿</td>
+                  <td className="text-right px-4 py-3 text-emerald-600 font-semibold">{fmtPrice(data.revenue * commissionPct / 100)} ฿</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border p-8 text-center text-gray-400">
+          ยังไม่มียอดจองในเดือนนี้
+        </div>
+      )}
+
+      {/* Booking Details */}
+      {monthBookings.length > 0 && (
+        <div className="mt-4">
+          <h3 className="font-semibold text-sm mb-2 text-gray-600">📋 รายการจองในเดือนนี้</h3>
+          <div className="space-y-2">
+            {monthBookings.map(b => (
+              <div key={b.id} className="bg-white rounded-lg border p-3 flex justify-between items-center">
+                <div>
+                  <div className="font-medium text-sm">{b.name || 'ไม่ทราบชื่อ'}</div>
+                  <div className="text-xs text-gray-500">{b.courseType} · {b.startDate} · {b.totalPeople || 1} คน</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-semibold">{fmtPrice(parseFloat(b.finalPrice) || 0)} ฿</div>
+                  <div className="text-xs text-emerald-600">+{fmtPrice((parseFloat(b.finalPrice) || 0) * commissionPct / 100)} ฿</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Render ───
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

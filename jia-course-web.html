@@ -23,6 +23,14 @@ tailwind.config = {
   .custom-scroll::-webkit-scrollbar { height: 4px; }
   .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
   .strikethrough { text-decoration: line-through; color: #999; }
+  /* Mobile responsive improvements */
+  @media (max-width: 768px) {
+    .admin-main { padding: 12px !important; }
+    .admin-header h1 { font-size: 1.25rem !important; }
+  }
+  .card-hover { transition: transform 0.15s, box-shadow 0.15s; }
+  .card-hover:active { transform: scale(0.98); }
+  .input-focus:focus { outline: none; box-shadow: 0 0 0 3px rgba(37,99,235,0.2); border-color: #2563eb; }
 </style>
 </head>
 <body>
@@ -289,7 +297,20 @@ const BADGE_COLORS = [
   "bg-sky-100 text-sky-700","bg-purple-100 text-purple-700","bg-teal-100 text-teal-700",
   "bg-emerald-100 text-emerald-700","bg-amber-100 text-amber-700","bg-gray-100 text-gray-700",
 ];
-const TABS = ["บอร์ดหน้างาน", "แดชบอร์ด", "เปิดคลาส", "จองคอร์ส", "ลูกค้า", "ตารางเรียน", "ปฏิทิน", "โค้ดโปรโม", "ตารางผู้สอน", "ตั้งค่า"];
+const ALL_TABS = [
+  { id: 'ops',        label: 'บอร์ดหน้างาน', roles: ['admin','sales'] },
+  { id: 'myBookings', label: 'การจองของฉัน', roles: ['sales'] },
+  { id: 'dashboard',  label: 'แดชบอร์ด',     roles: ['admin','sales'] },
+  { id: 'classes',    label: 'เปิดคลาส',     roles: ['admin'] },
+  { id: 'booking',    label: 'จองคอร์ส',     roles: ['admin','sales'] },
+  { id: 'customers',  label: 'ลูกค้า',       roles: ['admin','sales'] },
+  { id: 'schedule',   label: 'ตารางเรียน',   roles: ['admin','sales'] },
+  { id: 'calendar',   label: 'ปฏิทิน',       roles: ['admin','sales'] },
+  { id: 'promo',      label: 'โค้ดโปรโม',    roles: ['admin','sales'] },
+  { id: 'instSched',  label: 'ตารางผู้สอน',  roles: ['admin'] },
+  { id: 'settings',   label: 'ตั้งค่า',      roles: ['admin'] },
+];
+const TABS = ALL_TABS.map(t => t.label); // backward compat
 // Instructor Levels
 const INSTRUCTOR_LEVELS = [
   { value: 1, label: "Level 1 — Basic", badge: "🥉" },
@@ -570,7 +591,8 @@ function LoginGate({ children }) {
 
 // ─── Main App ───
 function AppContent() {
-  const [tab, setTab] = useState(0);
+  const userRole = window.JIA_AUTH_USER?.role || 'admin';
+  const [tab, setTab] = useState('ops');
   const [customers, setCustomers] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [sessions, setSessions] = useState([]);
@@ -989,11 +1011,11 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-blue-50 font-sans">
-      <header style={{ background: "linear-gradient(135deg, #253A8D 0%, #3757D3 100%)" }} className="text-white shadow-lg">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+      <header style={{ background: "linear-gradient(135deg, #253A8D 0%, #3757D3 100%)" }} className="admin-header text-white shadow-lg">
+        <div className="max-w-5xl mx-auto px-3 md:px-4 py-2 md:py-3 flex justify-between items-center">
           <div>
-            <h1 className="text-xl font-bold tracking-wide">JIA Course</h1>
-            <p className="text-blue-200 text-xs">เจี๋ยรักษา — ระบบจองคอร์ส</p>
+            <h1 className="text-lg md:text-xl font-bold tracking-wide">JIA Course</h1>
+            <p className="text-blue-200 text-[10px] md:text-xs">เจี๋ยรักษา — ระบบจองคอร์ส</p>
           </div>
           <div className="flex gap-2 items-center">
             {syncMsg && <span className="text-xs bg-white/20 px-2 py-1 rounded">{syncMsg}</span>}
@@ -1020,38 +1042,41 @@ function AppContent() {
         </div>
       </header>
 
-      <nav className="bg-white border-b shadow-sm overflow-x-auto custom-scroll">
-        <div className="max-w-5xl mx-auto px-4 flex">
-          {TABS.map((t, i) => (
-            <button key={i} onClick={() => setTab(i)}
-              className={`px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                tab === i ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-blue-600"
-              }`}>{t}</button>
+      <nav className="bg-white border-b shadow-sm overflow-x-auto custom-scroll sticky top-0 z-30">
+        <div className="max-w-5xl mx-auto px-2 md:px-4 flex">
+          {ALL_TABS.filter(t => t.roles.includes(userRole)).map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`px-2 md:px-4 py-2.5 md:py-3 text-xs md:text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                tab === t.id ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-blue-600"
+              }`}>{t.label}</button>
           ))}
         </div>
       </nav>
 
-      <main className="max-w-5xl mx-auto px-4 py-6">
-        {tab === 0 && <OperationsBoard bookings={bookings} customers={customers} courses={courses} cfg={cfg} instructors={instructors} updateBooking={updateBooking} />}
-        {tab === 1 && <Dashboard stats={stats} bookings={bookings} customers={customers} enrolled={enrolled} courses={courses} cfg={cfg} courseKeys={courseKeys} instructors={instructors} />}
-        {tab === 2 && <ClassManager classes={classes} classInstructors={classInstructors} courses={courses} instructors={instructors} bookings={bookings}
+      <main className="admin-main max-w-5xl mx-auto px-3 md:px-4 py-4 md:py-6">
+        {tab === 'ops' && <OperationsBoard bookings={bookings} customers={customers} courses={courses} cfg={cfg} instructors={instructors} updateBooking={updateBooking} userRole={userRole} currentUserName={window.JIA_AUTH_USER?.name || ''} />}
+        {tab === 'myBookings' && <MyBookingsReview bookings={bookings} customers={customers} sessions={sessions} cfg={cfg} currentUserName={window.JIA_AUTH_USER?.name || ''} />}
+        {tab === 'dashboard' && <Dashboard stats={stats} bookings={bookings} customers={customers} enrolled={enrolled} courses={courses} cfg={cfg} courseKeys={courseKeys} instructors={instructors} />}
+        {tab === 'classes' && <ClassManager classes={classes} classInstructors={classInstructors} courses={courses} instructors={instructors} bookings={bookings}
           addClass={addClass} updateClass={updateClass} deleteClass={deleteClass}
           assignInstructor={assignInstructor} removeInstructorFromClass={removeInstructorFromClass} />}
-        {tab === 3 && <BookingForm customers={customers} addCustomer={addCustomer} addBooking={addBooking} enrolled={enrolled} courses={courses} cfg={cfg} courseKeys={courseKeys} staff={staff} instructors={instructors} instructorAvail={instructorAvail} promoCodes={promoCodes} updatePromoCodes={savePromoCodes} classes={classes} classInstructors={classInstructors} />}
-        {tab === 4 && (
+        {tab === 'booking' && <BookingForm customers={customers} addCustomer={addCustomer} addBooking={addBooking} enrolled={enrolled} courses={courses} cfg={cfg} courseKeys={courseKeys} staff={staff} instructors={instructors} instructorAvail={instructorAvail} promoCodes={promoCodes} updatePromoCodes={savePromoCodes} classes={classes} classInstructors={classInstructors} />}
+        {tab === 'customers' && (
           <CustomerList customers={customers} bookings={bookings} sessions={sessions}
             updateCustomer={updateCustomer} deleteCustomer={deleteCustomer}
-            updateBooking={updateBooking} deleteBooking={deleteBooking} enrolled={enrolled} cfg={cfg} courseKeys={courseKeys} staff={staff} instructors={instructors} courses={courses} />
+            updateBooking={updateBooking} deleteBooking={deleteBooking} enrolled={enrolled} cfg={cfg} courseKeys={courseKeys} staff={staff} instructors={instructors} courses={courses}
+            userRole={userRole} currentUserName={window.JIA_AUTH_USER?.name || ''} />
         )}
-        {tab === 5 && (
+        {tab === 'schedule' && (
           <Schedule sessions={sessions} bookings={bookings} customers={customers}
             toggleSession={toggleSession} updateSessionDate={updateSessionDate}
-            updateBooking={updateBooking} deleteBooking={deleteBooking} enrolled={enrolled} cfg={cfg} courseKeys={courseKeys} staff={staff} instructors={instructors} courses={courses} />
+            updateBooking={updateBooking} deleteBooking={deleteBooking} enrolled={enrolled} cfg={cfg} courseKeys={courseKeys} staff={staff} instructors={instructors} courses={courses}
+            userRole={userRole} currentUserName={window.JIA_AUTH_USER?.name || ''} />
         )}
-        {tab === 6 && <CalendarView sessions={sessions} bookings={bookings} courses={courses} cfg={cfg} customers={customers} classes={classes} classInstructors={classInstructors} />}
-        {tab === 7 && <ErrorBoundary><PromoCodeManager promoCodes={promoCodes} savePromoCodes={savePromoCodes} staff={staff} /></ErrorBoundary>}
-        {tab === 8 && <InstructorSchedule bookings={bookings} instructors={instructors} classes={classes} classInstructors={classInstructors} />}
-        {tab === 9 && <CourseSettings courses={courses} saveCourses={saveCourses} staff={staff} saveStaff={saveStaff} instructors={instructors} saveInstructors={saveInstructors} enrolled={enrolled} />}
+        {tab === 'calendar' && <CalendarView sessions={sessions} bookings={bookings} courses={courses} cfg={cfg} customers={customers} classes={classes} classInstructors={classInstructors} />}
+        {tab === 'promo' && <ErrorBoundary><PromoCodeManager promoCodes={promoCodes} savePromoCodes={savePromoCodes} staff={staff} /></ErrorBoundary>}
+        {tab === 'instSched' && <InstructorSchedule bookings={bookings} instructors={instructors} classes={classes} classInstructors={classInstructors} />}
+        {tab === 'settings' && <CourseSettings courses={courses} saveCourses={saveCourses} staff={staff} saveStaff={saveStaff} instructors={instructors} saveInstructors={saveInstructors} enrolled={enrolled} />}
       </main>
     </div>
   );
@@ -1060,7 +1085,7 @@ function AppContent() {
 // ─── v2: Class Manager (เปิดคลาส) ───
 function ClassManager({ classes, classInstructors, courses, instructors, bookings, addClass, updateClass, deleteClass, assignInstructor, removeInstructorFromClass }) {
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ courseKey: '', date: '', timeSlot: '', maxStudents: 15, requiredInstructors: 1, place: '', note: '' });
+  const [form, setForm] = useState({ courseKey: '', date: '', timeSlot: '', maxStudents: 15, requiredInstructors: 1, place: '', note: '', instructorPay: '' });
   const [filter, setFilter] = useState('all'); // all, waiting_instructor, ready, full
 
   // Helper: instructor name → level
@@ -1094,9 +1119,10 @@ function ClassManager({ classes, classInstructors, courses, instructors, booking
       courseName: course ? course.label : form.courseKey,
       maxStudents: parseInt(form.maxStudents) || 15,
       requiredInstructors: parseInt(form.requiredInstructors) || 1,
+      instructorPay: form.instructorPay ? parseFloat(form.instructorPay) : 0,
       createdBy: window.JIA_AUTH_USER?.name || 'admin',
     });
-    setForm({ courseKey: '', date: '', timeSlot: '', maxStudents: 15, requiredInstructors: 1, place: '', note: '' });
+    setForm({ courseKey: '', date: '', timeSlot: '', maxStudents: 15, requiredInstructors: 1, place: '', note: '', instructorPay: '' });
     setShowForm(false);
   };
 
@@ -1179,10 +1205,17 @@ function ClassManager({ classes, classInstructors, courses, instructors, booking
                 className="w-full border rounded-lg p-2 text-sm" placeholder="ห้อง / สถานที่" />
             </div>
           </div>
-          <div className="mt-3">
-            <label className="text-xs text-gray-500">หมายเหตุ</label>
-            <input value={form.note} onChange={e => setForm({...form, note: e.target.value})}
-              className="w-full border rounded-lg p-2 text-sm" placeholder="หมายเหตุเพิ่มเติม" />
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <div>
+              <label className="text-xs text-gray-500">ค่าสอนผู้สอน (บาท/คลาส)</label>
+              <input type="number" value={form.instructorPay} onChange={e => setForm({...form, instructorPay: e.target.value})}
+                className="w-full border rounded-lg p-2 text-sm" min="0" placeholder="เช่น 1500" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">หมายเหตุ</label>
+              <input value={form.note} onChange={e => setForm({...form, note: e.target.value})}
+                className="w-full border rounded-lg p-2 text-sm" placeholder="หมายเหตุเพิ่มเติม" />
+            </div>
           </div>
           <button onClick={handleSubmit} className="mt-4 bg-green-600 text-white px-6 py-2 rounded-lg text-sm font-semibold">
             สร้างคลาส
@@ -1219,7 +1252,8 @@ function ClassManager({ classes, classInstructors, courses, instructors, booking
             <div className="text-sm text-gray-500 mt-1">
               {cls.place && <span className="mr-3">📍 {cls.place}</span>}
               <span className="mr-3">👥 {booked}/{cls.maxStudents} คน</span>
-              <span>Level {course?.requiredLevel || 1} ขึ้นไป</span>
+              <span className="mr-3">Level {course?.requiredLevel || 1} ขึ้นไป</span>
+              {cls.instructorPay > 0 && <span className="text-green-600 font-semibold">💰 ค่าสอน {Number(cls.instructorPay).toLocaleString()} บาท</span>}
             </div>
 
             {/* Assigned Instructors */}
@@ -1254,15 +1288,157 @@ function ClassManager({ classes, classInstructors, courses, instructors, booking
 }
 
 // ─── Operations Board (บอร์ดหน้างาน) ───
-function OperationsBoard({ bookings, customers, courses, cfg, instructors, updateBooking }) {
+// ─── Sales: My Bookings Review ───
+function MyBookingsReview({ bookings, customers, sessions, cfg, currentUserName }) {
+  const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
+
+  const myBookings = useMemo(() => {
+    let list = bookings.filter(b => b.salesStaff === currentUserName || b.createdBy === currentUserName);
+    if (filter === 'today') list = list.filter(b => b.startDate === today());
+    else if (filter === 'upcoming') list = list.filter(b => b.startDate >= today());
+    else if (filter === 'past') list = list.filter(b => b.startDate < today());
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter(b => (b.name || '').toLowerCase().includes(q) || (b.tel || '').includes(q));
+    }
+    return list.sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''));
+  }, [bookings, currentUserName, filter, search]);
+
+  const stats = useMemo(() => {
+    const all = bookings.filter(b => b.salesStaff === currentUserName || b.createdBy === currentUserName);
+    return {
+      total: all.length,
+      today: all.filter(b => b.startDate === today()).length,
+      upcoming: all.filter(b => b.startDate > today()).length,
+      totalRevenue: all.reduce((s, b) => s + (Number(b.finalPrice) || 0), 0),
+    };
+  }, [bookings, currentUserName]);
+
+  return (
+    <div className="space-y-6">
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-4 shadow-lg">
+          <div className="text-xs font-medium opacity-90">การจองทั้งหมด</div>
+          <div className="text-3xl font-bold mt-1">{stats.total}</div>
+        </div>
+        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-4 shadow-lg">
+          <div className="text-xs font-medium opacity-90">วันนี้</div>
+          <div className="text-3xl font-bold mt-1">{stats.today}</div>
+        </div>
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl p-4 shadow-lg">
+          <div className="text-xs font-medium opacity-90">กำลังจะมา</div>
+          <div className="text-3xl font-bold mt-1">{stats.upcoming}</div>
+        </div>
+        <div className="bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-xl p-4 shadow-lg">
+          <div className="text-xs font-medium opacity-90">ยอดขายรวม</div>
+          <div className="text-2xl font-bold mt-1">฿{fmtPrice(stats.totalRevenue)}</div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col md:flex-row gap-3">
+        <div className="flex gap-2 flex-wrap">
+          {[['all','ทั้งหมด'],['today','วันนี้'],['upcoming','กำลังจะมา'],['past','ผ่านแล้ว']].map(([k,l]) => (
+            <button key={k} onClick={() => setFilter(k)}
+              className={`text-xs font-medium px-4 py-2 rounded-lg transition-colors ${
+                filter === k ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+              }`}>{l}</button>
+          ))}
+        </div>
+        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+          placeholder="ค้นหาชื่อ/เบอร์โทร..."
+          className="flex-1 border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+      </div>
+
+      {/* Booking list */}
+      <div className="space-y-3">
+        {myBookings.length === 0 ? (
+          <div className="bg-white rounded-xl border border-blue-100 p-8 text-center">
+            <div className="text-4xl mb-2">📋</div>
+            <div className="text-lg font-semibold text-gray-700">ไม่มีการจอง</div>
+            <div className="text-sm text-gray-500 mt-1">ไม่พบการจองที่ตรงกับเงื่อนไข</div>
+          </div>
+        ) : (
+          myBookings.map(bk => {
+            const bkSessions = sessions.filter(s => s.bookingId === bk.id);
+            const bkCompleted = bkSessions.filter(s => s.done).length;
+            const isPaid = bk.paymentStatus === 'ชำระแล้ว' || bk.paymentMode === 'โอนเงิน (ตรวจแล้ว)';
+            const isPending = bk.paymentStatus === 'รอตรวจสอบ';
+            const rescheduleCount = Number(bk.rescheduleCount) || 0;
+            const isToday = bk.startDate === today();
+            const isPast = bk.startDate < today();
+
+            return (
+              <div key={bk.id} className={`bg-white rounded-xl border p-4 space-y-3 ${isToday ? 'border-green-300 bg-green-50' : isPast ? 'border-gray-200' : 'border-blue-200'}`}>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-bold text-gray-800">{bk.name}</div>
+                    <div className="text-xs text-gray-500">{bk.tel}</div>
+                  </div>
+                  <div className="flex gap-1 flex-wrap justify-end">
+                    {isToday && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">วันนี้</span>}
+                    {isPaid && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">ชำระแล้ว</span>}
+                    {isPending && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium">รอตรวจสอบ</span>}
+                    {!isPaid && !isPending && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-medium">ยังไม่ชำระ</span>}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                  <div>📦 {cfg(bk.courseType).label}</div>
+                  <div>👥 {bk.totalPeople} คน</div>
+                  <div>📅 {fmt(bk.startDate)} {bk.timeSlot}</div>
+                  <div>🎓 {bk.instructor}</div>
+                  <div>💰 {fmtPrice(bk.finalPrice)} บาท ({bk.paymentMode})</div>
+                  <div>🛒 {bk.channel || 'ไม่ระบุ'}</div>
+                </div>
+
+                {rescheduleCount > 0 && (
+                  <div className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded">
+                    เลื่อนแล้ว {rescheduleCount} ครั้ง
+                  </div>
+                )}
+
+                {bk.note && (
+                  <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
+                    หมายเหตุ: {bk.note}
+                  </div>
+                )}
+
+                <div className="flex justify-between items-center text-xs text-gray-600 pt-1">
+                  <span>{bkCompleted}/{bkSessions.length} เรียนแล้ว</span>
+                  <span className="text-gray-400">จองเมื่อ {fmt(bk.createdAt)}</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-1.5">
+                  <div className="bg-blue-500 h-1.5 rounded-full transition-all"
+                    style={{ width: (bkSessions.length > 0 ? Math.round((bkCompleted / bkSessions.length) * 100) : 0) + '%' }} />
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+function OperationsBoard({ bookings, customers, courses, cfg, instructors, updateBooking, userRole, currentUserName }) {
+  const isSales = userRole === 'sales';
+
+  const myBookings = useMemo(() => {
+    if (!isSales || !currentUserName) return bookings;
+    return bookings.filter(b => b.salesStaff === currentUserName || b.createdBy === currentUserName);
+  }, [bookings, isSales, currentUserName]);
+
   const todayBookings = useMemo(() => {
     const t = today();
-    return bookings.filter(b => b.startDate === t);
-  }, [bookings]);
+    return myBookings.filter(b => b.startDate === t);
+  }, [myBookings]);
 
   const pendingPayments = useMemo(() => {
-    return bookings.filter(b => b.paymentStatus === "รอตรวจสอบ");
-  }, [bookings]);
+    return myBookings.filter(b => b.paymentStatus === "รอตรวจสอบ");
+  }, [myBookings]);
 
   const [viewSlip, setViewSlip] = useState(null);
 
@@ -1272,7 +1448,7 @@ function OperationsBoard({ bookings, customers, courses, cfg, instructors, updat
     jiaApiPost('notifyPayment', {}, bk).catch(err => console.warn('⚠️ Payment notify failed:', err));
     // สร้าง Google Calendar event
     jiaApiPost('createCalendarEvent', {}, bk).catch(err => console.warn('⚠️ Calendar event failed:', err));
-    toast('✅ ยืนยันชำระเงินแล้ว + แจ้งเตือนอีเมล + สร้าง Calendar');
+    showToast('✅ ยืนยันชำระเงินแล้ว + แจ้งเตือนอีเมล + สร้าง Calendar');
   };
 
   const todayInstructors = useMemo(() => {
@@ -1696,7 +1872,10 @@ function BookingForm({ customers, addCustomer, addBooking, enrolled, courses, cf
   const [paymentMode, setPaymentMode] = useState("");
   const [startDate, setStartDate] = useState("");
   const [timeSlot, setTimeSlot] = useState("");
-  const [salesStaff, setSalesStaff] = useState("");
+  const userRole = window.JIA_AUTH_USER?.role || 'admin';
+  const isSales = userRole === 'sales';
+  const currentUserName = window.JIA_AUTH_USER?.name || '';
+  const [salesStaff, setSalesStaff] = useState(() => isSales ? currentUserName : "");
   const [instructor, setInstructor] = useState("");
   const [note, setNote] = useState("");
   const [showNewCustomer, setShowNewCustomer] = useState(false);
@@ -1706,6 +1885,8 @@ function BookingForm({ customers, addCustomer, addBooking, enrolled, courses, cf
   const [discountValidation, setDiscountValidation] = useState("");
   const [customPrice, setCustomPrice] = useState("");
   const [useCustomPrice, setUseCustomPrice] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingBooking, setPendingBooking] = useState(null);
 
   const courseConfig = cfg(courseType);
   let basePrice = courseConfig.price;
@@ -1758,15 +1939,6 @@ function BookingForm({ customers, addCustomer, addBooking, enrolled, courses, cf
     let usedCode = "";
     if (discountValidation === "valid") {
       usedCode = discountCode.toUpperCase();
-      if (usedCode.startsWith("SALE-")) {
-        const promo = promoCodes.find(p => p.code === usedCode);
-        if (promo) {
-          const updated = promoCodes.map(p =>
-            p.code === usedCode ? { ...p, used: true, usedBy: selectedCustomer.name } : p
-          );
-          updatePromoCodes(updated);
-        }
-      }
     }
     const bk = {
       customerId: selectedCustomer.id,
@@ -1784,11 +1956,36 @@ function BookingForm({ customers, addCustomer, addBooking, enrolled, courses, cf
       note,
       cprPackage,
       discountCode: usedCode,
+      createdBy: window.JIA_AUTH_USER?.name || salesStaff || 'unknown',
+      rescheduleCount: 0,
     };
-    await addBooking(bk);
+    // Show confirmation dialog instead of submitting directly
+    setPendingBooking(bk);
+    setShowConfirmDialog(true);
+  };
+
+  const confirmBooking = async () => {
+    if (!pendingBooking) return;
+    // Mark promo code as used
+    if (discountValidation === "valid" && pendingBooking.discountCode) {
+      const usedCode = pendingBooking.discountCode;
+      if (usedCode.startsWith("SALE-")) {
+        const promo = promoCodes.find(p => p.code === usedCode);
+        if (promo) {
+          const updated = promoCodes.map(p =>
+            p.code === usedCode ? { ...p, used: true, usedBy: pendingBooking.name } : p
+          );
+          updatePromoCodes(updated);
+        }
+      }
+    }
+    await addBooking(pendingBooking);
+    setShowConfirmDialog(false);
+    setPendingBooking(null);
     setCourseType(""); setChannel(""); setTotalPeople(""); setPaymentMode(""); setStartDate(""); setTimeSlot("");
-    setSalesStaff(""); setInstructor(""); setNote(""); setSelectedCustomer(null); setCprPackage(""); setDiscountCode(""); setDiscountValidation("");
+    setSalesStaff(isSales ? currentUserName : ""); setInstructor(""); setNote(""); setSelectedCustomer(null); setCprPackage(""); setDiscountCode(""); setDiscountValidation("");
     setCustomPrice(""); setUseCustomPrice(false);
+    showToast('✅ บันทึกการจองสำเร็จ');
   };
 
   const handleAddCustomer = async () => {
@@ -1989,6 +2186,93 @@ function BookingForm({ customers, addCustomer, addBooking, enrolled, courses, cf
           </div>
         </div>
       )}
+
+      {/* Booking Confirmation Dialog */}
+      {showConfirmDialog && pendingBooking && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-blue-800 text-center">ยืนยันการจอง</h2>
+            <p className="text-sm text-gray-500 text-center">กรุณาตรวจสอบข้อมูลก่อนบันทึก</p>
+
+            <div className="bg-blue-50 rounded-xl p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">ลูกค้า</span>
+                <span className="font-semibold text-gray-800">{pendingBooking.name}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">เบอร์โทร</span>
+                <span className="font-semibold text-gray-800">{pendingBooking.tel}</span>
+              </div>
+              <hr className="border-blue-200" />
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">คอร์ส</span>
+                <span className="font-semibold text-gray-800">{cfg(pendingBooking.courseType).label}</span>
+              </div>
+              {pendingBooking.cprPackage && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">แพ็กเกจ</span>
+                  <span className="font-semibold text-gray-800">{pendingBooking.cprPackage === 'flex' ? 'Flexible' : 'Fixed'}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">จำนวนคน</span>
+                <span className="font-semibold text-gray-800">{pendingBooking.totalPeople} คน</span>
+              </div>
+              <hr className="border-blue-200" />
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">วันที่</span>
+                <span className="font-semibold text-gray-800">{fmt(pendingBooking.startDate)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">เวลา</span>
+                <span className="font-semibold text-gray-800">{pendingBooking.timeSlot}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">ผู้สอน</span>
+                <span className="font-semibold text-gray-800">{pendingBooking.instructor}</span>
+              </div>
+              <hr className="border-blue-200" />
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">เซลล์</span>
+                <span className="font-semibold text-gray-800">{pendingBooking.salesStaff}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">ช่องทาง</span>
+                <span className="font-semibold text-gray-800">{pendingBooking.channel}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">การชำระ</span>
+                <span className="font-semibold text-gray-800">{pendingBooking.paymentMode}</span>
+              </div>
+              {pendingBooking.discountCode && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">โค้ดส่วนลด</span>
+                  <span className="font-semibold text-green-600">{pendingBooking.discountCode}</span>
+                </div>
+              )}
+              <hr className="border-blue-200" />
+              <div className="flex justify-between text-base">
+                <span className="font-bold text-gray-700">ราคารวม</span>
+                <span className="font-bold text-blue-700">{fmtPrice(pendingBooking.finalPrice)} บาท</span>
+              </div>
+              {pendingBooking.note && (
+                <div className="text-xs text-gray-500 pt-1">หมายเหตุ: {pendingBooking.note}</div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => { setShowConfirmDialog(false); setPendingBooking(null); }}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-xl transition-colors">
+                แก้ไข
+              </button>
+              <button onClick={confirmBooking}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl transition-colors">
+                ยืนยันการจอง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2007,17 +2291,36 @@ function Field({ label, value, onChange, type = "text", required, min }) {
 }
 
 // ─── Customer List ───
-function CustomerList({ customers, bookings, sessions, updateCustomer, deleteCustomer, updateBooking, deleteBooking, enrolled, cfg, courseKeys, staff, instructors, courses }) {
+function CustomerList({ customers, bookings, sessions, updateCustomer, deleteCustomer, updateBooking, deleteBooking, enrolled, cfg, courseKeys, staff, instructors, courses, userRole, currentUserName }) {
   const [editingId, setEditingId] = useState(null);
   const [editingBooking, setEditingBooking] = useState(null);
 
-  const getCustomerBookings = (custId) => bookings.filter(b => b.customerId === custId);
+  const isSales = userRole === 'sales';
+
+  // Sales sees only their own bookings/customers
+  const filteredBookings = useMemo(() => {
+    if (!isSales || !currentUserName) return bookings;
+    return bookings.filter(b => b.salesStaff === currentUserName || b.createdBy === currentUserName);
+  }, [bookings, isSales, currentUserName]);
+
+  const filteredCustomers = useMemo(() => {
+    if (!isSales || !currentUserName) return customers;
+    const myCustomerIds = new Set(filteredBookings.map(b => b.customerId));
+    return customers.filter(c => myCustomerIds.has(c.id));
+  }, [customers, filteredBookings, isSales, currentUserName]);
+
+  const getCustomerBookings = (custId) => filteredBookings.filter(b => b.customerId === custId);
   const getBookingSessions = (bookingId) => sessions.filter(s => s.bookingId === bookingId);
   const getCustomerSessions = (custId) => sessions.filter(s => s.customerId === custId);
 
   return (
     <div className="space-y-6">
-      {customers.map(cust => {
+      {isSales && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
+          แสดงเฉพาะลูกค้าของคุณ ({currentUserName}) — {filteredCustomers.length} ราย
+        </div>
+      )}
+      {filteredCustomers.map(cust => {
         const custBookings = getCustomerBookings(cust.id);
         const custSessions = getCustomerSessions(cust.id);
         const completed = custSessions.filter(s => s.done).length;
@@ -2106,7 +2409,8 @@ function CustomerList({ customers, bookings, sessions, updateCustomer, deleteCus
                       {editingBooking === bk.id && (
                         <BookingEditModal bk={bk} setBk={(updated) => updateBooking(bk.id, updated)}
                           enrolled={enrolled} courses={courses} staff={staff} instructors={instructors}
-                          onSave={() => setEditingBooking(null)} onClose={() => setEditingBooking(null)} />
+                          onSave={() => setEditingBooking(null)} onClose={() => setEditingBooking(null)}
+                          userRole={userRole} />
                       )}
 
                       <div className="text-xs text-gray-600 pt-2">
@@ -2129,11 +2433,41 @@ function CustomerList({ customers, bookings, sessions, updateCustomer, deleteCus
 }
 
 // ─── Booking Edit Modal ───
-function BookingEditModal({ bk, setBk, enrolled, courses, staff, instructors, onSave, onClose }) {
+function BookingEditModal({ bk, setBk, enrolled, courses, staff, instructors, onSave, onClose, userRole }) {
   const [isExistingBooking] = useState(!!bk.createdAt);
+  const isSales = userRole === 'sales';
+  const rescheduleCount = Number(bk.rescheduleCount) || 0;
+  const maxReschedules = bk.cprPackage === 'fixed' ? 1 : (bk.cprPackage === 'flex' ? 999 : 2);
+  const canReschedule = !isSales || rescheduleCount < maxReschedules;
+  const rescheduleLabel = isSales
+    ? `เลื่อนแล้ว ${rescheduleCount}/${maxReschedules === 999 ? '∞' : maxReschedules} ครั้ง`
+    : '';
+
+  const handleDateChange = (newDate) => {
+    if (isSales && !canReschedule) {
+      showToast('❌ ครบจำนวนครั้งที่เลื่อนได้แล้ว', true);
+      return;
+    }
+    const newCount = newDate !== bk.startDate ? rescheduleCount + 1 : rescheduleCount;
+    setBk({ ...bk, startDate: newDate, rescheduleCount: newCount });
+  };
+
+  const handleTimeChange = (newTime) => {
+    if (isSales && !canReschedule) {
+      showToast('❌ ครบจำนวนครั้งที่เลื่อนได้แล้ว', true);
+      return;
+    }
+    const newCount = newTime !== bk.timeSlot ? rescheduleCount + 1 : rescheduleCount;
+    setBk({ ...bk, timeSlot: newTime, rescheduleCount: newCount });
+  };
 
   return (
     <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+      {isSales && (
+        <div className={`text-xs px-3 py-2 rounded-lg ${canReschedule ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-600'}`}>
+          {rescheduleLabel} {!canReschedule && '— ไม่สามารถเลื่อนได้อีก'}
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <label className="text-xs font-medium text-gray-700 block mb-1">คอร์ส</label>
@@ -2151,18 +2485,22 @@ function BookingEditModal({ bk, setBk, enrolled, courses, staff, instructors, on
 
         <div>
           <label className="text-xs font-medium text-gray-700 block mb-1">
-            วันที่เริ่มเรียน {isExistingBooking && "(กำหนดโดยเซลล์ ไม่สามารถแก้ไขได้)"}
+            วันที่เริ่มเรียน {isExistingBooking && !canReschedule && isSales ? "(ครบจำนวนเลื่อนแล้ว)" : isExistingBooking && isSales ? "" : isExistingBooking ? "(กำหนดโดยเซลล์ ไม่สามารถแก้ไขได้)" : ""}
           </label>
-          <input type="date" value={bk.startDate} onChange={(e) => setBk({ ...bk, startDate: e.target.value })} disabled={isExistingBooking}
-            className={`w-full border rounded px-2 py-1 text-xs ${isExistingBooking ? "border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500" : "border-amber-200 bg-white"}`} />
+          <input type="date" value={bk.startDate}
+            onChange={(e) => isSales ? handleDateChange(e.target.value) : setBk({ ...bk, startDate: e.target.value })}
+            disabled={(isExistingBooking && !isSales) || (isSales && !canReschedule)}
+            className={`w-full border rounded px-2 py-1 text-xs ${(isExistingBooking && !isSales) || (isSales && !canReschedule) ? "border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500" : "border-amber-200 bg-white"}`} />
         </div>
 
         <div>
           <label className="text-xs font-medium text-gray-700 block mb-1">
-            เวลา {isExistingBooking && "(กำหนดโดยเซลล์ ไม่สามารถแก้ไขได้)"}
+            เวลา {(isExistingBooking && !isSales) ? "(กำหนดโดยเซลล์ ไม่สามารถแก้ไขได้)" : (isSales && !canReschedule) ? "(ครบจำนวนเลื่อนแล้ว)" : ""}
           </label>
-          <select value={bk.timeSlot} onChange={(e) => setBk({ ...bk, timeSlot: e.target.value })} disabled={isExistingBooking}
-            className={`w-full border rounded px-2 py-1 text-xs ${isExistingBooking ? "border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500" : "border-amber-200 bg-white"}`}>
+          <select value={bk.timeSlot}
+            onChange={(e) => isSales ? handleTimeChange(e.target.value) : setBk({ ...bk, timeSlot: e.target.value })}
+            disabled={(isExistingBooking && !isSales) || (isSales && !canReschedule)}
+            className={`w-full border rounded px-2 py-1 text-xs ${(isExistingBooking && !isSales) || (isSales && !canReschedule) ? "border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500" : "border-amber-200 bg-white"}`}>
             {getAllTimeSlots(courses).map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
@@ -2230,18 +2568,29 @@ function BookingEditModal({ bk, setBk, enrolled, courses, staff, instructors, on
 }
 
 // ─── Schedule ───
-function Schedule({ sessions, bookings, customers, toggleSession, updateSessionDate, updateBooking, deleteBooking, enrolled, cfg, courseKeys, staff, instructors, courses }) {
+function Schedule({ sessions, bookings, customers, toggleSession, updateSessionDate, updateBooking, deleteBooking, enrolled, cfg, courseKeys, staff, instructors, courses, userRole, currentUserName }) {
   const [filter, setFilter] = useState("all");
+  const isSales = userRole === 'sales';
+
+  const myBookings = useMemo(() => {
+    if (!isSales || !currentUserName) return bookings;
+    return bookings.filter(b => b.salesStaff === currentUserName || b.createdBy === currentUserName);
+  }, [bookings, isSales, currentUserName]);
+
+  const myBookingIds = useMemo(() => new Set(myBookings.map(b => b.id)), [myBookings]);
+
   const sessionList = useMemo(() => {
-    let list = sessions.map(s => {
-      const bk = bookings.find(b => b.id === s.bookingId);
-      const cust = customers.find(c => c.id === s.customerId);
-      return { ...s, booking: bk, customer: cust };
-    });
+    let list = sessions
+      .filter(s => !isSales || myBookingIds.has(s.bookingId))
+      .map(s => {
+        const bk = bookings.find(b => b.id === s.bookingId);
+        const cust = customers.find(c => c.id === s.customerId);
+        return { ...s, booking: bk, customer: cust };
+      });
     if (filter === "pending") list = list.filter(s => !s.done);
     else if (filter === "completed") list = list.filter(s => s.done);
     return list.sort((a, b) => (b.date || "9999").localeCompare(a.date || "0000"));
-  }, [sessions, bookings, customers, filter]);
+  }, [sessions, bookings, customers, filter, isSales, myBookingIds]);
 
   return (
     <div className="space-y-4">
@@ -3449,16 +3798,32 @@ function CourseSettings({ courses, saveCourses, staff, saveStaff, instructors, s
       </div>
 
       <div className="bg-white rounded-xl border border-blue-100 p-6">
-        <h2 className="font-bold text-lg text-blue-800 mb-4">👥 เซลล์</h2>
+        <h2 className="font-bold text-lg text-blue-800 mb-4">👥 เซลล์ + ค่าคอมมิชชั่น</h2>
+        <p className="text-xs text-gray-500 mb-3">ตั้งค่าคอม % ต่อการจองแต่ละครั้ง (คิดจากราคาสุทธิ)</p>
         <div className="space-y-2 mb-4">
-          {staff.map(s => (
-            <div key={s} className="flex justify-between items-center bg-gray-50 border border-gray-200 rounded-lg p-3">
-              <span className="font-medium text-gray-800">{s}</span>
-              <button onClick={() => handleRemoveStaff(s)} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200">
-                ลบ
-              </button>
-            </div>
-          ))}
+          {staff.map(s => {
+            const commissions = JSON.parse(localStorage.getItem('jia_staff_commissions') || '{}');
+            const comm = commissions[s] || '';
+            return (
+              <div key={s} className="flex justify-between items-center bg-gray-50 border border-gray-200 rounded-lg p-3 gap-3">
+                <span className="font-medium text-gray-800 flex-1">{s}</span>
+                <div className="flex items-center gap-1">
+                  <input type="number" value={comm} onChange={(e) => {
+                    const c = JSON.parse(localStorage.getItem('jia_staff_commissions') || '{}');
+                    c[s] = e.target.value;
+                    localStorage.setItem('jia_staff_commissions', JSON.stringify(c));
+                    // force re-render
+                    saveStaff([...staff]);
+                  }} placeholder="0" min="0" max="100" step="1"
+                    className="w-16 border border-blue-200 bg-white rounded px-2 py-1 text-sm text-center" />
+                  <span className="text-sm text-gray-500">%</span>
+                </div>
+                <button onClick={() => handleRemoveStaff(s)} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200">
+                  ลบ
+                </button>
+              </div>
+            );
+          })}
         </div>
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
           <input type="text" value={newStaff} onChange={(e) => setNewStaff(e.target.value)} placeholder="ชื่อเซลล์ใหม่"
