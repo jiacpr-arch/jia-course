@@ -17,10 +17,14 @@ tailwind.config = { theme: { extend: { fontFamily: { sans: ['"Noto Sans Thai"', 
   .custom-scroll::-webkit-scrollbar { height: 4px; }
   .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
   .strikethrough { text-decoration: line-through; color: #999; }
-  /* Mobile bottom nav */
+  /* Mobile bottom nav — compact, fixed height */
   @media (max-width: 768px) {
-    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; }
-    .main-content { padding-bottom: 200px; }
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+      height: 52px; /* ความสูงคงที่ */
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .main-content { padding-bottom: 180px; }
     .top-tabs { display: none; }
   }
   @media (min-width: 769px) {
@@ -35,17 +39,18 @@ tailwind.config = { theme: { extend: { fontFamily: { sans: ['"Noto Sans Thai"', 
   .pulse-badge { animation: softpulse 2s ease-in-out infinite; }
   /* Input focus ring */
   .input-focus:focus { outline: none; box-shadow: 0 0 0 3px rgba(16,185,129,0.2); border-color: #10b981; }
-  /* Safe area for notched phones */
-  .safe-bottom { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
   /* Sticky submit bar — ลอยเหนือ bottom nav เสมอ */
   .sticky-submit-bar {
     position: fixed; left: 0; right: 0; z-index: 45;
     background: white; border-top: 1px solid #e5e7eb;
     box-shadow: 0 -4px 20px rgba(0,0,0,0.12);
-    padding: 12px 16px; bottom: 0;
+    padding: 10px 16px; bottom: 0;
   }
   @media (max-width: 768px) {
-    .sticky-submit-bar { bottom: 56px; }
+    .sticky-submit-bar {
+      bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+    }
+    .main-content.has-sticky { padding-bottom: 260px; }
   }
 </style>
 </head>
@@ -327,7 +332,7 @@ function SalesApp() {
       </nav>
 
       {/* Content */}
-      <main className="main-content max-w-5xl mx-auto px-3 md:px-4 py-4 md:py-6">
+      <main className={`main-content max-w-5xl mx-auto px-3 md:px-4 py-4 md:py-6 ${tab === 'newBooking' ? 'has-sticky' : ''}`}>
         {tab === 'dashboard' && <DashboardTab bookings={myBookings} customers={myCustomers} sessions={sessions} cfg={cfg}
           commissions={commissions} classes={classes} userName={user.name} setTab={setTab} />}
         {tab === 'myBookings' && <MyBookingsTab bookings={myBookings} customers={customers} sessions={sessions} cfg={cfg} />}
@@ -341,15 +346,15 @@ function SalesApp() {
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <div className="bottom-nav bg-white border-t shadow-lg safe-bottom">
-        <div className="flex justify-around items-center py-1">
+      <div className="bottom-nav bg-white border-t shadow-lg">
+        <div className="flex justify-around items-center h-[52px]">
           {mobileNavTabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex flex-col items-center py-2 px-1 min-w-0 flex-1 transition-colors ${
+              className={`flex flex-col items-center justify-center px-1 min-w-0 flex-1 h-full transition-colors ${
                 tab === t.id ? 'text-emerald-600' : 'text-gray-400'
               }`}>
-              <span className="text-xl leading-none">{t.icon}</span>
-              <span className="text-[10px] mt-0.5 truncate w-full text-center font-medium">{t.mobileLabel}</span>
+              <span className="text-lg leading-none">{t.icon}</span>
+              <span className="text-[9px] mt-0.5 truncate w-full text-center font-medium">{t.mobileLabel}</span>
             </button>
           ))}
         </div>
@@ -799,6 +804,8 @@ function NewBookingTab({ customers, allCustomers, addCustomer, addBooking, cours
             </div>
           </div>
 
+          {/* Spacer ให้เลื่อนขึ้นได้พ้น sticky bar */}
+          <div className="h-24 md:h-0"></div>
         </div>
       )}
 
