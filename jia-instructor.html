@@ -852,239 +852,177 @@
         // Availability Tab
         function AvailabilityTab({ instructor }) {
             const [currentDate, setCurrentDate] = useState(new Date());
-            const [availability, setAvailability] = useState(() => {
-                return JSON.parse(localStorage.getItem('jia_instructor_avail') || '[]');
-            });
+            const [classes, setClasses] = useState([]);
+            const [classInstructors, setClassInstructors] = useState([]);
+            const [courses, setCourses] = useState([]);
+            const [instructors, setInstructors] = useState([]);
 
-            // ─── คอร์สที่สอนได้ ───
-            const allCourses = React.useMemo(() => {
-                try { return JSON.parse(localStorage.getItem('jia_courses') || '[]'); } catch { return []; }
+            useEffect(() => {
+                try {
+                    setClasses(JSON.parse(localStorage.getItem('jia_classes') || '[]'));
+                    setClassInstructors(JSON.parse(localStorage.getItem('jia_class_instructors') || '[]'));
+                    setCourses(JSON.parse(localStorage.getItem('jia_courses') || '[]'));
+                    setInstructors(JSON.parse(localStorage.getItem('jia_instructors') || '[]'));
+                } catch(e) {}
             }, []);
 
-            const [qualifications, setQualifications] = useState(() => {
-                try {
-                    const saved = JSON.parse(localStorage.getItem('jia_instructor_quals') || '{}');
-                    return saved[instructor] || [];
-                } catch { return []; }
-            });
+            const previousMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+            const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
 
-            const toggleQualification = (courseKey) => {
-                const newQuals = qualifications.includes(courseKey)
-                    ? qualifications.filter(k => k !== courseKey)
-                    : [...qualifications, courseKey];
-                setQualifications(newQuals);
-                // บันทึก
-                const allQuals = JSON.parse(localStorage.getItem('jia_instructor_quals') || '{}');
-                allQuals[instructor] = newQuals;
-                localStorage.setItem('jia_instructor_quals', JSON.stringify(allQuals));
-            };
+            // คลาสที่ admin สร้างในเดือนนี้
+            const monthStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+            const monthClasses = useMemo(() => {
+                return classes.filter(cls => (cls.date || '').startsWith(monthStr))
+                    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+            }, [classes, monthStr]);
 
-            // ใช้คอร์สที่ผู้สอนเลือกแทน time slots
-            const qualifiedCourses = allCourses.filter(c => qualifications.includes(c.key));
+            // จัดกลุ่มคลาสตามวัน
+            const classesByDay = useMemo(() => {
+                const map = {};
+                monthClasses.forEach(cls => {
+                    const day = parseInt((cls.date || '').split('-')[2]);
+                    if (!map[day]) map[day] = [];
+                    map[day].push(cls);
+                });
+                return map;
+            }, [monthClasses]);
 
-            // ใช้ ref เก็บข้อมูลล่าสุด เพื่อแก้ปัญหา stale closure
-            const availRef = React.useRef(availability);
-            React.useEffect(() => { availRef.current = availability; }, [availability]);
+            // คลาสที่ฉันรับสอนแล้ว
+            const myClassIds = useMemo(() => {
+                return new Set(classInstructors.filter(ci => ci.instructor === instructor).map(ci => ci.classId));
+            }, [classInstructors, instructor]);
 
-            const myAvailability = availability.filter(a => a.instructor === instructor);
-
+            // Calendar grid
             const daysInMonth = getDaysInMonth(currentDate);
             const firstDay = getFirstDayOfMonth(currentDate);
             const days = [];
+            for (let i = 0; i < firstDay; i++) days.push(null);
+            for (let i = 1; i <= daysInMonth; i++) days.push(i);
 
-            for (let i = 0; i < firstDay; i++) {
-                days.push(null);
-            }
-            for (let i = 1; i <= daysInMonth; i++) {
-                days.push(i);
-            }
-
-            const isAvailable = (day, courseKey) => {
-                const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                return myAvailability.some(a => a.date === dateStr && a.timeSlot === courseKey);
-            };
-
-            const toggleAvailability = (day, courseKey) => {
-                const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const current = availRef.current;
-                const existing = current.find(a => a.date === dateStr && a.timeSlot === courseKey && a.instructor === instructor);
-
-                let newAvailability;
-                if (existing) {
-                    newAvailability = current.filter(a => !(a.date === dateStr && a.timeSlot === courseKey && a.instructor === instructor));
-                } else {
-                    newAvailability = [
-                        ...current,
-                        {
-                            id: `${dateStr}-${courseKey}-${instructor}-${Date.now()}`,
-                            instructor,
-                            date: dateStr,
-                            timeSlot: courseKey
-                        }
-                    ];
-                }
-
-                availRef.current = newAvailability;
-                setAvailability(newAvailability);
-                localStorage.setItem('jia_instructor_avail', JSON.stringify(newAvailability));
-            };
-
-            const toggleAllDay = (day) => {
-                const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const current = availRef.current;
-                const mySlots = current.filter(a => a.date === dateStr && a.instructor === instructor);
-                const allSelected = qualifiedCourses.every(c => mySlots.some(a => a.timeSlot === c.key));
-
-                let newAvailability = current.filter(a => !(a.date === dateStr && a.instructor === instructor));
-
-                if (!allSelected) {
-                    qualifiedCourses.forEach(c => {
-                        newAvailability.push({
-                            id: `${dateStr}-${c.key}-${instructor}-${Date.now()}`,
-                            instructor,
-                            date: dateStr,
-                            timeSlot: c.key
-                        });
-                    });
-                }
-
-                availRef.current = newAvailability;
-                setAvailability(newAvailability);
-                localStorage.setItem('jia_instructor_avail', JSON.stringify(newAvailability));
-            };
-
-            const previousMonth = () => {
-                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
-            };
-
-            const nextMonth = () => {
-                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
-            };
-
-            const daysWithAvailability = myAvailability.filter(a => {
-                const date = new Date(a.date);
-                return date.getMonth() === currentDate.getMonth() && date.getFullYear() === currentDate.getFullYear();
-            });
-            const uniqueDaysWithAvailability = new Set(daysWithAvailability.map(a => a.date.split('-')[2]));
+            // สรุปเดือนนี้
+            const totalClasses = monthClasses.length;
+            const myCount = monthClasses.filter(c => myClassIds.has(c.id)).length;
+            const waitingCount = monthClasses.filter(c => c.status === 'waiting_instructor').length;
 
             return (
                 <div className="space-y-6">
-                    {/* ─── คอร์สที่สอนได้ ─── */}
+                    {/* Header + Nav */}
                     <div className="bg-white rounded-lg shadow-sm p-6">
-                        <h2 className="text-2xl font-bold text-gray-800 mb-4">📚 คอร์สที่สอนได้</h2>
-                        <p className="text-sm text-gray-500 mb-4">เลือกคอร์สที่คุณสามารถสอนได้ เพื่อให้ระบบแสดงชื่อคุณเฉพาะคอร์สที่เลือก</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {allCourses.length > 0 ? allCourses.map(course => {
-                                const isSelected = qualifications.includes(course.key);
-                                return (
-                                    <button key={course.key} onClick={() => toggleQualification(course.key)}
-                                        className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left ${
-                                            isSelected
-                                                ? 'border-teal-500 bg-teal-50 shadow-sm'
-                                                : 'border-gray-200 bg-gray-50 hover:border-gray-300'
-                                        }`}>
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
-                                            isSelected ? 'bg-teal-500' : 'bg-gray-300'
-                                        }`}>
-                                            {isSelected ? '✓' : ''}
-                                        </div>
-                                        <div>
-                                            <div className="font-bold text-gray-800">{course.label || course.key}</div>
-                                            {course.description && <div className="text-xs text-gray-500">{course.description}</div>}
-                                        </div>
-                                    </button>
-                                );
-                            }) : (
-                                <p className="text-gray-500 col-span-2">ยังไม่มีคอร์สในระบบ</p>
-                            )}
-                        </div>
-                        {qualifications.length > 0 && (
-                            <div className="mt-4 p-3 bg-teal-50 rounded-lg text-sm text-teal-700">
-                                ✅ คุณเลือกไว้ {qualifications.length} คอร์ส: {qualifications.join(', ')}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* ─── ลงวันว่าง ─── */}
-                    {qualifiedCourses.length === 0 ? (
-                        <div className="bg-white rounded-lg shadow-sm p-6 text-center">
-                            <div className="text-4xl mb-3">☝️</div>
-                            <h3 className="font-bold text-gray-700 mb-2">กรุณาเลือกคอร์สที่สอนได้ก่อน</h3>
-                            <p className="text-sm text-gray-500">เลือกคอร์สด้านบน แล้วจึงลงวันว่างได้</p>
-                        </div>
-                    ) : (
-                    <div className="bg-white rounded-lg shadow-sm p-6">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-bold text-gray-800">📅 ลงวันว่าง</h2>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold text-gray-800">📅 ตารางคลาสจาก Admin</h2>
                             <div className="flex gap-2">
                                 <button onClick={previousMonth} className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded transition-colors">◀</button>
-                                <span className="px-4 py-2 font-semibold text-gray-700 bg-gray-50 rounded min-w-max">
+                                <span className="px-4 py-2 font-semibold text-gray-700 bg-gray-50 rounded min-w-max text-sm">
                                     {getThaiMonthYear(currentDate)}
                                 </span>
                                 <button onClick={nextMonth} className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded transition-colors">▶</button>
                             </div>
                         </div>
 
-                        <div className="mb-4 p-3 bg-teal-50 rounded-lg border border-teal-200">
-                            <p className="text-sm text-gray-700">
-                                ลงแล้ว <span className="font-bold text-teal-600">{uniqueDaysWithAvailability.size}</span> วัน เดือนนี้
-                            </p>
+                        {/* สรุป */}
+                        <div className="grid grid-cols-3 gap-2 mb-4">
+                            <div className="bg-gray-50 rounded-lg p-3 text-center">
+                                <div className="text-lg font-bold text-gray-800">{totalClasses}</div>
+                                <div className="text-xs text-gray-500">คลาสทั้งหมด</div>
+                            </div>
+                            <div className="bg-teal-50 rounded-lg p-3 text-center">
+                                <div className="text-lg font-bold text-teal-700">{myCount}</div>
+                                <div className="text-xs text-teal-600">ฉันรับสอน</div>
+                            </div>
+                            <div className="bg-yellow-50 rounded-lg p-3 text-center">
+                                <div className="text-lg font-bold text-yellow-700">{waitingCount}</div>
+                                <div className="text-xs text-yellow-600">รอผู้สอน</div>
+                            </div>
                         </div>
 
                         {/* Day headers */}
-                        <div className="grid grid-cols-7 gap-2 mb-2">
+                        <div className="grid grid-cols-7 gap-1 mb-1">
                             {[0, 1, 2, 3, 4, 5, 6].map(dayIndex => (
-                                <div key={dayIndex} className="text-center font-bold text-gray-600 text-sm py-2">
+                                <div key={dayIndex} className="text-center font-bold text-gray-500 text-xs py-1">
                                     {getThaiDayName(dayIndex)}
                                 </div>
                             ))}
                         </div>
 
-                        {/* Calendar grid — แสดงคอร์สแทน time slots */}
-                        <div className="grid grid-cols-7 gap-2">
-                            {days.map((day, index) => (
-                                <div key={index} className={day ? 'h-auto' : 'h-24'}>
-                                    {day ? (
-                                        <div className={`day-cell rounded-lg p-2 h-full flex flex-col border-2 ${
-                                            isToday(new Date(currentDate.getFullYear(), currentDate.getMonth(), day))
-                                                ? 'border-teal-500 bg-teal-50'
-                                                : isPastDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), day))
-                                                ? 'border-gray-200 bg-gray-100'
-                                                : 'border-gray-200 bg-white hover:border-teal-300'
-                                        }`}>
-                                            <button
-                                                onClick={() => toggleAllDay(day)}
-                                                className="text-sm font-bold text-gray-700 mb-1 hover:text-teal-600 text-left"
-                                            >
-                                                {day}
-                                            </button>
-                                            <div className="flex flex-col gap-1 flex-1 justify-start">
-                                                {qualifiedCourses.map(course => (
-                                                    <button
-                                                        key={course.key}
-                                                        onClick={() => toggleAvailability(day, course.key)}
-                                                        disabled={isPastDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), day))}
-                                                        className={`time-slot-btn text-xs px-2 py-1 rounded font-semibold transition-colors ${
-                                                            isAvailable(day, course.key)
-                                                                ? 'text-white'
-                                                                : 'bg-gray-200 text-gray-600'
-                                                        } ${isPastDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), day)) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                        style={isAvailable(day, course.key) ? { backgroundColor: course.color || '#0D9488' } : {}}
-                                                    >
-                                                        {course.key}
-                                                    </button>
-                                                ))}
+                        {/* Calendar grid */}
+                        <div className="grid grid-cols-7 gap-1">
+                            {days.map((day, index) => {
+                                const dayClasses = day ? (classesByDay[day] || []) : [];
+                                const hasClasses = dayClasses.length > 0;
+                                const hasMyClass = dayClasses.some(c => myClassIds.has(c.id));
+                                const hasWaiting = dayClasses.some(c => c.status === 'waiting_instructor' && !myClassIds.has(c.id));
+                                const todayDate = day ? new Date(currentDate.getFullYear(), currentDate.getMonth(), day) : null;
+                                const isTodayCell = todayDate && isToday(todayDate);
+                                const isPast = todayDate && isPastDate(todayDate);
+
+                                return (
+                                    <div key={index} className={`min-h-[48px] ${!day ? '' : ''}`}>
+                                        {day ? (
+                                            <div className={`rounded-lg p-1 h-full text-center border ${
+                                                isTodayCell ? 'border-teal-500 bg-teal-50' :
+                                                isPast ? 'border-gray-100 bg-gray-50' :
+                                                hasWaiting ? 'border-yellow-300 bg-yellow-50' :
+                                                hasMyClass ? 'border-teal-300 bg-teal-50' :
+                                                'border-gray-200 bg-white'
+                                            }`}>
+                                                <div className={`text-sm font-bold ${isTodayCell ? 'text-teal-600' : isPast ? 'text-gray-400' : 'text-gray-700'}`}>
+                                                    {day}
+                                                </div>
+                                                {hasClasses && (
+                                                    <div className="flex flex-col gap-0.5 mt-0.5">
+                                                        {dayClasses.slice(0, 3).map(cls => (
+                                                            <div key={cls.id} className={`text-[8px] leading-tight px-0.5 py-0.5 rounded truncate font-medium ${
+                                                                myClassIds.has(cls.id) ? 'bg-teal-500 text-white' :
+                                                                cls.status === 'waiting_instructor' ? 'bg-yellow-200 text-yellow-800' :
+                                                                'bg-gray-200 text-gray-600'
+                                                            }`}>
+                                                                {cls.courseName || cls.courseKey}
+                                                            </div>
+                                                        ))}
+                                                        {dayClasses.length > 3 && <div className="text-[8px] text-gray-400">+{dayClasses.length - 3}</div>}
+                                                    </div>
+                                                )}
                                             </div>
-                                        </div>
-                                    ) : null}
-                                </div>
-                            ))}
+                                        ) : null}
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
+
+                    {/* รายการคลาสที่รอผู้สอน */}
+                    {waitingCount > 0 && (
+                        <div className="bg-white rounded-lg shadow-sm p-6">
+                            <h3 className="font-bold text-gray-800 mb-3">🟡 คลาสที่รอผู้สอน ({waitingCount})</h3>
+                            <p className="text-xs text-gray-500 mb-3">ไปที่แท็บ "คลาส" เพื่อกดรับสอน</p>
+                            <div className="space-y-2">
+                                {monthClasses.filter(c => c.status === 'waiting_instructor' && !myClassIds.has(c.id)).map(cls => (
+                                    <div key={cls.id} className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 flex justify-between items-center">
+                                        <div>
+                                            <div className="font-bold text-gray-800 text-sm">{cls.courseName || cls.courseKey}</div>
+                                            <div className="text-xs text-gray-600">
+                                                {cls.date ? new Date(cls.date).toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' }) : '-'} | {cls.timeSlot}
+                                            </div>
+                                        </div>
+                                        <span className="text-xs bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full font-semibold">รอผู้สอน</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     )}
 
-                    <div className="text-center text-sm text-gray-600 pb-4">
-                        💡 แตะชื่อคอร์สเพื่อเลือกทีละคอร์ส หรือแตะเลขวันที่เพื่อเลือก/ยกเลิกทุกคอร์สทั้งวัน
+                    {totalClasses === 0 && (
+                        <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+                            <div className="text-4xl mb-3">📭</div>
+                            <h3 className="font-bold text-gray-700 mb-2">ยังไม่มีคลาสในเดือนนี้</h3>
+                            <p className="text-sm text-gray-500">รอ Admin ประกาศคลาสก่อนนะ</p>
+                        </div>
+                    )}
+
+                    <div className="text-center text-xs text-gray-400 pb-4">
+                        <span className="inline-block w-3 h-3 bg-teal-500 rounded mr-1"></span> ฉันรับสอน
+                        <span className="inline-block w-3 h-3 bg-yellow-200 rounded mr-1 ml-3"></span> รอผู้สอน
+                        <span className="inline-block w-3 h-3 bg-gray-200 rounded mr-1 ml-3"></span> ครบแล้ว
                     </div>
                 </div>
             );
