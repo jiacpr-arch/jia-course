@@ -145,14 +145,12 @@ async function hashPassword(password) {
 // ═══════════════════════════════════════════════════════════
 
 const app = document.getElementById('app');
-let currentMode = 'choose'; // 'choose', 'staff-pin', 'admin-login', 'register'
 
 // ═══════════════════════════════════════════════════════════
 // RENDER: ROLE CHOOSER (Landing)
 // ═══════════════════════════════════════════════════════════
 
 function renderChooseScreen() {
-    currentMode = 'choose';
     app.innerHTML = `
         <div class="card p-8 max-w-md w-full fade-in">
             <div class="text-center mb-8">
@@ -162,18 +160,18 @@ function renderChooseScreen() {
             </div>
 
             <div class="space-y-3 mb-6">
-                <button onclick="renderStaffPinScreen('sales')" class="w-full bg-emerald-50 hover:bg-emerald-100 rounded-2xl p-5 transition-all text-left flex items-center gap-4 border-2 border-transparent hover:border-emerald-300" style="cursor:pointer">
+                <button onclick="renderStaffList('sales')" class="w-full bg-emerald-50 hover:bg-emerald-100 rounded-2xl p-5 transition-all text-left flex items-center gap-4 border-2 border-transparent hover:border-emerald-300" style="cursor:pointer">
                     <span class="text-3xl">🟢</span>
                     <div>
                         <p class="font-bold text-emerald-800 text-lg">เซลล์</p>
-                        <p class="text-sm text-emerald-600">เข้าระบบด้วย PIN</p>
+                        <p class="text-sm text-emerald-600">เลือกชื่อเพื่อเข้าระบบ</p>
                     </div>
                 </button>
-                <button onclick="renderStaffPinScreen('instructor')" class="w-full bg-amber-50 hover:bg-amber-100 rounded-2xl p-5 transition-all text-left flex items-center gap-4 border-2 border-transparent hover:border-amber-300" style="cursor:pointer">
+                <button onclick="renderStaffList('instructor')" class="w-full bg-amber-50 hover:bg-amber-100 rounded-2xl p-5 transition-all text-left flex items-center gap-4 border-2 border-transparent hover:border-amber-300" style="cursor:pointer">
                     <span class="text-3xl">🟡</span>
                     <div>
                         <p class="font-bold text-amber-800 text-lg">ผู้สอน</p>
-                        <p class="text-sm text-amber-600">เข้าระบบด้วย PIN</p>
+                        <p class="text-sm text-amber-600">เลือกชื่อเพื่อเข้าระบบ</p>
                     </div>
                 </button>
                 <button onclick="renderAdminLoginScreen()" class="w-full bg-blue-50 hover:bg-blue-100 rounded-2xl p-5 transition-all text-left flex items-center gap-4 border-2 border-transparent hover:border-blue-300" style="cursor:pointer">
@@ -187,112 +185,95 @@ function renderChooseScreen() {
 
             <div class="border-t pt-4 mt-2">
                 <p class="text-xs text-gray-400 text-center">ลูกค้าจองคลาสได้ที่ <a href="${PAGES.booking}" class="jia-red underline">หน้าจองคลาส</a></p>
-                <p class="text-xs text-gray-400 mt-2 text-center">ยังไม่มีบัญชี? <a href="#" onclick="renderRegisterScreen(); return false;" class="jia-red underline">ลงทะเบียนด้วยรหัสเชิญ</a></p>
             </div>
         </div>`;
 }
 
 // ═══════════════════════════════════════════════════════════
-// RENDER: STAFF PIN CARD (Sales / Instructor)
+// RENDER: STAFF LIST (Tap name to enter)
 // ═══════════════════════════════════════════════════════════
 
-function renderStaffPinScreen(role) {
-    currentMode = 'staff-pin';
+async function renderStaffList(role) {
     const isInstructor = role === 'instructor';
     const roleName = isInstructor ? 'ผู้สอน' : 'เซลล์';
     const roleIcon = isInstructor ? '🟡' : '🟢';
-    const roleColor = isInstructor ? 'amber' : 'emerald';
+    const bgColor = isInstructor ? 'amber' : 'emerald';
 
+    // Show loading
     app.innerHTML = `
-        <div class="card p-8 max-w-sm w-full fade-in">
-            <button onclick="renderChooseScreen()" class="text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1" style="cursor:pointer">
-                ← กลับ
-            </button>
-
-            <div class="text-center mb-6">
-                <div class="text-5xl mb-3">${roleIcon}</div>
-                <h2 class="text-2xl font-bold text-gray-800">${roleName}</h2>
-                <p class="text-sm text-gray-500 mt-1">กรอกชื่อผู้ใช้และ PIN เพื่อเข้าระบบ</p>
+        <div class="card p-8 max-w-md w-full fade-in">
+            <button onclick="renderChooseScreen()" class="text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1" style="cursor:pointer">← กลับ</button>
+            <div class="text-center py-8">
+                <div class="loading-spinner mb-4"></div>
+                <p class="text-gray-500">กำลังโหลดรายชื่อ ${roleName}...</p>
             </div>
-
-            <div class="mb-4">
-                <label class="block text-sm font-semibold text-gray-600 mb-2">ชื่อผู้ใช้</label>
-                <input type="text" id="pin-username" class="input-field text-center" placeholder="เช่น somchai" autocomplete="username"
-                    style="font-size: 18px; letter-spacing: 1px;" />
-            </div>
-
-            <div class="mb-5">
-                <label class="block text-sm font-semibold text-gray-600 mb-2">PIN</label>
-                <div class="flex gap-2 justify-center" id="pin-boxes">
-                    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-idx="0" />
-                    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-idx="1" />
-                    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-idx="2" />
-                    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-idx="3" />
-                    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-idx="4" />
-                    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-idx="5" />
-                </div>
-                <p class="text-xs text-gray-400 text-center mt-2">ใส่ PIN 4-6 หลัก</p>
-            </div>
-
-            <div id="pin-error" class="hidden bg-red-50 text-red-700 rounded-xl p-3 mb-4 text-sm text-center"></div>
-
-            <button onclick="handlePinLogin('${role}')" id="pin-login-btn" class="btn-primary" style="font-size:18px; padding:16px;">
-                เข้าสู่ระบบ
-            </button>
-
-            <p class="text-center text-xs text-gray-400 mt-4">ลืม PIN? แจ้ง Admin รีเซ็ตให้</p>
         </div>`;
 
-    // PIN box auto-advance logic
-    setupPinBoxes();
-    document.getElementById('pin-username').focus();
-    document.getElementById('pin-username').addEventListener('keydown', e => {
-        if (e.key === 'Enter') { document.querySelector('.pin-box').focus(); }
-    });
+    try {
+        const users = await apiGet('listUsers');
+        const staffList = (Array.isArray(users) ? users : []).filter(u => u.role === role);
+
+        if (staffList.length === 0) {
+            app.innerHTML = `
+                <div class="card p-8 max-w-md w-full fade-in">
+                    <button onclick="renderChooseScreen()" class="text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1" style="cursor:pointer">← กลับ</button>
+                    <div class="text-center py-8">
+                        <div class="text-5xl mb-4">${roleIcon}</div>
+                        <h2 class="text-xl font-bold text-gray-800 mb-2">ยังไม่มี${roleName}</h2>
+                        <p class="text-sm text-gray-500">แจ้ง Admin เพื่อเพิ่ม${roleName}ในระบบ</p>
+                    </div>
+                </div>`;
+            return;
+        }
+
+        const colors = isInstructor
+            ? { bg: 'bg-amber-50', hover: 'hover:bg-amber-100', active: 'active:bg-amber-200', border: 'hover:border-amber-300', circle: 'bg-amber-200', text: 'text-amber-700' }
+            : { bg: 'bg-emerald-50', hover: 'hover:bg-emerald-100', active: 'active:bg-emerald-200', border: 'hover:border-emerald-300', circle: 'bg-emerald-200', text: 'text-emerald-700' };
+
+        let listHtml = staffList.map(u => {
+            const safeName = u.name.replace(/'/g, "\\'");
+            return `
+            <button onclick="staffTapLogin('${u.username}', '${safeName}', '${role}')"
+                class="w-full ${colors.bg} ${colors.hover} ${colors.active} rounded-2xl p-5 transition-all text-left flex items-center gap-4 border-2 border-transparent ${colors.border}"
+                style="cursor:pointer">
+                <div class="w-12 h-12 rounded-full ${colors.circle} flex items-center justify-center text-xl font-bold ${colors.text}">
+                    ${u.name.charAt(0)}
+                </div>
+                <div>
+                    <p class="font-bold text-gray-800 text-lg">${u.name}</p>
+                </div>
+            </button>`;
+        }).join('');
+
+        app.innerHTML = `
+            <div class="card p-8 max-w-md w-full fade-in">
+                <button onclick="renderChooseScreen()" class="text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1" style="cursor:pointer">← กลับ</button>
+                <div class="text-center mb-6">
+                    <div class="text-4xl mb-2">${roleIcon}</div>
+                    <h2 class="text-xl font-bold text-gray-800">เลือก${roleName}</h2>
+                    <p class="text-sm text-gray-500">กดชื่อเพื่อเข้าระบบ</p>
+                </div>
+                <div class="space-y-3">${listHtml}</div>
+            </div>`;
+    } catch (err) {
+        console.error('Load staff error:', err);
+        app.innerHTML = `
+            <div class="card p-8 max-w-md w-full fade-in">
+                <button onclick="renderChooseScreen()" class="text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1" style="cursor:pointer">← กลับ</button>
+                <div class="text-center py-8">
+                    <div class="text-4xl mb-3">⚠️</div>
+                    <p class="text-gray-600 mb-4">ไม่สามารถโหลดรายชื่อได้</p>
+                    <button onclick="renderStaffList('${role}')" class="btn-primary" style="width:auto; padding:12px 24px;">ลองใหม่</button>
+                </div>
+            </div>`;
+    }
 }
 
-function setupPinBoxes() {
-    const boxes = document.querySelectorAll('.pin-box');
-    boxes.forEach((box, i) => {
-        box.addEventListener('input', (e) => {
-            const val = e.target.value;
-            if (val && i < boxes.length - 1) {
-                boxes[i + 1].focus();
-            }
-            // Auto-submit when last box filled
-            if (val && i === boxes.length - 1) {
-                const pin = getPinValue();
-                if (pin.length >= 4) {
-                    document.getElementById('pin-login-btn').focus();
-                }
-            }
-        });
-        box.addEventListener('keydown', (e) => {
-            if (e.key === 'Backspace' && !box.value && i > 0) {
-                boxes[i - 1].focus();
-                boxes[i - 1].value = '';
-            }
-            if (e.key === 'Enter') {
-                const pinBtn = document.getElementById('pin-login-btn');
-                if (pinBtn) pinBtn.click();
-            }
-        });
-        // Allow paste of full PIN
-        box.addEventListener('paste', (e) => {
-            e.preventDefault();
-            const paste = (e.clipboardData || window.clipboardData).getData('text').trim();
-            for (let j = 0; j < Math.min(paste.length, boxes.length); j++) {
-                boxes[j].value = paste[j];
-            }
-            const focusIdx = Math.min(paste.length, boxes.length - 1);
-            boxes[focusIdx].focus();
-        });
-    });
-}
-
-function getPinValue() {
-    const boxes = document.querySelectorAll('.pin-box');
-    return Array.from(boxes).map(b => b.value).join('');
+function staffTapLogin(username, name, role) {
+    saveSession({ username, name, role });
+    const page = PAGES[role];
+    if (page) { window.location.href = page; }
+    else { renderSuccessScreen(role, name); }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -331,79 +312,8 @@ function renderAdminLoginScreen() {
     document.getElementById('login-username').focus();
 }
 
-// ═══════════════════════════════════════════════════════════
-// RENDER: REGISTER SCREEN
-// ═══════════════════════════════════════════════════════════
-
-function renderRegisterScreen() {
-    currentMode = 'register';
-    app.innerHTML = `
-        <div class="card p-8 max-w-md w-full fade-in">
-            <button onclick="renderChooseScreen()" class="text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1" style="cursor:pointer">
-                ← กลับ
-            </button>
-
-            <div class="text-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-800">ลงทะเบียน</h2>
-                <p class="text-sm text-gray-500 mt-1">ใช้รหัสเชิญจากแอดมิน</p>
-            </div>
-
-            <div class="mb-4">
-                <label class="block text-sm font-semibold text-gray-700 mb-2">รหัสเชิญ (Invite Code)</label>
-                <input type="text" id="reg-code" class="input-field" placeholder="เช่น SALE-A1B2C3"
-                    style="text-transform: uppercase; letter-spacing: 2px; text-align: center; font-size: 18px;" />
-                <p class="text-xs text-gray-400 mt-2">ขอรหัสเชิญจากแอดมิน</p>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-semibold text-gray-700 mb-2">ชื่อที่แสดง</label>
-                <input type="text" id="reg-name" class="input-field" placeholder="เช่น สมชาย" />
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-semibold text-gray-700 mb-2">ชื่อผู้ใช้ (Username)</label>
-                <input type="text" id="reg-username" class="input-field" placeholder="เช่น somchai" autocomplete="username" />
-                <p class="text-xs text-gray-400 mt-1">ใช้สำหรับ login ครั้งต่อไป</p>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-semibold text-gray-700 mb-2">ตั้ง PIN (4-6 หลัก)</label>
-                <input type="password" inputmode="numeric" id="reg-password" class="input-field" placeholder="เช่น 1234" maxlength="6"
-                    style="text-align:center; font-size:24px; letter-spacing:8px;" autocomplete="new-password" />
-                <p class="text-xs text-gray-400 mt-1">ใช้ตัวเลข 4-6 หลัก</p>
-            </div>
-            <div class="mb-6">
-                <label class="block text-sm font-semibold text-gray-700 mb-2">ยืนยัน PIN</label>
-                <input type="password" inputmode="numeric" id="reg-password2" class="input-field" placeholder="พิมพ์ PIN อีกครั้ง" maxlength="6"
-                    style="text-align:center; font-size:24px; letter-spacing:8px;" autocomplete="new-password" />
-            </div>
-            <div id="register-error" class="hidden bg-red-50 text-red-700 rounded-xl p-4 mb-4 text-sm"></div>
-            <button onclick="handleRegister()" id="register-btn" class="btn-primary">
-                ลงทะเบียน
-            </button>
-        </div>`;
-
-    document.getElementById('reg-password2').addEventListener('keydown', e => { if (e.key === 'Enter') handleRegister(); });
-}
-
 // Legacy alias
 function renderLoginScreen() { renderChooseScreen(); }
-
-function showTab(tab) {
-    const tabLogin = document.getElementById('tab-login');
-    const tabRegister = document.getElementById('tab-register');
-    const formLogin = document.getElementById('form-login');
-    const formRegister = document.getElementById('form-register');
-
-    if (tab === 'login') {
-        tabLogin.className = tabLogin.className.replace('tab-inactive', 'tab-active');
-        tabRegister.className = tabRegister.className.replace('tab-active', 'tab-inactive');
-        formLogin.classList.remove('hidden');
-        formRegister.classList.add('hidden');
-    } else {
-        tabRegister.className = tabRegister.className.replace('tab-inactive', 'tab-active');
-        tabLogin.className = tabLogin.className.replace('tab-active', 'tab-inactive');
-        formRegister.classList.remove('hidden');
-        formLogin.classList.add('hidden');
-    }
-}
 
 // ═══════════════════════════════════════════════════════════
 // RENDER: SUCCESS SCREEN
@@ -440,8 +350,8 @@ function renderSuccessScreen(role, name) {
 
 function renderAdminPanel(userInfo) {
     app.innerHTML = `
-        <div class="card p-10 max-w-lg w-full fade-in">
-            <div class="text-center mb-8">
+        <div class="card p-8 max-w-lg w-full fade-in">
+            <div class="text-center mb-6">
                 <h1 class="text-3xl font-bold jia-red mb-2">JIA Admin</h1>
                 <div class="flex items-center gap-3 justify-center">
                     <span class="text-gray-600">${userInfo.name}</span>
@@ -449,7 +359,7 @@ function renderAdminPanel(userInfo) {
                 </div>
             </div>
 
-            <div class="space-y-4 mb-8">
+            <div class="space-y-3 mb-6">
                 <a href="${PAGES.admin}" class="block bg-blue-50 hover:bg-blue-100 rounded-xl p-5 transition-colors">
                     <div class="flex items-center gap-4">
                         <span class="text-3xl">🔵</span>
@@ -470,40 +380,29 @@ function renderAdminPanel(userInfo) {
                 </a>
             </div>
 
+            <!-- เพิ่มพนักงาน -->
             <div class="border-t pt-6">
-                <h2 class="font-bold text-gray-800 mb-4">สร้างรหัสเชิญ</h2>
-                <div class="flex gap-2 mb-2">
-                    <select id="code-role" class="input-field" style="flex:1" onchange="toggleLevelSelect()">
-                        <option value="admin">แอดมิน / หน้างาน</option>
+                <h2 class="font-bold text-gray-800 mb-4">เพิ่มพนักงาน</h2>
+                <div class="mb-3">
+                    <input type="text" id="new-staff-name" class="input-field" placeholder="ชื่อพนักงาน เช่น สมชาย" />
+                </div>
+                <div class="flex gap-2 mb-3">
+                    <select id="new-staff-role" class="input-field" style="flex:1">
                         <option value="sales">เซลล์</option>
                         <option value="instructor">ผู้สอน</option>
+                        <option value="admin">แอดมิน</option>
                     </select>
-                    <button onclick="handleGenCode()" class="btn-primary" style="width:auto; padding: 14px 24px;">
-                        สร้าง
+                    <button onclick="handleAddStaff()" id="add-staff-btn" class="btn-primary" style="width:auto; padding: 14px 24px;">
+                        เพิ่ม
                     </button>
                 </div>
-                <div id="level-select-row" class="mb-4 hidden">
-                    <label class="text-sm text-gray-600 mb-1 block">ระดับผู้สอน (Level)</label>
-                    <select id="code-level" class="input-field">
-                        <option value="1">Level 1 - ผู้ช่วย</option>
-                        <option value="2">Level 2 - ผู้สอนหลัก</option>
-                        <option value="3">Level 3 - ผู้สอนอาวุโส</option>
-                    </select>
-                </div>
-
-                <div id="code-result" class="hidden bg-green-50 rounded-xl p-4 text-center">
-                    <p class="text-sm text-green-700 mb-2">รหัสเชิญ:</p>
-                    <p id="code-display" class="text-2xl font-bold text-green-800 tracking-widest mb-2"></p>
-                    <button onclick="copyCode()" class="text-sm bg-green-200 text-green-800 px-4 py-2 rounded-lg hover:bg-green-300">
-                        คัดลอก
-                    </button>
-                </div>
-
-                <div id="codes-list" class="mt-6"></div>
+                <div id="add-staff-result" class="hidden bg-green-50 rounded-xl p-4 mb-3 text-center"></div>
+                <div id="add-staff-error" class="hidden bg-red-50 text-red-700 rounded-xl p-3 mb-3 text-sm text-center"></div>
             </div>
 
-            <div class="border-t pt-6 mt-6">
-                <h2 class="font-bold text-gray-800 mb-4">จัดการผู้ใช้</h2>
+            <!-- รายชื่อพนักงาน -->
+            <div class="border-t pt-6 mt-4">
+                <h2 class="font-bold text-gray-800 mb-4">พนักงานทั้งหมด</h2>
                 <div id="users-list"></div>
             </div>
 
@@ -512,7 +411,6 @@ function renderAdminPanel(userInfo) {
             </div>
         </div>`;
 
-    loadExistingCodes();
     loadUsers();
 }
 
@@ -540,64 +438,6 @@ function getSavedSession() {
 // ═══════════════════════════════════════════════════════════
 // AUTH ACTIONS
 // ═══════════════════════════════════════════════════════════
-
-// PIN login for Sales / Instructor
-async function handlePinLogin(role) {
-    const username = document.getElementById('pin-username').value.trim();
-    const pin = getPinValue();
-    const errEl = document.getElementById('pin-error');
-    const btn = document.getElementById('pin-login-btn');
-
-    if (!username) {
-        errEl.textContent = 'กรุณากรอกชื่อผู้ใช้';
-        errEl.classList.remove('hidden');
-        return;
-    }
-    if (pin.length < 4) {
-        errEl.textContent = 'กรุณากรอก PIN อย่างน้อย 4 หลัก';
-        errEl.classList.remove('hidden');
-        return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = 'กำลังตรวจสอบ...';
-    errEl.classList.add('hidden');
-
-    try {
-        const pinHash = await hashPassword(pin);
-        const result = await apiGet('loginPassword', { username, password: pinHash });
-
-        if (result.success) {
-            if (result.role !== role) {
-                errEl.textContent = 'บัญชีนี้ไม่ใช่' + (role === 'sales' ? 'เซลล์' : 'ผู้สอน');
-                errEl.classList.remove('hidden');
-                btn.disabled = false;
-                btn.textContent = 'เข้าสู่ระบบ';
-                return;
-            }
-            saveSession(result);
-            renderSuccessScreen(result.role, result.name);
-        } else {
-            errEl.textContent = result.message || 'PIN ไม่ถูกต้อง';
-            errEl.classList.remove('hidden');
-            btn.disabled = false;
-            btn.textContent = 'เข้าสู่ระบบ';
-            // Shake animation + clear PIN
-            document.getElementById('pin-boxes').style.animation = 'shake 0.4s';
-            setTimeout(() => {
-                document.getElementById('pin-boxes').style.animation = '';
-                document.querySelectorAll('.pin-box').forEach(b => b.value = '');
-                document.querySelector('.pin-box').focus();
-            }, 400);
-        }
-    } catch (err) {
-        console.error('PIN login error:', err);
-        errEl.textContent = 'ไม่สามารถเชื่อมต่อ server ได้';
-        errEl.classList.remove('hidden');
-        btn.disabled = false;
-        btn.textContent = 'เข้าสู่ระบบ';
-    }
-}
 
 // Admin login (username + full password)
 async function handleLogin() {
@@ -646,166 +486,72 @@ async function handleLogin() {
     }
 }
 
-async function handleRegister() {
-    const code = document.getElementById('reg-code').value.trim().toUpperCase();
-    const name = document.getElementById('reg-name').value.trim();
-    const username = document.getElementById('reg-username').value.trim();
-    const password = document.getElementById('reg-password').value;
-    const password2 = document.getElementById('reg-password2').value;
-    const errEl = document.getElementById('register-error');
-    const btn = document.getElementById('register-btn');
-
-    // Validate
-    if (!code) { showRegError('กรุณาใส่รหัสเชิญ'); return; }
-    if (!name) { showRegError('กรุณาใส่ชื่อที่แสดง'); return; }
-    if (!username) { showRegError('กรุณาใส่ชื่อผู้ใช้'); return; }
-    if (username.length < 3) { showRegError('ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร'); return; }
-    if (/[^a-zA-Z0-9._-]/.test(username)) { showRegError('ชื่อผู้ใช้ใช้ได้เฉพาะ a-z, 0-9, . _ -'); return; }
-    if (!password) { showRegError('กรุณาตั้ง PIN'); return; }
-    if (password.length < 4) { showRegError('PIN ต้องมีอย่างน้อย 4 หลัก'); return; }
-    if (password !== password2) { showRegError('PIN ไม่ตรงกัน'); return; }
-
-    btn.disabled = true;
-    btn.textContent = 'กำลังลงทะเบียน...';
-    errEl.classList.add('hidden');
-
-    try {
-        const passwordHash = await hashPassword(password);
-        const result = await apiGet('registerPassword', {
-            code: code,
-            username: username,
-            name: name,
-            password: passwordHash
-        });
-
-        if (result.success) {
-            saveSession({ username, name: result.name, role: result.role });
-            renderSuccessScreen(result.role, result.name);
-        } else {
-            showRegError(result.message || result.error || 'ลงทะเบียนไม่สำเร็จ');
-            btn.disabled = false;
-            btn.textContent = 'ลงทะเบียน';
-        }
-    } catch (err) {
-        console.error('Register error:', err);
-        showRegError('ไม่สามารถเชื่อมต่อ server ได้');
-        btn.disabled = false;
-        btn.textContent = 'ลงทะเบียน';
-    }
-}
-
-function showRegError(msg) {
-    const errEl = document.getElementById('register-error');
-    errEl.textContent = msg;
-    errEl.classList.remove('hidden');
-}
-
 function handleSignOut() {
     clearSession();
     renderChooseScreen();
 }
 
 // ═══════════════════════════════════════════════════════════
-// ADMIN: INVITE CODES
+// ADMIN: ADD STAFF (auto-generates username + PIN)
 // ═══════════════════════════════════════════════════════════
 
-function toggleLevelSelect() {
-    const role = document.getElementById('code-role').value;
-    const levelRow = document.getElementById('level-select-row');
-    if (role === 'instructor') {
-        levelRow.classList.remove('hidden');
-    } else {
-        levelRow.classList.add('hidden');
-    }
-}
+async function handleAddStaff() {
+    const nameEl = document.getElementById('new-staff-name');
+    const roleEl = document.getElementById('new-staff-role');
+    const btn = document.getElementById('add-staff-btn');
+    const resultEl = document.getElementById('add-staff-result');
+    const errEl = document.getElementById('add-staff-error');
+    const name = nameEl.value.trim();
+    const role = roleEl.value;
 
-async function handleGenCode() {
-    const role = document.getElementById('code-role').value;
-    const user = getSavedSession() || {};
-    const params = {
-        role: role,
-        username: user.username || 'admin'
-    };
+    if (!name) { errEl.textContent = 'กรุณาใส่ชื่อพนักงาน'; errEl.classList.remove('hidden'); return; }
 
-    // ถ้าเป็นผู้สอน → ส่ง level ไปด้วย
-    if (role === 'instructor') {
-        const levelEl = document.getElementById('code-level');
-        params.level = levelEl ? levelEl.value : '1';
-    }
+    btn.disabled = true;
+    btn.textContent = 'กำลังสร้าง...';
+    errEl.classList.add('hidden');
+    resultEl.classList.add('hidden');
 
     try {
-        const result = await apiGet('genCode', params);
+        // Step 1: gen invite code
+        const admin = getSavedSession() || {};
+        const codeResult = await apiGet('genCode', { role, username: admin.username || 'admin' });
+        if (!codeResult.success) { throw new Error(codeResult.message || 'สร้างรหัสไม่สำเร็จ'); }
 
-        if (result.success) {
-            const levelText = (role === 'instructor' && result.level) ? ' (Level ' + result.level + ')' : '';
-            document.getElementById('code-display').textContent = result.code + levelText;
-            document.getElementById('code-result').classList.remove('hidden');
-            loadExistingCodes();
+        // Step 2: auto-generate username and PIN
+        const autoUsername = name.toLowerCase().replace(/[^a-z0-9]/g, '') + Math.floor(Math.random() * 900 + 100);
+        const autoPin = String(Math.floor(1000 + Math.random() * 9000)); // 4-digit PIN
+        const pinHash = await hashPassword(autoPin);
+
+        // Step 3: register
+        const regResult = await apiGet('registerPassword', {
+            code: codeResult.code,
+            username: autoUsername,
+            name: name,
+            password: pinHash
+        });
+
+        if (regResult.success) {
+            resultEl.innerHTML = `
+                <p class="text-green-700 font-semibold mb-2">เพิ่ม "${name}" สำเร็จ!</p>
+                <div class="bg-white rounded-lg p-3 text-left space-y-1">
+                    <p class="text-sm text-gray-600">ตำแหน่ง: <strong>${role === 'sales' ? 'เซลล์' : role === 'instructor' ? 'ผู้สอน' : 'แอดมิน'}</strong></p>
+                    <p class="text-sm text-gray-600">Username: <strong class="font-mono">${autoUsername}</strong></p>
+                    <p class="text-sm text-gray-600">PIN: <strong class="font-mono text-lg">${autoPin}</strong></p>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">* เซลล์/ผู้สอนไม่ต้องใช้ PIN (กดชื่อเข้าเลย) PIN ใช้สำรองเผื่อต้องการ</p>`;
+            resultEl.classList.remove('hidden');
+            nameEl.value = '';
+            loadUsers(); // refresh list
         } else {
-            alert(result.message || 'สร้างรหัสไม่สำเร็จ');
+            throw new Error(regResult.message || regResult.error || 'ลงทะเบียนไม่สำเร็จ');
         }
     } catch (err) {
-        alert('เชื่อมต่อ server ไม่สำเร็จ');
-    }
-}
-
-function copyCode() {
-    const code = document.getElementById('code-display').textContent;
-    navigator.clipboard.writeText(code).then(() => {
-        const btn = event.target;
-        btn.textContent = 'คัดลอกแล้ว!';
-        setTimeout(() => btn.textContent = 'คัดลอก', 2000);
-    });
-}
-
-async function loadExistingCodes() {
-    try {
-        const codes = await apiGet('listCodes');
-        if (!Array.isArray(codes) || codes.length === 0) return;
-
-        const listEl = document.getElementById('codes-list');
-        if (!listEl) return;
-
-        const roleLabels = { admin: 'แอดมิน', sales: 'เซลล์', instructor: 'ผู้สอน' };
-        const roleClasses = { admin: 'role-admin', sales: 'role-sales', instructor: 'role-instructor' };
-
-        const activeCodes = codes.filter(c => c.status === 'active');
-        const usedCodes = codes.filter(c => c.status === 'used').slice(-5);
-
-        let html = '';
-
-        if (activeCodes.length > 0) {
-            html += '<h3 class="text-sm font-bold text-gray-600 mb-2">รหัสที่ยังไม่ได้ใช้</h3>';
-            html += '<div class="space-y-2 mb-4">';
-            activeCodes.forEach(c => {
-                html += `
-                    <div class="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-3">
-                        <div>
-                            <code class="font-mono font-bold text-gray-800">${c.code}</code>
-                            <span class="role-badge ${roleClasses[c.role] || ''} ml-2">${roleLabels[c.role] || c.role}</span>
-                        </div>
-                        <span class="text-xs text-gray-400">${c.createdAt ? new Date(c.createdAt).toLocaleDateString('th-TH') : ''}</span>
-                    </div>`;
-            });
-            html += '</div>';
-        }
-
-        if (usedCodes.length > 0) {
-            html += '<h3 class="text-sm font-bold text-gray-400 mb-2">ใช้แล้ว (ล่าสุด)</h3>';
-            html += '<div class="space-y-1">';
-            usedCodes.forEach(c => {
-                html += `
-                    <div class="flex justify-between items-center text-xs text-gray-400 px-4 py-2">
-                        <span class="line-through">${c.code}</span>
-                        <span>${c.usedBy || '?'}</span>
-                    </div>`;
-            });
-            html += '</div>';
-        }
-
-        listEl.innerHTML = html;
-    } catch (err) {
-        console.error('Load codes error:', err);
+        console.error('Add staff error:', err);
+        errEl.textContent = err.message || 'เกิดข้อผิดพลาด';
+        errEl.classList.remove('hidden');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'เพิ่ม';
     }
 }
 
