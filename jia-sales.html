@@ -591,6 +591,7 @@ function NewBookingTab({ customers, allCustomers, addCustomer, addBooking, cours
       paymentMode, startDate, timeSlot, salesStaff: userName, instructor, note, cprPackage,
       discountCode: discountCode.toUpperCase() || '',
       createdBy: userName, rescheduleCount: 0,
+      paymentStatus: 'ชำระแล้ว',
     };
     setPendingBk(bk);
     setShowConfirm(true);
