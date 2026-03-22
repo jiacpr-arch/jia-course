@@ -39,18 +39,9 @@ tailwind.config = { theme: { extend: { fontFamily: { sans: ['"Noto Sans Thai"', 
   .pulse-badge { animation: softpulse 2s ease-in-out infinite; }
   /* Input focus ring */
   .input-focus:focus { outline: none; box-shadow: 0 0 0 3px rgba(16,185,129,0.2); border-color: #10b981; }
-  /* Sticky submit bar — ลอยเหนือ bottom nav เสมอ */
-  .sticky-submit-bar {
-    position: fixed; left: 0; right: 0; z-index: 45;
-    background: white; border-top: 1px solid #e5e7eb;
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.12);
-    padding: 10px 16px; bottom: 0;
-  }
+  /* Extra padding สำหรับ newBooking tab */
   @media (max-width: 768px) {
-    .sticky-submit-bar {
-      bottom: calc(52px + env(safe-area-inset-bottom, 0px));
-    }
-    .main-content.has-sticky { padding-bottom: 260px; }
+    .main-content.has-sticky { padding-bottom: 280px; }
   }
 </style>
 </head>
@@ -804,24 +795,21 @@ function NewBookingTab({ customers, allCustomers, addCustomer, addBooking, cours
             </div>
           </div>
 
-          {/* Spacer ให้เลื่อนขึ้นได้พ้น sticky bar */}
-          <div className="h-24 md:h-0"></div>
-        </div>
-      )}
-
-      {/* ── Sticky Bottom Bar: ราคา + ปุ่มยืนยัน (ลอยเหนือ bottom nav เสมอ) ── */}
-      {selectedCustomer && courseType && (
-        <div className="sticky-submit-bar">
-          <div className="max-w-5xl mx-auto flex items-center gap-3">
-            <div className="flex-1">
-              <span className="text-xs text-gray-500">ราคารวม</span>
-              <span className="text-lg font-bold text-emerald-700 ml-2">฿{fmtPrice(finalPrice)}</span>
+          {/* Price Summary */}
+          {courseType && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex justify-between items-center">
+              <span className="text-sm text-gray-600">ราคารวม</span>
+              <span className="text-xl font-bold text-emerald-700">฿{fmtPrice(finalPrice)}</span>
             </div>
-            <button onClick={handleSubmit} disabled={!canBook}
-              className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-xl transition-colors text-base whitespace-nowrap">
-              ยืนยันการจอง
-            </button>
-          </div>
+          )}
+
+          <button onClick={handleSubmit} disabled={!canBook}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-colors text-lg">
+            ✅ ยืนยันการจอง
+          </button>
+
+          {/* ช่องว่างด้านล่างเพื่อให้เลื่อนได้พ้น bottom nav */}
+          <div style={{height:'120px'}} className="md:hidden"></div>
         </div>
       )}
 
