@@ -37,6 +37,16 @@ tailwind.config = { theme: { extend: { fontFamily: { sans: ['"Noto Sans Thai"', 
   .input-focus:focus { outline: none; box-shadow: 0 0 0 3px rgba(16,185,129,0.2); border-color: #10b981; }
   /* Safe area for notched phones */
   .safe-bottom { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  /* Sticky submit bar — ลอยเหนือ bottom nav เสมอ */
+  .sticky-submit-bar {
+    position: fixed; left: 0; right: 0; z-index: 45;
+    background: white; border-top: 1px solid #e5e7eb;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.12);
+    padding: 12px 16px; bottom: 0;
+  }
+  @media (max-width: 768px) {
+    .sticky-submit-bar { bottom: 56px; }
+  }
 </style>
 </head>
 <body>
@@ -789,20 +799,22 @@ function NewBookingTab({ customers, allCustomers, addCustomer, addBooking, cours
             </div>
           </div>
 
-          {/* Price Summary */}
-          {courseType && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex justify-between items-center">
-              <span className="text-sm text-gray-600">ราคารวม</span>
-              <span className="text-xl font-bold text-emerald-700">฿{fmtPrice(finalPrice)}</span>
-            </div>
-          )}
+        </div>
+      )}
 
-          <button onClick={handleSubmit} disabled={!canBook}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-colors text-base">
-            ตรวจสอบและยืนยัน
-          </button>
-          {/* Spacer เพื่อไม่ให้ bottom nav บังปุ่ม */}
-          <div className="h-8 md:h-0"></div>
+      {/* ── Sticky Bottom Bar: ราคา + ปุ่มยืนยัน (ลอยเหนือ bottom nav เสมอ) ── */}
+      {selectedCustomer && courseType && (
+        <div className="sticky-submit-bar">
+          <div className="max-w-5xl mx-auto flex items-center gap-3">
+            <div className="flex-1">
+              <span className="text-xs text-gray-500">ราคารวม</span>
+              <span className="text-lg font-bold text-emerald-700 ml-2">฿{fmtPrice(finalPrice)}</span>
+            </div>
+            <button onClick={handleSubmit} disabled={!canBook}
+              className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-xl transition-colors text-base whitespace-nowrap">
+              ยืนยันการจอง
+            </button>
+          </div>
         </div>
       )}
 
