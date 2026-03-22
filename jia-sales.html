@@ -20,7 +20,7 @@ tailwind.config = { theme: { extend: { fontFamily: { sans: ['"Noto Sans Thai"', 
   /* Mobile bottom nav */
   @media (max-width: 768px) {
     .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; }
-    .main-content { padding-bottom: 120px; }
+    .main-content { padding-bottom: 160px; }
     .top-tabs { display: none; }
   }
   @media (min-width: 769px) {
@@ -90,7 +90,7 @@ function showToast(message, isError) {
     if (existing) existing.remove();
     const t = document.createElement('div');
     t.id = 'jia-toast'; t.textContent = message;
-    t.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:12px 24px;border-radius:12px;color:#fff;font-size:14px;z-index:99999;transition:opacity 0.3s;box-shadow:0 4px 16px rgba(0,0,0,0.2);' + (isError ? 'background:#dc2626;' : 'background:#059669;');
+    t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);padding:12px 24px;border-radius:12px;color:#fff;font-size:14px;z-index:99999;transition:opacity 0.3s;box-shadow:0 4px 16px rgba(0,0,0,0.2);' + (isError ? 'background:#dc2626;' : 'background:#059669;');
     document.body.appendChild(t);
     setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 3000);
 }

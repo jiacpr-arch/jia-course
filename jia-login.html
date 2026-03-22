@@ -646,7 +646,8 @@ async function loadUsers() {
 <!-- ─── ปุ่มช่วยเหลือลอย ─── -->
 <style>
 .jia-help-fab { position:fixed; bottom:20px; right:20px; z-index:9999; display:flex; flex-direction:column; gap:10px; align-items:flex-end; }
-.jia-help-toggle { width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg,#C8102E,#a00d24); color:#fff; border:none; font-size:24px; cursor:pointer; box-shadow:0 4px 15px rgba(200,16,46,0.4); display:flex; align-items:center; justify-content:center; transition:transform 0.3s; }
+@media (max-width: 768px) { .jia-help-fab { bottom:12px; right:12px; } }
+.jia-help-toggle { width:48px; height:48px; border-radius:50%; background:linear-gradient(135deg,#C8102E,#a00d24); color:#fff; border:none; font-size:20px; cursor:pointer; box-shadow:0 4px 15px rgba(200,16,46,0.4); display:flex; align-items:center; justify-content:center; transition:transform 0.3s; }
 .jia-help-toggle:hover { transform:scale(1.1); }
 .jia-help-toggle.open { background:linear-gradient(135deg,#666,#444); }
 .jia-help-menu { display:none; flex-direction:column; gap:8px; align-items:flex-end; }
