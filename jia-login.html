@@ -575,30 +575,34 @@ async function handleResetPassword(username, displayName) {
 }
 
 async function loadUsers() {
+    const listEl = document.getElementById('users-list');
+    if (!listEl) return;
+
+    listEl.innerHTML = '<div class="text-center py-4"><div class="loading-spinner mb-2"></div><p class="text-sm text-gray-400">กำลังโหลด...</p></div>';
+
     try {
         const users = await apiGet('listUsers');
-        if (!Array.isArray(users) || users.length === 0) return;
-
-        const listEl = document.getElementById('users-list');
-        if (!listEl) return;
+        if (!Array.isArray(users) || users.length === 0) {
+            listEl.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">ยังไม่มีพนักงาน</p>';
+            return;
+        }
 
         const roleLabels = { admin: 'แอดมิน', sales: 'เซลล์', instructor: 'ผู้สอน' };
         const roleClasses = { admin: 'role-admin', sales: 'role-sales', instructor: 'role-instructor' };
 
         let html = '<div class="space-y-2">';
         users.forEach(u => {
+            const safeName = (u.name || '').replace(/'/g, "\\'");
             html += `
-                <div class="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-3">
-                    <div>
-                        <span class="font-semibold text-gray-800">${u.name}</span>
-                        <span class="text-sm text-gray-500 ml-1">@${u.username}</span>
-                        <span class="role-badge ${roleClasses[u.role] || ''} ml-2">${roleLabels[u.role] || u.role}</span>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <span class="text-xs text-gray-400">${u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('th-TH') : 'ยังไม่เคย login'}</span>
-                        <button onclick="handleResetPassword('${u.username}', '${u.name}')"
+                <div class="bg-gray-50 rounded-lg px-4 py-3">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <span class="font-semibold text-gray-800">${u.name}</span>
+                            <span class="role-badge ${roleClasses[u.role] || ''} ml-2">${roleLabels[u.role] || u.role}</span>
+                        </div>
+                        <button onclick="handleResetPassword('${u.username}', '${safeName}')"
                             class="text-xs bg-amber-100 text-amber-700 px-3 py-1 rounded-lg hover:bg-amber-200 transition-colors font-medium">
-                            รีเซ็ต Pass
+                            รีเซ็ต PIN
                         </button>
                     </div>
                 </div>`;
@@ -608,6 +612,7 @@ async function loadUsers() {
         listEl.innerHTML = html;
     } catch (err) {
         console.error('Load users error:', err);
+        listEl.innerHTML = '<p class="text-sm text-red-500 text-center py-4">โหลดรายชื่อไม่สำเร็จ <button onclick="loadUsers()" class="underline">ลองใหม่</button></p>';
     }
 }
 
