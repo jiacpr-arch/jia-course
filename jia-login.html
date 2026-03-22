@@ -270,10 +270,121 @@ async function renderStaffList(role) {
 }
 
 function staffTapLogin(username, name, role) {
-    saveSession({ username, name, role });
-    const page = PAGES[role];
-    if (page) { window.location.href = page; }
-    else { renderSuccessScreen(role, name); }
+    // แสดงหน้ากรอก PIN ก่อนเข้าระบบ
+    renderPinScreen(username, name, role);
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER: PIN ENTRY SCREEN (for sales & instructor)
+// ═══════════════════════════════════════════════════════════
+
+function renderPinScreen(username, name, role) {
+    const isInstructor = role === 'instructor';
+    const roleIcon = isInstructor ? '🟡' : '🟢';
+    const colors = isInstructor
+        ? { bg: 'bg-amber-50', ring: 'rgba(217,119,6,0.15)', border: '#d97706', text: 'text-amber-700' }
+        : { bg: 'bg-emerald-50', ring: 'rgba(16,185,129,0.15)', border: '#10b981', text: 'text-emerald-700' };
+
+    app.innerHTML = `
+        <div class="card p-8 max-w-sm w-full fade-in">
+            <button onclick="renderStaffList('${role}')" class="text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1" style="cursor:pointer">← กลับ</button>
+
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 rounded-full ${colors.bg} flex items-center justify-center text-2xl font-bold ${colors.text} mx-auto mb-3">
+                    ${name.charAt(0)}
+                </div>
+                <h2 class="text-xl font-bold text-gray-800">${name}</h2>
+                <p class="text-sm text-gray-500">กรอก PIN 4 หลักเพื่อเข้าระบบ</p>
+            </div>
+
+            <div id="pin-container" style="display:flex; gap:10px; justify-content:center; margin-bottom:20px;">
+                <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="pin-1" oninput="pinInput(this,1)" onkeydown="pinKeydown(event,1)" />
+                <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="pin-2" oninput="pinInput(this,2)" onkeydown="pinKeydown(event,2)" />
+                <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="pin-3" oninput="pinInput(this,3)" onkeydown="pinKeydown(event,3)" />
+                <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="pin-4" oninput="pinInput(this,4)" onkeydown="pinKeydown(event,4)" />
+            </div>
+
+            <div id="pin-error" class="hidden bg-red-50 text-red-700 rounded-xl p-3 mb-4 text-sm text-center"></div>
+
+            <button onclick="handlePinSubmit('${username}', '${name.replace(/'/g, "\\'")}', '${role}')" id="pin-submit-btn" class="btn-primary" disabled>
+                เข้าสู่ระบบ
+            </button>
+
+            <p class="text-center text-xs text-gray-400 mt-4">ลืม PIN? แจ้ง Admin เพื่อรีเซ็ตให้</p>
+        </div>`;
+
+    document.getElementById('pin-1').focus();
+}
+
+// PIN input helpers
+function pinInput(el, idx) {
+    el.value = el.value.replace(/\D/g, '').slice(0, 1);
+    if (el.value && idx < 4) {
+        document.getElementById('pin-' + (idx + 1)).focus();
+    }
+    checkPinComplete();
+}
+function pinKeydown(e, idx) {
+    if (e.key === 'Backspace' && !e.target.value && idx > 1) {
+        document.getElementById('pin-' + (idx - 1)).focus();
+    }
+    if (e.key === 'Enter') {
+        const btn = document.getElementById('pin-submit-btn');
+        if (!btn.disabled) btn.click();
+    }
+}
+function checkPinComplete() {
+    const pin = getPin();
+    const btn = document.getElementById('pin-submit-btn');
+    if (btn) btn.disabled = pin.length < 4;
+}
+function getPin() {
+    return (document.getElementById('pin-1')?.value || '') +
+           (document.getElementById('pin-2')?.value || '') +
+           (document.getElementById('pin-3')?.value || '') +
+           (document.getElementById('pin-4')?.value || '');
+}
+
+async function handlePinSubmit(username, name, role) {
+    const pin = getPin();
+    const errEl = document.getElementById('pin-error');
+    const btn = document.getElementById('pin-submit-btn');
+    const container = document.getElementById('pin-container');
+
+    if (pin.length < 4) return;
+
+    btn.disabled = true;
+    btn.textContent = 'กำลังตรวจสอบ...';
+    errEl.classList.add('hidden');
+
+    try {
+        const pinHash = await hashPassword(pin);
+        const result = await apiGet('loginPassword', { username, password: pinHash });
+
+        if (result.success) {
+            saveSession({ username: result.username || username, name: result.name || name, role: result.role || role });
+            const page = PAGES[role];
+            if (page) { window.location.href = page; }
+            else { renderSuccessScreen(role, name); }
+        } else {
+            // PIN ผิด — shake + clear
+            errEl.textContent = 'PIN ไม่ถูกต้อง';
+            errEl.classList.remove('hidden');
+            container.style.animation = 'shake 0.5s';
+            setTimeout(() => { container.style.animation = ''; }, 600);
+            // Clear all pins
+            for (let i = 1; i <= 4; i++) { document.getElementById('pin-' + i).value = ''; }
+            document.getElementById('pin-1').focus();
+            btn.disabled = true;
+            btn.textContent = 'เข้าสู่ระบบ';
+        }
+    } catch (err) {
+        console.error('PIN login error:', err);
+        errEl.textContent = 'ไม่สามารถเชื่อมต่อ server ได้';
+        errEl.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'เข้าสู่ระบบ';
+    }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -538,7 +649,7 @@ async function handleAddStaff() {
                     <p class="text-sm text-gray-600">Username: <strong class="font-mono">${autoUsername}</strong></p>
                     <p class="text-sm text-gray-600">PIN: <strong class="font-mono text-lg">${autoPin}</strong></p>
                 </div>
-                <p class="text-xs text-gray-500 mt-2">* เซลล์/ผู้สอนไม่ต้องใช้ PIN (กดชื่อเข้าเลย) PIN ใช้สำรองเผื่อต้องการ</p>`;
+                <p class="text-xs text-gray-500 mt-2">* แจ้ง PIN ให้พนักงานใช้ตอน login (กดชื่อ → กรอก PIN)</p>`;
             resultEl.classList.remove('hidden');
             nameEl.value = '';
             loadUsers(); // refresh list
