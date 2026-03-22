@@ -472,49 +472,41 @@
         }
 
         function App() {
-            // ── ผู้สอน login แล้ว → ใช้ชื่อจาก session เลย ไม่ต้องเลือกอีก ──
+            // ── ผู้สอน login ผ่านหน้า login แล้ว → ข้ามเลือกชื่อและ PIN ──
             const authUser = window.JIA_AUTH_USER || {};
             const loggedInName = authUser.name || '';
 
-            const [selectedInstructor, setSelectedInstructor] = useState(() => {
-                return loggedInName || sessionStorage.getItem('selectedInstructor');
-            });
             const [authenticatedInstructor, setAuthenticatedInstructor] = useState(() => {
-                // ถ้า login ผ่าน jia-login แล้ว → authenticated ทันที
+                // ถ้า login ผ่าน jia-login แล้ว → ใช้ชื่อนั้นเลย
                 if (loggedInName) return loggedInName;
-                return selectedInstructor && sessionStorage.getItem(`jia_instructor_auth_${selectedInstructor}`) === "true" ? selectedInstructor : null;
+                // fallback: check sessionStorage
+                const saved = sessionStorage.getItem('selectedInstructor');
+                if (saved && sessionStorage.getItem(`jia_instructor_auth_${saved}`) === 'true') return saved;
+                return loggedInName || null;
             });
             const [activeTab, setActiveTab] = useState('classes');
 
             const instructors = JSON.parse(localStorage.getItem('jia_instructors') || '[]');
 
-            // ถ้า login แล้ว → set session ให้เรียบร้อย
+            // ถ้ายังไม่ได้ login → ส่งกลับ login page
             useEffect(() => {
-                if (loggedInName && !sessionStorage.getItem('selectedInstructor')) {
-                    sessionStorage.setItem('selectedInstructor', loggedInName);
-                    sessionStorage.setItem(`jia_instructor_auth_${loggedInName}`, 'true');
+                if (!authenticatedInstructor) {
+                    window.location.href = './jia-login.html';
+                } else {
+                    sessionStorage.setItem('selectedInstructor', authenticatedInstructor);
+                    sessionStorage.setItem(`jia_instructor_auth_${authenticatedInstructor}`, 'true');
                 }
-            }, [loggedInName]);
-
-            const handleSelectInstructor = (instructor) => {
-                setSelectedInstructor(instructor);
-                sessionStorage.setItem('selectedInstructor', instructor);
-            };
-
-            const handlePINSuccess = () => {
-                setAuthenticatedInstructor(selectedInstructor);
-            };
+            }, [authenticatedInstructor]);
 
             const handleLogout = () => {
                 if (authenticatedInstructor) {
                     sessionStorage.removeItem(`jia_instructor_auth_${authenticatedInstructor}`);
                 }
                 setAuthenticatedInstructor(null);
-                setSelectedInstructor(null);
                 sessionStorage.removeItem('selectedInstructor');
                 localStorage.removeItem('jia_user');
                 sessionStorage.removeItem('jia_user');
-                setActiveTab('availability');
+                setActiveTab('classes');
                 window.location.href = './jia-login.html';
             };
 
@@ -522,12 +514,8 @@
                 handleLogout();
             };
 
-            if (!selectedInstructor) {
-                return <InstructorSelectionScreen instructors={instructors} onSelect={handleSelectInstructor} />;
-            }
-
             if (!authenticatedInstructor) {
-                return <PINGate instructor={selectedInstructor} onSuccess={handlePINSuccess} />;
+                return <div className="min-h-screen flex items-center justify-center"><div className="loading-spinner"></div></div>;
             }
 
             const INST_TABS = [
