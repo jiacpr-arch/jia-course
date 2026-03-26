@@ -441,6 +441,7 @@ function MyBookingsTab({ bookings, customers, sessions, cfg, updateBooking, cour
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [editBkId, setEditBkId] = useState(null);
+  const [viewSlipBk, setViewSlipBk] = useState(null);
   const t = today();
 
   const filtered = useMemo(() => {
@@ -547,8 +548,12 @@ function MyBookingsTab({ bookings, customers, sessions, cfg, updateBooking, cour
                 <span className="font-semibold text-emerald-600">฿{fmtPrice(bk.finalPrice)}</span>
               </div>
 
-              {/* Reschedule badge + button */}
-              <div className="flex items-center gap-2">
+              {/* Action buttons: slip + reschedule */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button onClick={() => setViewSlipBk({ ...bk, courseLabel: cfg(bk.courseType).label })}
+                  className="text-[11px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-lg hover:bg-blue-200 font-medium">
+                  🧾 ใบยืนยัน
+                </button>
                 {rCount > 0 && <span className="text-[11px] text-orange-600 bg-orange-50 px-2 py-0.5 rounded-lg">เลื่อน {rCount} ครั้ง</span>}
                 {(() => {
                   const maxR = bk.cprPackage === 'fixed' ? 1 : bk.cprPackage === 'flex' ? 999 : 2;
@@ -581,6 +586,15 @@ function MyBookingsTab({ bookings, customers, sessions, cfg, updateBooking, cour
           );
         })}
       </div>
+
+      {/* Confirmation Slip Modal — ดูใบยืนยันซ้ำ */}
+      {viewSlipBk && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center overflow-y-auto p-4 pt-8 pb-20">
+          <div className="w-full max-w-md">
+            <BookingConfirmationSlip bk={viewSlipBk} onClose={() => setViewSlipBk(null)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
