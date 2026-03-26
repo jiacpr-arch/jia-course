@@ -1494,5 +1494,39 @@ function EarningsTab({ bookings, commissions, classes, userName }) {
 // ─── Render ───
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
+<script>
+// ── Service Worker + Offline + Auto-refresh ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(e => console.warn('SW reg failed:', e));
+}
+// Offline/Online banner
+window.addEventListener('offline', () => {
+  if (!document.getElementById('jia-offline')) {
+    const b = document.createElement('div');
+    b.id = 'jia-offline';
+    b.innerHTML = '📡 ออฟไลน์ — ใช้ข้อมูลในเครื่อง';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#f59e0b;color:#fff;text-align:center;padding:6px;font-size:13px;font-weight:600;';
+    document.body.prepend(b);
+  }
+});
+window.addEventListener('online', () => {
+  const b = document.getElementById('jia-offline');
+  if (b) b.remove();
+  showToast('✅ กลับมาออนไลน์แล้ว');
+});
+// Auto-refresh ทุก 5 นาที
+setInterval(() => {
+  if (!navigator.onLine) return;
+  const user = JSON.parse(localStorage.getItem('jia_user') || sessionStorage.getItem('jia_user') || 'null');
+  if (!user) return;
+  jiaApiGet('getAllData', { username: user.username }).then(data => {
+    if (!data || data.error) return;
+    ['customers','bookings','sessions','courses','instructors','classes','class_instructors','promo_codes','instructor_quals'].forEach(k => {
+      if (Array.isArray(data[k])) localStorage.setItem('jia_' + k, JSON.stringify(data[k]));
+    });
+    console.log('🔄 Auto-refresh done:', new Date().toLocaleTimeString());
+  }).catch(() => {});
+}, 5 * 60 * 1000);
+</script>
 </body>
 </html>
