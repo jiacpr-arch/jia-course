@@ -1173,8 +1173,22 @@
             const [bookings] = useState(() => {
                 return JSON.parse(localStorage.getItem('jia_bookings') || '[]');
             });
+            const [sessions, setSessions] = useState(() => JSON.parse(localStorage.getItem('jia_sessions') || '[]'));
             const [classes] = useState(() => JSON.parse(localStorage.getItem('jia_classes') || '[]'));
             const [classInstructors] = useState(() => JSON.parse(localStorage.getItem('jia_class_instructors') || '[]'));
+
+            // เช็คชื่อ — toggle session done
+            const toggleAttendance = (sessionId) => {
+                const next = sessions.map(s => s.id === sessionId ? { ...s, done: !s.done, date: s.done ? '' : new Date().toISOString().slice(0,10) } : s);
+                setSessions(next);
+                localStorage.setItem('jia_sessions', JSON.stringify(next));
+                const s = next.find(x => x.id === sessionId);
+                if (window.JIA_API_URL && s) {
+                    jiaApiPost('updateRow', { sheet: 'sessions', key: sessionId, keyCol: 'id' }, { done: s.done, date: s.date })
+                        .catch(e => console.warn('Session sync failed:', e.message));
+                }
+                showToast(s?.done ? '✅ เช็คชื่อแล้ว' : '↩️ ยกเลิกเช็คชื่อ');
+            };
             const [expandedClass, setExpandedClass] = useState(null);
 
             // คลาสที่ผมสอน
@@ -1254,7 +1268,10 @@
                             <div className={`mt-3 space-y-2 border-t pt-3 ${isToday ? 'border-white border-opacity-20' : 'border-gray-200'}`}>
                                 {students.length === 0 ? (
                                     <p className={`text-xs ${subColor} italic`}>ยังไม่มีผู้จองเข้าคลาสนี้</p>
-                                ) : students.map((s, i) => (
+                                ) : students.map((s, i) => {
+                                    // หา sessions ของ booking นี้
+                                    const bkSessions = sessions.filter(ss => ss.bookingId === s.id);
+                                    return (
                                     <div key={s.id || i} className={`text-sm ${isToday ? 'bg-white bg-opacity-10' : 'bg-gray-50'} rounded-lg p-3`}>
                                         <div className="flex justify-between items-start">
                                             <div>
@@ -1264,8 +1281,24 @@
                                             <span className={`text-xs ${subColor}`}>{s.totalPeople || 1} คน</span>
                                         </div>
                                         {s.note && <p className={`text-xs ${subColor} mt-1 italic`}>📝 {s.note}</p>}
+                                        {/* เช็คชื่อแต่ละ session */}
+                                        {bkSessions.length > 0 && (
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                {bkSessions.map(ss => (
+                                                    <button key={ss.id} onClick={() => toggleAttendance(ss.id)}
+                                                        className={`text-xs px-2 py-1 rounded-full font-medium transition-all ${
+                                                            ss.done
+                                                                ? (isToday ? 'bg-green-400 text-green-900' : 'bg-green-100 text-green-700')
+                                                                : (isToday ? 'bg-white bg-opacity-20 text-white' : 'bg-gray-200 text-gray-600')
+                                                        }`}>
+                                                        {ss.done ? '✅' : '⬜'} คนที่ {ss.sessionNo}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

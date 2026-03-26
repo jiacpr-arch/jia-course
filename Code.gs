@@ -7,8 +7,8 @@
 // ─── CONFIG ──────────────────────────────────────────────────
 const ADMIN_EMAIL = 'jiacpr@gmail.com'; // ใช้สำหรับส่ง email แจ้งเตือน
 // LINE Messaging API — สร้าง Channel ที่ https://developers.line.biz/console/
-const LINE_CHANNEL_TOKEN = ''; // ← ใส่ Channel Access Token (long-lived)
-const LINE_GROUP_ID = '';      // ← ใส่ Group ID หรือ User ID ที่ต้องการส่งข้อความ
+const LINE_CHANNEL_TOKEN = 'fWq1sJwDBuqLYVcWbxULEQpC5y2lDksbTNKS7TZArVLyGnYGffcGEmsLYXzPGmzx5CSysKWf6h/Nyjz7poCkQkHi/zwROGaFTujfmwiYurqjsfPtUUcS7tq36sSNK1oM0RxtaQ5KImGR52zegiBLzI9PbdgDzCFqoOLOYbqAITQ=';
+const LINE_GROUP_ID = 'U4df898ff85c4b354fb5523a24ae50d3d'; // Bot's own user — เปลี่ยนเป็น Group ID ถ้าต้องการส่งเข้ากลุ่ม
 
 // ชื่อ Sheet ทั้งหมด
 const SHEET = {

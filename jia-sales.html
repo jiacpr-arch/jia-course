@@ -1399,6 +1399,39 @@ function EarningsTab({ bookings, commissions, classes, userName }) {
     return opts;
   }, []);
 
+  // Group by day
+  const byDay = useMemo(() => {
+    const map = {};
+    bookingsWithComm.forEach(b => {
+      const day = b.startDate || b.createdAt?.slice(0, 10) || 'ไม่ระบุ';
+      if (!map[day]) map[day] = { count: 0, revenue: 0, commission: 0 };
+      map[day].count++;
+      map[day].revenue += parseFloat(b.finalPrice) || 0;
+      map[day].commission += b.commission;
+    });
+    return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [bookingsWithComm]);
+
+  // Group by week
+  const byWeek = useMemo(() => {
+    const map = {};
+    bookingsWithComm.forEach(b => {
+      const d = new Date(b.startDate || b.createdAt);
+      if (isNaN(d)) return;
+      const weekStart = new Date(d); weekStart.setDate(d.getDate() - d.getDay());
+      const key = weekStart.toISOString().slice(0, 10);
+      const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+      const label = fmt(key) + ' - ' + fmt(weekEnd.toISOString().slice(0, 10));
+      if (!map[key]) map[key] = { label, count: 0, revenue: 0, commission: 0 };
+      map[key].count++;
+      map[key].revenue += parseFloat(b.finalPrice) || 0;
+      map[key].commission += b.commission;
+    });
+    return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [bookingsWithComm]);
+
+  const [viewMode, setViewMode] = useState('course'); // course | day | week
+
   // Group by course type
   const byCourse = useMemo(() => {
     const map = {};
@@ -1440,32 +1473,45 @@ function EarningsTab({ bookings, commissions, classes, userName }) {
         </div>
       </div>
 
-      {/* By Course Breakdown */}
-      {byCourse.length > 0 ? (
-        <div className="bg-white rounded-xl border overflow-hidden">
-          <div className="px-4 py-3 bg-gray-50 border-b">
-            <h3 className="font-semibold text-sm">รายละเอียดตามคอร์ส</h3>
-          </div>
-          <div className="divide-y">
-            {byCourse.map(([course, data]) => (
-              <div key={course} className="px-4 py-3 flex justify-between items-center">
-                <div>
-                  <div className="font-medium text-sm">{course}</div>
-                  <div className="text-xs text-gray-400">{data.count} จอง · {data.people} คน</div>
+      {/* View mode toggle */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+        {[{id:'course',label:'ตามคอร์ส'},{id:'day',label:'รายวัน'},{id:'week',label:'รายสัปดาห์'}].map(v => (
+          <button key={v.id} onClick={() => setViewMode(v.id)}
+            className={`flex-1 text-xs font-medium py-2 rounded-lg transition-all ${viewMode === v.id ? 'bg-white shadow text-emerald-700' : 'text-gray-500'}`}>
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Breakdown by selected mode */}
+      {(() => {
+        const items = viewMode === 'course' ? byCourse.map(([k, d]) => ({ key: k, label: k, sub: d.count + ' จอง · ' + (d.people || '') + ' คน', ...d }))
+          : viewMode === 'day' ? byDay.map(([k, d]) => ({ key: k, label: fmt(k), sub: d.count + ' จอง', ...d }))
+          : byWeek.map(([k, d]) => ({ key: k, label: d.label, sub: d.count + ' จอง', ...d }));
+        return items.length > 0 ? (
+          <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="px-4 py-3 bg-gray-50 border-b">
+              <h3 className="font-semibold text-sm">{viewMode === 'course' ? 'แยกตามคอร์ส' : viewMode === 'day' ? 'แยกรายวัน' : 'แยกรายสัปดาห์'}</h3>
+            </div>
+            <div className="divide-y">
+              {items.map(item => (
+                <div key={item.key} className="px-4 py-3 flex justify-between items-center">
+                  <div>
+                    <div className="font-medium text-sm">{item.label}</div>
+                    <div className="text-xs text-gray-400">{item.sub}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-gray-600">฿{fmtPrice(item.revenue)}</div>
+                    <div className="text-sm font-bold text-emerald-600">+฿{fmtPrice(item.commission)}</div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm text-gray-600">฿{fmtPrice(data.revenue)}</div>
-                  <div className="text-sm font-bold text-emerald-600">+฿{fmtPrice(data.commission)}</div>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl border p-8 text-center text-gray-400">
-          ยังไม่มียอดจองในเดือนนี้
-        </div>
-      )}
+        ) : (
+          <div className="bg-white rounded-xl border p-8 text-center text-gray-400">ยังไม่มียอดจองในเดือนนี้</div>
+        );
+      })()}
 
       {/* Booking Details */}
       {bookingsWithComm.length > 0 && (

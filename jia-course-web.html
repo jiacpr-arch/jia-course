@@ -308,6 +308,7 @@ const ALL_TABS = [
   { id: 'calendar',   label: 'ปฏิทิน',       roles: ['admin','sales'] },
   { id: 'promo',      label: 'โค้ดโปรโม',    roles: ['admin','sales'] },
   { id: 'instSched',  label: 'ตารางผู้สอน',  roles: ['admin'] },
+  { id: 'users',      label: 'จัดการผู้ใช้',  roles: ['admin'] },
   { id: 'settings',   label: 'ตั้งค่า',      roles: ['admin'] },
 ];
 const TABS = ALL_TABS.map(t => t.label); // backward compat
@@ -1079,6 +1080,7 @@ function AppContent() {
         {tab === 'calendar' && <CalendarView sessions={sessions} bookings={bookings} courses={courses} cfg={cfg} customers={customers} classes={classes} classInstructors={classInstructors} />}
         {tab === 'promo' && <ErrorBoundary><PromoCodeManager promoCodes={promoCodes} savePromoCodes={savePromoCodes} staff={staff} /></ErrorBoundary>}
         {tab === 'instSched' && <InstructorSchedule bookings={bookings} instructors={instructors} classes={classes} classInstructors={classInstructors} />}
+        {tab === 'users' && <UserManager />}
         {tab === 'settings' && <CourseSettings courses={courses} saveCourses={saveCourses} staff={staff} saveStaff={saveStaff} instructors={instructors} saveInstructors={saveInstructors} enrolled={enrolled} />}
       </main>
     </div>
@@ -1681,8 +1683,40 @@ function Dashboard({ stats, bookings, customers, enrolled, courses, cfg, courseK
     })).sort((a, b) => b.revenue - a.revenue);
   }, [bookings, courses]);
 
+  // ── Export Functions ──
+  const exportCSV = () => {
+    const headers = ['ชื่อ','เบอร์โทร','คอร์ส','วันที่','เวลา','จำนวน','ราคา','สถานะชำระ','เซลล์','ผู้สอน','วันที่จอง'];
+    const rows = bookings.map(b => [b.name, b.tel, b.courseType, b.startDate, b.timeSlot, b.totalPeople, b.finalPrice, b.paymentStatus, b.salesStaff, b.instructor, b.createdAt]);
+    const bom = '\uFEFF';
+    const csv = bom + [headers, ...rows].map(r => r.map(v => '"' + String(v || '').replace(/"/g, '""') + '"').join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'JIA_Bookings_' + new Date().toISOString().slice(0, 10) + '.csv';
+    a.click(); showToast('📥 ดาวน์โหลด CSV สำเร็จ');
+  };
+
+  const exportPDF = () => {
+    const w = window.open('', '_blank');
+    const html = '<html><head><meta charset="utf-8"><title>JIA Report</title><style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ddd;padding:6px;text-align:left}th{background:#2563eb;color:white}.summary{display:flex;gap:20px;margin:20px 0}.card{border:1px solid #ddd;padding:15px;border-radius:8px;text-align:center;flex:1}h1{color:#1e40af}</style></head><body>'
+      + '<h1>JIA Trainer Center — รายงาน</h1>'
+      + '<p>วันที่ออกรายงาน: ' + new Date().toLocaleDateString('th-TH') + '</p>'
+      + '<div class="summary"><div class="card"><div>ลูกค้า</div><h2>' + stats.totalCustomers + '</h2></div><div class="card"><div>จอง</div><h2>' + stats.totalBookings + '</h2></div><div class="card"><div>รายได้รวม</div><h2>' + fmtPrice(revenueStats.totalRevenue) + ' บาท</h2></div></div>'
+      + '<table><tr><th>ชื่อ</th><th>คอร์ส</th><th>วันที่</th><th>เวลา</th><th>จำนวน</th><th>ราคา</th><th>สถานะ</th><th>เซลล์</th></tr>'
+      + bookings.slice(0, 200).map(b => '<tr><td>' + [b.name, b.courseType, b.startDate, b.timeSlot, b.totalPeople, fmtPrice(b.finalPrice||0), b.paymentStatus||'-', b.salesStaff||'-'].join('</td><td>') + '</td></tr>').join('')
+      + '</table></body></html>';
+    w.document.write(html);
+    w.document.close();
+    setTimeout(() => w.print(), 500);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Export Buttons */}
+      <div className="flex gap-2 justify-end">
+        <button onClick={exportCSV} className="text-xs bg-green-100 text-green-700 px-3 py-2 rounded-lg hover:bg-green-200 font-medium">📊 Export Excel (CSV)</button>
+        <button onClick={exportPDF} className="text-xs bg-red-100 text-red-700 px-3 py-2 rounded-lg hover:bg-red-200 font-medium">📄 Export PDF</button>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {cards.map((c, i) => (
           <div key={i} className={`border rounded-xl p-4 ${c.color}`}>
@@ -3611,6 +3645,129 @@ function InstructorSchedule({ bookings, instructors }) {
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── User Manager (Admin Only) ───
+function UserManager() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [resetUser, setResetUser] = useState(null);
+  const [newPin, setNewPin] = useState('');
+  const [inviteRole, setInviteRole] = useState('sales');
+  const [inviteCode, setInviteCode] = useState('');
+
+  useEffect(() => {
+    jiaApiGet('getAllData', { username: window.JIA_AUTH_USER?.username }).then(data => {
+      if (data && data.users) setUsers(data.users);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  const handleResetPin = async () => {
+    if (!resetUser || newPin.length < 4) { alert('PIN ต้องมีอย่างน้อย 4 หลัก'); return; }
+    // SHA-256 hash
+    const encoder = new TextEncoder();
+    const data = encoder.encode(newPin);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    const result = await jiaApiGet('resetPassword', { adminUser: window.JIA_AUTH_USER?.username, targetUser: resetUser, newPassword: hash });
+    if (result && result.success) {
+      showToast('✅ รีเซ็ตรหัสผ่านสำเร็จ');
+      setResetUser(null); setNewPin('');
+    } else {
+      showToast('❌ ' + (result?.error || 'ไม่สำเร็จ'), true);
+    }
+  };
+
+  const handleGenCode = async () => {
+    const result = await jiaApiGet('genCode', { role: inviteRole, username: window.JIA_AUTH_USER?.username });
+    if (result && result.code) {
+      setInviteCode(result.code);
+      showToast('✅ สร้างรหัสเชิญสำเร็จ');
+    } else {
+      showToast('❌ ' + (result?.error || 'ไม่สำเร็จ'), true);
+    }
+  };
+
+  const handleDeleteUser = async (username) => {
+    if (!confirm('ลบผู้ใช้ ' + username + ' จริงหรือไม่?')) return;
+    const result = await jiaApiGet('deleteRow', { sheet: 'users', key: username, keyCol: 'username', username: window.JIA_AUTH_USER?.username });
+    if (result && result.success) {
+      setUsers(users.filter(u => u.username !== username));
+      showToast('✅ ลบผู้ใช้แล้ว');
+    } else {
+      showToast('❌ ' + (result?.error || 'ไม่สำเร็จ'), true);
+    }
+  };
+
+  if (loading) return <div className="text-center py-12 text-gray-500">กำลังโหลด...</div>;
+
+  const roleColors = { admin: 'bg-red-100 text-red-700', sales: 'bg-blue-100 text-blue-700', instructor: 'bg-green-100 text-green-700' };
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl font-bold text-blue-800">👥 จัดการผู้ใช้งาน</h2>
+
+      {/* User List */}
+      <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="px-4 py-3 bg-gray-50 border-b font-semibold text-sm">ผู้ใช้ทั้งหมด ({users.length})</div>
+        <div className="divide-y max-h-96 overflow-y-auto">
+          {users.map(u => (
+            <div key={u.username} className="px-4 py-3 flex justify-between items-center">
+              <div>
+                <div className="font-medium text-sm">{u.name}</div>
+                <div className="text-xs text-gray-400">@{u.username} · เข้าล่าสุด: {u.lastLogin ? fmt(u.lastLogin) : '-'}</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs px-2 py-1 rounded-full font-medium ${roleColors[u.role] || 'bg-gray-100'}`}>{u.role}</span>
+                <button onClick={() => { setResetUser(u.username); setNewPin(''); }}
+                  className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg hover:bg-yellow-200">🔑 Reset</button>
+                {u.role !== 'admin' && (
+                  <button onClick={() => handleDeleteUser(u.username)}
+                    className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-lg hover:bg-red-200">🗑️</button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Reset PIN Modal */}
+      {resetUser && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <h3 className="font-semibold text-sm mb-3">🔑 รีเซ็ตรหัสผ่าน: @{resetUser}</h3>
+          <div className="flex gap-2">
+            <input type="text" value={newPin} onChange={e => setNewPin(e.target.value)} placeholder="PIN ใหม่ (4+ หลัก)"
+              className="flex-1 border rounded-lg px-3 py-2 text-sm input-focus" maxLength={20} />
+            <button onClick={handleResetPin} className="bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-yellow-600">ยืนยัน</button>
+            <button onClick={() => setResetUser(null)} className="bg-gray-200 px-3 py-2 rounded-lg text-sm">ยกเลิก</button>
+          </div>
+        </div>
+      )}
+
+      {/* Generate Invite Code */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <h3 className="font-semibold text-sm mb-3">📨 สร้างรหัสเชิญผู้ใช้ใหม่</h3>
+        <div className="flex gap-2 items-center">
+          <select value={inviteRole} onChange={e => setInviteRole(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm bg-white">
+            <option value="sales">Sales</option>
+            <option value="instructor">Instructor</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button onClick={handleGenCode} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">สร้างรหัส</button>
+        </div>
+        {inviteCode && (
+          <div className="mt-3 bg-white rounded-lg p-3 flex justify-between items-center">
+            <code className="text-lg font-bold text-blue-700">{inviteCode}</code>
+            <button onClick={() => { navigator.clipboard.writeText(inviteCode); showToast('📋 คัดลอกแล้ว'); }}
+              className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-lg">คัดลอก</button>
+          </div>
+        )}
       </div>
     </div>
   );
