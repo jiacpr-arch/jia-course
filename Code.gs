@@ -6,7 +6,9 @@
 
 // ─── CONFIG ──────────────────────────────────────────────────
 const ADMIN_EMAIL = 'jiacpr@gmail.com'; // ใช้สำหรับส่ง email แจ้งเตือน
-const LINE_NOTIFY_TOKEN = ''; // ← ใส่ LINE Notify Token ที่นี่ (ได้จาก https://notify-bot.line.me/my/)
+// LINE Messaging API — สร้าง Channel ที่ https://developers.line.biz/console/
+const LINE_CHANNEL_TOKEN = ''; // ← ใส่ Channel Access Token (long-lived)
+const LINE_GROUP_ID = '';      // ← ใส่ Group ID หรือ User ID ที่ต้องการส่งข้อความ
 
 // ชื่อ Sheet ทั้งหมด
 const SHEET = {
@@ -1018,7 +1020,7 @@ function notifyNewBooking(bookingData) {
 
     // LINE Notify ด้วย
     var lineMsg = '\n🎉 จองใหม่!\n' + name + ' — ' + course + '\n📅 ' + date + ' ' + timeSlot + '\n💰 ' + price + ' บาท\n👤 ' + people + ' คน';
-    sendLineNotify(lineMsg);
+    sendLineMessage(lineMsg);
 
     return { success: true, notified: ADMIN_EMAIL };
   } catch (err) {
@@ -1141,22 +1143,28 @@ function createBookingCalendarEvent(data) {
   }
 }
 
-// ─── LINE NOTIFY ─────────────────────────────────────────────
+// ─── LINE MESSAGING API ──────────────────────────────────────
 
-function sendLineNotify(message) {
-  if (!LINE_NOTIFY_TOKEN) return { skipped: true, reason: 'no_token' };
+function sendLineMessage(message) {
+  if (!LINE_CHANNEL_TOKEN || !LINE_GROUP_ID) return { skipped: true, reason: 'no_token_or_group' };
   try {
-    var res = UrlFetchApp.fetch('https://notify-api.line.me/api/notify', {
+    var res = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
       method: 'post',
-      headers: { 'Authorization': 'Bearer ' + LINE_NOTIFY_TOKEN },
-      payload: { message: message },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + LINE_CHANNEL_TOKEN
+      },
+      payload: JSON.stringify({
+        to: LINE_GROUP_ID,
+        messages: [{ type: 'text', text: message }]
+      }),
       muteHttpExceptions: true
     });
     var code = res.getResponseCode();
     if (code === 200) return { success: true };
     return { error: 'LINE API returned ' + code, body: res.getContentText() };
   } catch(e) {
-    return { error: 'LINE Notify failed: ' + e.message };
+    return { error: 'LINE Message failed: ' + e.message };
   }
 }
 
@@ -1171,7 +1179,7 @@ function notifyNewClass(data) {
     + '👨‍🏫 ต้องการผู้สอน: ' + (data.requiredInstructors || 1) + ' คน\n'
     + '━━━━━━━━━━━━\n'
     + 'กดรับสอนได้ที่ระบบ JIA Trainer';
-  var lineResult = sendLineNotify(msg);
+  var lineResult = sendLineMessage(msg);
 
   // ส่ง email ด้วย
   try {
@@ -1195,7 +1203,7 @@ function notifyInstructorAccepted(data) {
     + '⏰ ' + (data.timeSlot || '-') + '\n'
     + '👥 ผู้สอน: ' + (data.currentInstructors || 0) + '/' + (data.requiredInstructors || 1) + '\n'
     + '📊 สถานะ: ' + (data.status === 'ready' ? 'พร้อมสอน ✅' : 'รอผู้สอนเพิ่ม ⏳');
-  return sendLineNotify(msg);
+  return sendLineMessage(msg);
 }
 
 // ─── PUBLIC DATA (for customer booking page — no auth) ───────
