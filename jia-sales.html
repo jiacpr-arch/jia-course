@@ -12,6 +12,7 @@ tailwind.config = { theme: { extend: { fontFamily: { sans: ['"Noto Sans Thai"', 
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <style>
   body { font-family: 'Noto Sans Thai', sans-serif; margin: 0; }
   .custom-scroll::-webkit-scrollbar { height: 4px; }
@@ -922,8 +923,21 @@ function NewBookingTab({ customers, allCustomers, addCustomer, addBooking, cours
 // ═══════════════════════════════════════════════════════════
 // BOOKING CONFIRMATION SLIP — ใบยืนยันการจอง
 // ═══════════════════════════════════════════════════════════
+function QRCode({ value, size = 120 }) {
+  const canvasRef = React.useRef(null);
+  React.useEffect(() => {
+    if (canvasRef.current && window.QRCode) {
+      window.QRCode.toCanvas(canvasRef.current, value, { width: size, margin: 1, color: { dark: '#065f46' } }, (err) => {
+        if (err) console.warn('QR generate failed:', err);
+      });
+    }
+  }, [value, size]);
+  return <canvas ref={canvasRef} />;
+}
+
 function BookingConfirmationSlip({ bk, onClose }) {
   const refNo = (bk.id || '').replace('bk_', '').slice(0, 10).toUpperCase();
+  const qrData = JSON.stringify({ ref: refNo, id: bk.id, name: bk.name, course: bk.courseType, date: bk.startDate, price: bk.finalPrice });
   const printSlip = () => { window.print(); };
 
   return (
@@ -1042,6 +1056,14 @@ function BookingConfirmationSlip({ bk, onClose }) {
         <div className="px-6 py-5 bg-emerald-50 flex justify-between items-center">
           <span className="text-base font-bold text-gray-700">ยอดรวมทั้งสิ้น</span>
           <span className="text-2xl font-bold text-emerald-700">฿{fmtPrice(bk.finalPrice)}</span>
+        </div>
+
+        {/* QR Code */}
+        <div className="px-6 py-4 flex justify-center border-b border-gray-100">
+          <div className="text-center">
+            <QRCode value={qrData} size={120} />
+            <div className="text-xs text-gray-400 mt-1">สแกนเพื่อตรวจสอบการจอง</div>
+          </div>
         </div>
 
         {/* Footer */}

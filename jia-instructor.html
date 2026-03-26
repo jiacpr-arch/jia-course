@@ -1173,22 +1173,45 @@
             const [bookings] = useState(() => {
                 return JSON.parse(localStorage.getItem('jia_bookings') || '[]');
             });
+            const [classes] = useState(() => JSON.parse(localStorage.getItem('jia_classes') || '[]'));
+            const [classInstructors] = useState(() => JSON.parse(localStorage.getItem('jia_class_instructors') || '[]'));
+            const [expandedClass, setExpandedClass] = useState(null);
+
+            // คลาสที่ผมสอน
+            const myClassIds = useMemo(() =>
+                new Set(classInstructors.filter(ci => ci.instructor === instructor).map(ci => ci.classId)),
+                [classInstructors, instructor]
+            );
+            const myClasses = useMemo(() =>
+                classes.filter(c => myClassIds.has(c.id)).sort((a, b) => a.date > b.date ? 1 : -1),
+                [classes, myClassIds]
+            );
+
+            // จับคู่ bookings กับ class (ผ่าน classId หรือ date+timeSlot+courseType)
+            const getStudentsForClass = (cls) => {
+                return bookings.filter(b =>
+                    b.classId === cls.id ||
+                    (b.startDate === cls.date && b.timeSlot === cls.timeSlot && b.courseType === cls.courseKey)
+                );
+            };
 
             const myBookings = bookings.filter(b => b.instructor === instructor).sort((a, b) => {
-                return new Date(`${a.date} ${a.timeSlot.split('-')[0]}`) - new Date(`${b.date} ${b.timeSlot.split('-')[0]}`);
+                const dateA = b.startDate || b.date;
+                const dateB = a.startDate || a.date;
+                return new Date(`${a.startDate || a.date} ${(a.timeSlot||'').split('-')[0]}`) - new Date(`${b.startDate || b.date} ${(b.timeSlot||'').split('-')[0]}`);
             });
 
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
-            const todayBookings = myBookings.filter(b => {
-                const bookingDate = new Date(b.date);
-                return bookingDate.getTime() === today.getTime();
+            const todayClasses = myClasses.filter(c => {
+                const d = new Date(c.date); d.setHours(0,0,0,0);
+                return d.getTime() === today.getTime();
             });
 
-            const upcomingBookings = myBookings.filter(b => {
-                const bookingDate = new Date(b.date);
-                return bookingDate.getTime() >= today.getTime();
+            const upcomingClasses = myClasses.filter(c => {
+                const d = new Date(c.date); d.setHours(0,0,0,0);
+                return d.getTime() >= today.getTime();
             });
 
             const getPaymentBadge = (status) => {
@@ -1201,15 +1224,61 @@
                 }
             };
 
+            const ClassCard = ({ cls, isToday }) => {
+                const students = getStudentsForClass(cls);
+                const isExpanded = expandedClass === cls.id;
+                const bgBase = isToday ? 'bg-white bg-opacity-10 border-white border-opacity-20' : 'border-gray-200';
+                const textColor = isToday ? 'text-white' : 'text-gray-800';
+                const subColor = isToday ? 'text-teal-100' : 'text-gray-500';
+                return (
+                    <div className={`border rounded-lg p-4 ${bgBase} ${isToday ? 'backdrop-blur-sm' : 'hover:shadow-md'} transition-all`}>
+                        <div className="flex justify-between items-start mb-2">
+                            <div>
+                                {!isToday && <p className="text-sm text-gray-500">{formatThaiDate(new Date(cls.date))}</p>}
+                                <p className={`font-bold text-lg ${isToday ? 'text-white' : 'text-teal-600'}`}>{cls.courseName || cls.courseKey}</p>
+                                <p className={`text-sm ${subColor}`}>{cls.timeSlot}</p>
+                            </div>
+                            <span className={`text-xs px-2 py-1 rounded-full font-semibold ${students.length > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                {students.length} คน
+                            </span>
+                        </div>
+                        {cls.place && <p className={`text-xs ${subColor} mb-2`}>📍 {cls.place}</p>}
+
+                        {/* กดเพื่อดูรายชื่อลูกค้า */}
+                        <button onClick={() => setExpandedClass(isExpanded ? null : cls.id)}
+                            className={`w-full text-left text-xs font-semibold mt-1 ${isToday ? 'text-teal-200' : 'text-teal-600'}`}>
+                            {isExpanded ? '▲ ซ่อนรายชื่อ' : '▼ ดูรายชื่อผู้เรียน (' + students.length + ')'}
+                        </button>
+
+                        {isExpanded && (
+                            <div className={`mt-3 space-y-2 border-t pt-3 ${isToday ? 'border-white border-opacity-20' : 'border-gray-200'}`}>
+                                {students.length === 0 ? (
+                                    <p className={`text-xs ${subColor} italic`}>ยังไม่มีผู้จองเข้าคลาสนี้</p>
+                                ) : students.map((s, i) => (
+                                    <div key={s.id || i} className={`text-sm ${isToday ? 'bg-white bg-opacity-10' : 'bg-gray-50'} rounded-lg p-3`}>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <p className={`font-semibold ${textColor}`}>{s.name || s.studentName || '-'}</p>
+                                                {s.tel && <p className={`text-xs ${subColor}`}>📞 {s.tel}</p>}
+                                            </div>
+                                            <span className={`text-xs ${subColor}`}>{s.totalPeople || 1} คน</span>
+                                        </div>
+                                        {s.note && <p className={`text-xs ${subColor} mt-1 italic`}>📝 {s.note}</p>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
             return (
                 <div className="space-y-6">
-                    {todayBookings.length > 0 && (
+                    {todayClasses.length > 0 && (
                         <div className="bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg shadow-md p-6">
                             <h2 className="text-2xl font-bold mb-4">📅 ตารางสอนวันนี้</h2>
                             <div className="space-y-3">
-                                {todayBookings.map((booking) => (
-                                    <BookingCard key={booking.id} booking={booking} getPaymentBadge={getPaymentBadge} />
-                                ))}
+                                {todayClasses.map(cls => <ClassCard key={cls.id} cls={cls} isToday={true} />)}
                             </div>
                         </div>
                     )}
@@ -1217,52 +1286,17 @@
                     <div className="bg-white rounded-lg shadow-sm p-6">
                         <h2 className="text-2xl font-bold text-gray-800 mb-6">ตารางสอน</h2>
 
-                        {upcomingBookings.length === 0 ? (
+                        {upcomingClasses.length === 0 ? (
                             <div className="text-center py-12">
                                 <p className="text-xl text-gray-500 mb-2">ยังไม่มีตารางสอน</p>
-                                <p className="text-sm text-gray-400">ตรวจสอบการลงวันว่างของคุณ</p>
+                                <p className="text-sm text-gray-400">กดรับคลาสในแท็บ "รับสอนคลาส"</p>
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {upcomingBookings.map((booking) => (
-                                    <div key={booking.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                                        <div className="flex justify-between items-start mb-3">
-                                            <div>
-                                                <p className="text-sm text-gray-500">{formatThaiDate(new Date(booking.date))}</p>
-                                                <p className="text-lg font-bold text-teal-600">{booking.timeSlot}</p>
-                                            </div>
-                                            {getPaymentBadge(booking.paymentStatus)}
-                                        </div>
-                                        <div className="space-y-2">
-                                            <p className="font-semibold text-gray-800">{booking.courseName}</p>
-                                            {(booking.totalDays || 1) > 1 && (
-                                                <p className="text-xs text-teal-600 font-medium">📚 คอร์ส {booking.totalDays} วัน</p>
-                                            )}
-                                            <p className="text-sm text-gray-600">👤 {booking.studentName}</p>
-                                            <p className="text-sm text-gray-600">👥 จำนวนนักเรียน: {booking.totalPeople} คน</p>
-                                        </div>
-                                    </div>
-                                ))}
+                                {upcomingClasses.map(cls => <ClassCard key={cls.id} cls={cls} isToday={false} />)}
                             </div>
                         )}
                     </div>
-                </div>
-            );
-        }
-
-        function BookingCard({ booking, getPaymentBadge }) {
-            return (
-                <div className="bg-white bg-opacity-10 rounded-lg p-4 backdrop-blur-sm border border-white border-opacity-20">
-                    <div className="flex justify-between items-start mb-2">
-                        <div>
-                            <p className="font-bold text-lg">{booking.courseName}</p>
-                            <p className="text-teal-100 text-sm">{booking.timeSlot}</p>
-                        </div>
-                    </div>
-                    {(booking.totalDays || 1) > 1 && (
-                        <p className="text-xs text-teal-200 mb-1">📚 คอร์ส {booking.totalDays} วัน</p>
-                    )}
-                    <p className="text-sm text-teal-100">👤 {booking.studentName} • {booking.totalPeople} คน</p>
                 </div>
             );
         }

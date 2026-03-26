@@ -178,6 +178,16 @@ function handleRequest(e) {
       // ── v2: Class Management ──
       case 'acceptClass':
         return respond(acceptClass(p.classId, p.instructor, p.assignedBy));
+      case 'addClassInstructor':
+        return respond(saveRow(SHEET.class_instructors, getBody()));
+      case 'updateClassStatus': {
+        var statusBody = getBody();
+        if (!statusBody.classId) return respond({ error: 'Missing classId' });
+        return respond(updateRow(SHEET.classes, statusBody.classId, 'id', {
+          status: statusBody.status,
+          currentInstructors: statusBody.currentInstructors
+        }));
+      }
 
       case 'notifyBooking':
         return respond(notifyNewBooking(getBody()));
