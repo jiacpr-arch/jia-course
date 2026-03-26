@@ -82,7 +82,7 @@ async function jiaApiPost(action, params = {}, body = {}) {
                 console.log('✅ API (JSONP):', action, params, result);
                 return result;
             } catch(e2) {
-                console.warn('⚠️ Attempt ' + (attempt+1) + ' failed:', err.message, e2.message);
+                console.warn('⚠️ Attempt ' + (attempt+1) + ' failed: fetch:', err.message, 'JSONP:', e2.message);
                 if (attempt === 2) throw e2;
                 await new Promise(r => setTimeout(r, 1500));
             }
@@ -801,14 +801,14 @@ function AppContent() {
     c.id = uid(); c.createdAt = today();
     const next = [...customers, c];
     setCustomers(next); save("jia_customers", next);
-    if (gsUrl) gsAction(gsUrl, { action: "addCustomer", data: b64(c) }).catch(() => {});
+    if (gsUrl) gsAction(gsUrl, { action: "addCustomer", data: b64(c) }).catch(e => console.warn('⚠️ Sync customer failed:', e.message));
     return c;
   }, [customers, gsUrl, save]);
 
   const updateCustomer = useCallback((id, data) => {
     const next = customers.map(c => c.id === id ? { ...c, ...data } : c);
     setCustomers(next); save("jia_customers", next);
-    if (gsUrl) gsAction(gsUrl, { action: "addCustomer", data: b64({ id, ...data }) }).catch(() => {});
+    if (gsUrl) gsAction(gsUrl, { action: "addCustomer", data: b64({ id, ...data }) }).catch(e => console.warn('⚠️ Update customer sync failed:', e.message));
   }, [customers, gsUrl, save]);
 
   const deleteCustomer = useCallback((id) => {
@@ -869,7 +869,7 @@ function AppContent() {
     bk.id = uid(); bk.createdAt = today();
     const next = [...bookings, bk];
     setBookings(next); save("jia_bookings", next);
-    if (gsUrl) gsAction(gsUrl, { action: "addBooking", data: b64(bk) }).catch(() => {});
+    if (gsUrl) gsAction(gsUrl, { action: "addBooking", data: b64(bk) }).catch(e => console.warn('⚠️ Sync booking failed:', e.message));
     // แจ้งเตือนการจองใหม่ทางอีเมล
     jiaApiPost('notifyBooking', {}, bk).catch(err => console.warn('⚠️ Notify failed:', err));
     const slist = Array.from({ length: Number(bk.totalPeople) || 1 }, (_, i) => ({
@@ -878,13 +878,13 @@ function AppContent() {
     }));
     const nextS = [...sessions, ...slist];
     setSessions(nextS); save("jia_sessions", nextS);
-    slist.forEach(s => { if (gsUrl) gsAction(gsUrl, { action: "addSession", data: b64(s) }).catch(() => {}); });
+    slist.forEach(s => { if (gsUrl) gsAction(gsUrl, { action: "addSession", data: b64(s) }).catch(e => console.warn('⚠️ Sync session failed:', e.message)); });
   }, [bookings, sessions, gsUrl, save]);
 
   const updateBooking = useCallback((id, data) => {
     const next = bookings.map(b => b.id === id ? { ...b, ...data } : b);
     setBookings(next); save("jia_bookings", next);
-    if (gsUrl) gsAction(gsUrl, { action: "addBooking", data: b64({ id, ...data }) }).catch(() => {});
+    if (gsUrl) gsAction(gsUrl, { action: "addBooking", data: b64({ id, ...data }) }).catch(e => console.warn('⚠️ Update booking sync failed:', e.message));
   }, [bookings, gsUrl, save]);
 
   const deleteBooking = useCallback((id) => {
@@ -898,7 +898,7 @@ function AppContent() {
     const next = sessions.map(s => s.id === sid ? { ...s, done: !s.done, date: s.done ? "" : today() } : s);
     setSessions(next); save("jia_sessions", next);
     const s = next.find(x => x.id === sid);
-    if (gsUrl) gsAction(gsUrl, { action: "updateSession", id: sid, value: String(s.done) }).catch(() => {});
+    if (gsUrl) gsAction(gsUrl, { action: "updateSession", id: sid, value: String(s.done) }).catch(e => console.warn('⚠️ Update session sync failed:', e.message));
   }, [sessions, gsUrl, save]);
 
   const updateSessionDate = useCallback((sid, date) => {
@@ -3170,14 +3170,14 @@ function PromoCodeManager({ promoCodes, savePromoCodes, staff }) {
     navigator.clipboard.writeText(getBookingLink(code)).then(() => {
       setCopied(code);
       setTimeout(() => setCopied(null), 2000);
-    }).catch(() => {});
+    }).catch(e => console.warn('Clipboard write failed:', e.message));
   };
 
   const copyCode = (code) => {
     navigator.clipboard.writeText(code).then(() => {
       setCopied(code + "-text");
       setTimeout(() => setCopied(null), 2000);
-    }).catch(() => {});
+    }).catch(e => console.warn('Clipboard write failed:', e.message));
   };
 
   const saveBookingUrl = (url) => {
@@ -3201,8 +3201,8 @@ function PromoCodeManager({ promoCodes, savePromoCodes, staff }) {
         url.searchParams.set("action", "saveRow");
         url.searchParams.set("sheet", "settings");
         url.searchParams.set("data", JSON.stringify({ key, value: val }));
-        fetch(url.toString()).catch(() => {});
-      } catch(e) {}
+        fetch(url.toString()).catch(e => console.warn('⚠️ Settings sync failed:', e.message));
+      } catch(e) { console.warn('⚠️ Settings save error:', e.message); }
     }
   };
 

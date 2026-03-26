@@ -165,7 +165,8 @@
                 ]);
             } catch(e) {
                 console.warn('⚠️ Data load timeout/error, using localStorage fallback:', e.message);
-                return true; // fallback to localStorage
+                showToast('⚠️ โหลดข้อมูลจาก server ไม่ได้ ใช้ข้อมูลในเครื่อง', true);
+                return true; // fallback to localStorage (ยังใช้งานได้แต่อาจไม่ใช่ข้อมูลล่าสุด)
             }
 
             if (Array.isArray(courses)) {
@@ -361,7 +362,6 @@
         function PINGate({ instructor, onSuccess }) {
             const [pin, setPin] = useState("");
             const [error, setError] = useState(false);
-            const [showPad, setShowPad] = useState(false);
 
             const getPINFromStorage = () => {
                 const pins = JSON.parse(localStorage.getItem("jia_instructor_pins") || '{}');
@@ -747,9 +747,11 @@
                 // ── Backup POST: เขียน class_instructors row ไปที่ GAS โดยตรง ──
                 try {
                     formPostToGAS({ action: 'addClassInstructor', data: JSON.stringify(newCi) });
-                    // อัพเดท class status ด้วย
                     formPostToGAS({ action: 'updateClassStatus', data: JSON.stringify({ classId: cls.id, status: newStatus, currentInstructors: assigned }) });
-                } catch(e2) { console.warn('Backup POST failed:', e2); }
+                } catch(e2) {
+                    console.warn('Backup POST failed:', e2);
+                    showToast('⚠️ Backup sync ไม่สำเร็จ — ข้อมูลอาจยังไม่ถูกบันทึกบน server', true);
+                }
 
                 setLoading(false);
                 setMsg(apiSuccess ? '✅ รับสอนคลาส ' + cls.courseName + ' สำเร็จ!' : '⚠️ บันทึกในเครื่องแล้ว แต่ยังไม่ได้ sync กับ server');

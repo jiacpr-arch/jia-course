@@ -271,29 +271,29 @@ function SalesApp() {
     bk.id = uid(); bk.createdAt = today();
     const next = [...bookings, bk];
     setBookings(next); save('jia_bookings', next);
-    if (gsUrl) postToGAS({ action: 'addBooking', data: b64(bk) }).catch(() => {});
-    jiaApiPost('notifyBooking', {}, bk).catch(() => {});
+    if (gsUrl) postToGAS({ action: 'addBooking', data: b64(bk) }).catch(e => console.warn('⚠️ Sync booking failed:', e.message));
+    jiaApiPost('notifyBooking', {}, bk).catch(e => console.warn('⚠️ Notify booking failed:', e.message));
     const slist = Array.from({ length: Number(bk.totalPeople) || 1 }, (_, i) => ({
       id: uid(), bookingId: bk.id, customerId: bk.customerId,
       sessionNo: i + 1, done: false, date: "", note: ""
     }));
     const nextS = [...sessions, ...slist];
     setSessions(nextS); save('jia_sessions', nextS);
-    slist.forEach(s => { if (gsUrl) postToGAS({ action: 'addSession', data: b64(s) }).catch(() => {}); });
+    slist.forEach(s => { if (gsUrl) postToGAS({ action: 'addSession', data: b64(s) }).catch(e => console.warn('⚠️ Sync session failed:', e.message)); });
     showToast('✅ บันทึกการจองสำเร็จ');
   }, [bookings, sessions, gsUrl, save]);
 
   const updateBooking = useCallback((id, data) => {
     const next = bookings.map(b => b.id === id ? { ...b, ...data } : b);
     setBookings(next); save('jia_bookings', next);
-    if (gsUrl) postToGAS({ action: 'addBooking', data: b64({ id, ...data }) }).catch(() => {});
+    if (gsUrl) postToGAS({ action: 'addBooking', data: b64({ id, ...data }) }).catch(e => console.warn('⚠️ Update booking sync failed:', e.message));
   }, [bookings, gsUrl, save]);
 
   const addCustomer = useCallback(async (c) => {
     const newCust = { id: uid(), ...c, createdAt: today() };
     const next = [...customers, newCust];
     setCustomers(next); save('jia_customers', next);
-    if (gsUrl) postToGAS({ action: 'addCustomer', data: b64(newCust) }).catch(() => {});
+    if (gsUrl) postToGAS({ action: 'addCustomer', data: b64(newCust) }).catch(e => console.warn('⚠️ Sync customer failed:', e.message));
     return newCust;
   }, [customers, gsUrl, save]);
 
@@ -649,8 +649,10 @@ function NewBookingTab({ customers, allCustomers, addCustomer, addBooking, cours
 
   const confirmSubmit = async () => {
     if (!pendingBk) return;
-    const savedBk = { ...pendingBk, id: 'bk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), createdAt: today() };
+    // addBooking จะสร้าง id + createdAt เอง → ใช้ pendingBk ตรงๆ
     await addBooking(pendingBk);
+    // หลัง addBooking, pendingBk จะมี id แล้ว (addBooking mutate bk.id)
+    const savedBk = { ...pendingBk };
     setShowConfirm(false); setPendingBk(null);
     setConfirmedBk({ ...savedBk, courseLabel: cfg(savedBk.courseType).label });
     setCourseType(''); setChannel(''); setTotalPeople(''); setPaymentMode('');
