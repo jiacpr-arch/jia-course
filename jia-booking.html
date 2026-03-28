@@ -1801,6 +1801,34 @@
                                     <div>
                                         <h3 className="text-xl font-bold mb-6">ช่องทางชำระเงิน</h3>
 
+                                        {/* Stripe Online Payment */}
+                                        <div className="payment-method" style={{background:'#f0f0ff',border:'2px solid #635BFF'}}>
+                                            <h4 style={{color:'#635BFF'}}>💳 ชำระออนไลน์ (บัตรเครดิต / PromptPay)</h4>
+                                            <button onClick={async () => {
+                                                try {
+                                                    const res = await fetch(SUPABASE_URL + '/functions/v1/stripe-checkout', {
+                                                        method: 'POST',
+                                                        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY },
+                                                        body: JSON.stringify({
+                                                            type: 'booking',
+                                                            items: [{ name: 'JIA Course: ' + (selectedCourse?.label || 'CPR/AED'), amount: finalPrice }],
+                                                            metadata: { booking_id: Date.now().toString(36), name: formData.name, phone: formData.phone },
+                                                            successUrl: window.location.origin + window.location.pathname + '?payment=success',
+                                                            cancelUrl: window.location.origin + window.location.pathname + '?payment=cancel',
+                                                        }),
+                                                    });
+                                                    const data = await res.json();
+                                                    if (data.url) window.location.href = data.url;
+                                                    else alert('เกิดข้อผิดพลาด: ' + (data.error || ''));
+                                                } catch(e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
+                                            }} className="btn-primary" style={{width:'100%',marginTop:8,background:'#635BFF',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+                                                ชำระผ่าน Stripe — ฿{finalPrice}
+                                            </button>
+                                            <p className="text-xs text-gray-500 mt-2 text-center">Visa / Mastercard / PromptPay — ยืนยันอัตโนมัติ</p>
+                                        </div>
+
+                                        <div className="text-center text-sm text-gray-400 my-4">— หรือโอนเงิน —</div>
+
                                         {/* PromptPay QR */}
                                         <div className="payment-method">
                                             <h4>PromptPay QR Code</h4>
@@ -1869,7 +1897,7 @@
                                     <button onClick={handlePrevStep} className="btn-secondary">
                                         ← ย้อนกลับ
                                     </button>
-                                    <button onClick={handleSubmitBooking} className="btn-primary" disabled={!paymentSlip}>
+                                    <button onClick={handleSubmitBooking} className="btn-primary">
                                         ยืนยันการจอง →
                                     </button>
                                 </div>
