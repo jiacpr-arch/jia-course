@@ -640,14 +640,18 @@
         }
         try {
             console.log('📡 กำลังโหลดข้อมูลจาก API...');
-            const [courses, avail, bookings, promoCodes, settings, classes, classInstructors] = await Promise.all([
-                jiaApiGet('getData', { sheet: 'courses' }),
-                jiaApiGet('getData', { sheet: 'instructor_avail' }),
-                jiaApiGet('getData', { sheet: 'bookings' }),
-                jiaApiGet('getData', { sheet: 'promo_codes' }),
-                jiaApiGet('getData', { sheet: 'settings' }),
-                jiaApiGet('getData', { sheet: 'classes' }),
-                jiaApiGet('getData', { sheet: 'class_instructors' })
+            const safeFetch = (p) => p.catch(e => { console.warn('⚠️ API call failed:', e.message); return []; });
+            const [courses, avail, bookings, promoCodes, settings, classes, classInstructors] = await Promise.race([
+              Promise.all([
+                safeFetch(jiaApiGet('getData', { sheet: 'courses' })),
+                safeFetch(jiaApiGet('getData', { sheet: 'instructor_avail' })),
+                safeFetch(jiaApiGet('getData', { sheet: 'bookings' })),
+                safeFetch(jiaApiGet('getData', { sheet: 'promo_codes' })),
+                safeFetch(jiaApiGet('getData', { sheet: 'settings' })),
+                safeFetch(jiaApiGet('getData', { sheet: 'classes' })),
+                safeFetch(jiaApiGet('getData', { sheet: 'class_instructors' }))
+              ]),
+              new Promise(r => setTimeout(() => r([[], [], [], [], [], [], []]), 10000))
             ]);
 
             if (Array.isArray(courses)) {
