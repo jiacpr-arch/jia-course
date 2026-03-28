@@ -143,9 +143,11 @@ async function _handleAction(action, params, body) {
     }
 
     case "deleteRow": {
-      const key = params.key || body._key || body.id;
-      const keyCol = params.keyCol || body._keyCol || "id";
-      return _supa(table, "DELETE", null, "?" + keyCol + "=eq." + encodeURIComponent(key));
+      const b = body || {};
+      const key = params.key || b._key || b.id;
+      const keyCol = params.keyCol || b._keyCol || "id";
+      await _supa(table, "DELETE", null, "?" + keyCol + "=eq." + encodeURIComponent(key));
+      return { status: "ok", success: true };
     }
 
     case "replaceSheet": {
@@ -220,7 +222,8 @@ async function _handleAction(action, params, body) {
     case "checkUsername": {
       const b = body || {};
       const u = await _supa("users", "GET", null, "?username=eq." + encodeURIComponent(params.username || b.username));
-      return { exists: u.length > 0 };
+      if (u.length > 0) return { exists: true, registered: true, name: u[0].name, role: u[0].role };
+      return { exists: false, registered: false };
     }
 
     case "checkUser": {
@@ -237,7 +240,7 @@ async function _handleAction(action, params, body) {
       await _supa("users", "PATCH", {
         password_hash: b.newPassword || params.newPassword,
       }, "?username=eq." + encodeURIComponent(b.targetUser || params.targetUser));
-      return { status: "ok" };
+      return { status: "ok", success: true };
     }
 
     // ========= ALL DATA =========

@@ -36,59 +36,11 @@ tailwind.config = {
 <body>
 <div id="root"></div>
 
-<!-- ═══ API Bridge + Auth (ไม่ใช้ Firebase แล้ว — ใช้ username/password) ═══ -->
+<!-- ═══ API Bridge + Auth (Supabase) ═══ -->
+<script src="jia-supabase-api.js"></script>
 <script>
-// ★★★ CONFIG ★★★
-const JIA_API_URL = "https://script.google.com/macros/s/AKfycbyAbzjf6EyBdgv_h3k72CyesYG72voz_-ss3GpiniwI8YU8JKTBi2i8bVKhpQTXamt-YA/exec";
+const JIA_API_URL = true;
 const LOGIN_PAGE = "./jia-login.html";
-
-// ─── API Helpers ───
-async function jiaApiGet(action, params = {}) {
-    if (!JIA_API_URL) return null;
-    const url = new URL(JIA_API_URL);
-    url.searchParams.set('action', action);
-    Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
-    return (await fetch(url.toString())).json();
-}
-// jiaApiPost: ใช้ GET + base64 แทน POST เพราะ GAS redirect ทำให้ no-cors POST ใช้ไม่ได้
-async function jiaApiPost(action, params = {}, body = {}) {
-    if (!JIA_API_URL) return null;
-    const url = new URL(JIA_API_URL);
-    url.searchParams.set('action', action);
-    Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
-    // ส่ง body ผ่าน GET parameter 'data' เข้ารหัส base64
-    url.searchParams.set('data', btoa(unescape(encodeURIComponent(JSON.stringify(body)))));
-
-    for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-            const res = await fetch(url.toString(), { redirect: 'follow' });
-            const result = await res.json();
-            console.log('✅ API:', action, params, result);
-            return result;
-        } catch(err) {
-            // JSONP fallback — in case fetch fails due to CORS
-            try {
-                const name = '_jiaPost' + Date.now() + Math.random().toString(36).slice(2);
-                const result = await new Promise((resolve, reject) => {
-                    let done = false;
-                    const cleanup = () => { done = true; delete window[name]; if (script.parentNode) script.remove(); };
-                    window[name] = (data) => { cleanup(); resolve(data); };
-                    const script = document.createElement('script');
-                    script.onerror = () => { cleanup(); reject(new Error('JSONP failed')); };
-                    script.src = url.toString() + '&callback=' + name;
-                    setTimeout(() => { if (!done) { cleanup(); reject(new Error('JSONP timeout')); } }, 15000);
-                    document.head.appendChild(script);
-                });
-                console.log('✅ API (JSONP):', action, params, result);
-                return result;
-            } catch(e2) {
-                console.warn('⚠️ Attempt ' + (attempt+1) + ' failed: fetch:', err.message, 'JSONP:', e2.message);
-                if (attempt === 2) throw e2;
-                await new Promise(r => setTimeout(r, 1500));
-            }
-        }
-    }
-}
 
 // ─── Toast Notification ───
 function showToast(message, isError) {
@@ -211,51 +163,15 @@ window.JIA_DATA_READY = (async function() {
     }
 })();
 
-// ─── POST Helper (3 วิธี: fetch no-cors → iframe → XMLHttpRequest) ───
+// ─── POST Helper (compat — routes through jiaApiPost) ───
 async function postToGAS(fields) {
-    const body = new URLSearchParams();
-    Object.entries(fields).forEach(([k, v]) => {
-        body.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
-    });
-
-    // วิธี 1: fetch no-cors (ส่งได้แน่นอน แต่อ่าน response ไม่ได้)
-    try {
-        await fetch(JIA_API_URL, { method: 'POST', mode: 'no-cors', body: body });
-        console.log('✅ POST sent via fetch no-cors');
-        return { ok: true, method: 'fetch' };
-    } catch(e1) {
-        console.warn('⚠️ fetch no-cors failed:', e1.message);
+    const action = fields.action || 'saveAll';
+    let data = fields.data;
+    if (typeof data === 'string') {
+        try { data = JSON.parse(decodeURIComponent(escape(atob(data)))); } catch(e) { data = fields; }
     }
-
-    // วิธี 2: iframe form POST (fallback)
-    try {
-        await new Promise((resolve) => {
-            const id = '_fp' + Date.now();
-            const iframe = document.createElement('iframe');
-            iframe.name = id; iframe.style.display = 'none';
-            document.body.appendChild(iframe);
-            const form = document.createElement('form');
-            form.method = 'POST'; form.action = JIA_API_URL; form.target = id;
-            Object.entries(fields).forEach(([k, v]) => {
-                const input = document.createElement('input');
-                input.type = 'hidden'; input.name = k;
-                input.value = typeof v === 'object' ? JSON.stringify(v) : String(v);
-                form.appendChild(input);
-            });
-            document.body.appendChild(form);
-            form.submit();
-            setTimeout(() => { form.remove(); iframe.remove(); resolve(); }, 4000);
-        });
-        console.log('✅ POST sent via iframe');
-        return { ok: true, method: 'iframe' };
-    } catch(e2) {
-        console.warn('⚠️ iframe POST failed:', e2.message);
-    }
-
-    return { ok: false, error: 'All POST methods failed' };
+    return jiaApiPost(action, {}, data || fields);
 }
-
-// compat alias
 function formPostToGAS(fields) { return postToGAS(fields); }
 
 // ─── Auto-sync ปิดแล้ว — ใช้ปุ่ม 💾 บันทึก เท่านั้น ───
@@ -327,23 +243,14 @@ const CLASS_STATUS = {
   cancelled:          { label: "ยกเลิก", color: "bg-red-100 text-red-600", icon: "❌" },
 };
 
-// ─── JSONP helpers ───
-const jsonp = (url) =>
-  new Promise((resolve, reject) => {
-    const name = "jia_cb_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-    const script = document.createElement("script");
-    let done = false;
-    const cleanup = () => { done = true; delete window[name]; if (script.parentNode) script.parentNode.removeChild(script); };
-    window[name] = (data) => { cleanup(); resolve(data); };
-    script.onerror = () => { cleanup(); reject(new Error("JSONP failed")); };
-    script.src = url + (url.includes("?") ? "&" : "?") + "callback=" + name;
-    setTimeout(() => { if (!done) { cleanup(); reject(new Error("JSONP timeout")); } }, 10000);
-    document.head.appendChild(script);
-  });
+// ─── Compat helpers (Supabase) ───
 const b64 = (obj) => btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
 const gsAction = (baseUrl, params) => {
-  const qs = Object.entries(params).map(([k, v]) => encodeURIComponent(k) + "=" + encodeURIComponent(v)).join("&");
-  return jsonp(baseUrl + "?" + qs);
+  // Route through Supabase API instead of GAS
+  const action = params.action || 'saveRow';
+  let data = params.data;
+  if (typeof data === 'string') try { data = JSON.parse(decodeURIComponent(escape(atob(data)))); } catch(e) { data = params; }
+  return jiaApiPost(action, params, data || {});
 };
 
 // ─── utility ───
@@ -605,7 +512,7 @@ function AppContent() {
   // v2: classes + class_instructors
   const [classes, setClasses] = useState([]);
   const [classInstructors, setClassInstructors] = useState([]);
-  const [gsUrl, setGsUrl] = useState(() => localStorage.getItem("jia_gs_url") || "");
+  const [gsUrl, setGsUrl] = useState("supabase"); // compat — always connected via Supabase
   const [showSetup, setShowSetup] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
@@ -650,37 +557,27 @@ function AppContent() {
   const courseKeys = useMemo(() => courses.map(c => c.key), [courses]);
 
   const syncFromGs = useCallback(async () => {
-    if (!gsUrl) return;
     setSyncing(true); setSyncMsg("กำลังซิงค์...");
     try {
-      const res = await gsAction(gsUrl, { action: "get" });
+      const res = await jiaApiGet('getAllData', { username: window.JIA_AUTH_USER?.username });
       if (res.customers) { setCustomers(res.customers); save("jia_customers", res.customers); }
       if (res.bookings)  { setBookings(res.bookings);   save("jia_bookings", res.bookings); }
       if (res.sessions)  { setSessions(res.sessions);   save("jia_sessions", res.sessions); }
+      if (res.classes)   { setClasses(res.classes);      save("jia_classes", res.classes); }
+      if (res.class_instructors) { setClassInstructors(res.class_instructors); save("jia_class_instructors", res.class_instructors); }
       setSyncMsg("ซิงค์สำเร็จ");
     } catch (e) { setSyncMsg("ผิดพลาด: " + e.message); }
     setSyncing(false);
     setTimeout(() => setSyncMsg(""), 3000);
-  }, [gsUrl, save]);
+  }, [save]);
 
   // ─── บันทึกข้อมูลทั้งหมดไป Google Sheets ───
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(''); // '', 'saving', 'success', 'error'
 
-  // JSONP helper ที่รอผลลัพธ์จริง
+  // API helper (compat — routes through Supabase)
   const jsonpCall = useCallback((params) => {
-    return new Promise((resolve, reject) => {
-      const name = '_sv' + Date.now() + Math.random().toString(36).slice(2);
-      let done = false;
-      const cleanup = () => { done = true; delete window[name]; if (s.parentNode) s.remove(); };
-      window[name] = (r) => { cleanup(); resolve(r); };
-      const s = document.createElement('script');
-      s.onerror = () => { cleanup(); reject(new Error('JSONP failed')); };
-      const qs = Object.entries(params).map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
-      s.src = JIA_API_URL + '?' + qs + '&callback=' + name;
-      setTimeout(() => { if (!done) { cleanup(); reject(new Error('Timeout')); } }, 45000);
-      document.head.appendChild(s);
-    });
+    return jiaApiGet(params.action, params);
   }, []);
 
   const saveAllToSheet = useCallback(async () => {
@@ -753,47 +650,18 @@ function AppContent() {
       const b64Data = btoa(unescape(encodeURIComponent(JSON.stringify(allData))));
       console.log('💾 Sending saveAll — data size:', b64Data.length, 'chars');
 
-      await postToGAS({ action: 'saveAll', data: b64Data });
-
-      // รอ 5 วินาทีให้ GAS ประมวลผล (เขียนหลาย sheet พร้อมกัน)
-      showToast('⏳ รอ server ประมวลผล...');
-      await new Promise(r => setTimeout(r, 5000));
-
-      // Verify: ตรวจ customers + bookings (sheet สำคัญที่สุด)
-      let verified = false;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          const check = await jsonpCall({ action: 'getData', sheet: 'customers' });
-          const savedCount = Array.isArray(check) ? check.length : 0;
-          console.log('🔍 Verify attempt', attempt+1, '→ customers:', savedCount, '/', customers.length);
-          if (savedCount >= customers.length) {
-            verified = true;
-            break;
-          }
-          // ยังไม่ครบ — รออีก 3 วินาที
-          await new Promise(r => setTimeout(r, 3000));
-        } catch(ve) {
-          console.warn('🔍 Verify failed:', ve.message);
-          await new Promise(r => setTimeout(r, 2000));
-        }
-      }
+      await jiaApiPost('saveAll', {}, allData);
 
       setSaving(false);
-      if (verified) {
-        setSaveStatus('success');
-        showToast('✅ บันทึกสำเร็จ! ข้อมูลอยู่ใน Google Sheets แล้ว');
-        localStorage.setItem('jia_save_verified', 'true');
-      } else {
-        setSaveStatus('success');
-        showToast('📤 ส่งข้อมูลแล้ว (รอ verify... กด Refresh เพื่อตรวจ)');
-        // ยังคง mark success เพราะ POST น่าจะส่งไปแล้ว
-      }
+      setSaveStatus('success');
+      showToast('✅ บันทึกสำเร็จ! ข้อมูลอยู่ใน Supabase แล้ว');
+      localStorage.setItem('jia_save_verified', 'true');
     } catch(err) {
       console.error('❌ saveAll error:', err);
       setSaving(false);
       setSaveStatus('error');
       showToast('❌ บันทึกล้มเหลว: ' + err.message, true);
-      alert('❌ บันทึกล้มเหลว!\n\nข้อมูลยังอยู่ใน localStorage ไม่หาย\nลอง: 1) กด บันทึก อีกครั้ง\n2) ตรวจว่า deploy Code.gs ใหม่แล้ว');
+      alert('❌ บันทึกล้มเหลว!\n\nข้อมูลยังอยู่ใน localStorage ไม่หาย\nลอง: กด บันทึก อีกครั้ง');
     }
     setTimeout(() => setSaveStatus(''), 5000);
   }, [customers, bookings, sessions, courses, staff, instructors, instructorAvail, promoCodes, classes, classInstructors, jsonpCall]);
@@ -802,15 +670,15 @@ function AppContent() {
     c.id = uid(); c.createdAt = today();
     const next = [...customers, c];
     setCustomers(next); save("jia_customers", next);
-    if (gsUrl) gsAction(gsUrl, { action: "addCustomer", data: b64(c) }).catch(e => console.warn('⚠️ Sync customer failed:', e.message));
+    jiaApiPost('saveRow', { sheet: 'customers' }, c).catch(e => console.warn('⚠️ Sync customer failed:', e.message));
     return c;
-  }, [customers, gsUrl, save]);
+  }, [customers, save]);
 
   const updateCustomer = useCallback((id, data) => {
     const next = customers.map(c => c.id === id ? { ...c, ...data } : c);
     setCustomers(next); save("jia_customers", next);
-    if (gsUrl) gsAction(gsUrl, { action: "addCustomer", data: b64({ id, ...data }) }).catch(e => console.warn('⚠️ Update customer sync failed:', e.message));
-  }, [customers, gsUrl, save]);
+    jiaApiPost('updateRow', { sheet: 'customers', key: id, keyCol: 'id' }, data).catch(e => console.warn('⚠️ Update customer sync failed:', e.message));
+  }, [customers, save]);
 
   const deleteCustomer = useCallback((id) => {
     const nc = customers.filter(c => c.id !== id);
@@ -870,7 +738,7 @@ function AppContent() {
     bk.id = uid(); bk.createdAt = today();
     const next = [...bookings, bk];
     setBookings(next); save("jia_bookings", next);
-    if (gsUrl) gsAction(gsUrl, { action: "addBooking", data: b64(bk) }).catch(e => console.warn('⚠️ Sync booking failed:', e.message));
+    jiaApiPost('saveRow', { sheet: 'bookings' }, bk).catch(e => console.warn('⚠️ Sync booking failed:', e.message));
     // แจ้งเตือนการจองใหม่ทางอีเมล
     jiaApiPost('notifyBooking', {}, bk).catch(err => console.warn('⚠️ Notify failed:', err));
     const slist = Array.from({ length: Number(bk.totalPeople) || 1 }, (_, i) => ({
@@ -879,14 +747,14 @@ function AppContent() {
     }));
     const nextS = [...sessions, ...slist];
     setSessions(nextS); save("jia_sessions", nextS);
-    slist.forEach(s => { if (gsUrl) gsAction(gsUrl, { action: "addSession", data: b64(s) }).catch(e => console.warn('⚠️ Sync session failed:', e.message)); });
-  }, [bookings, sessions, gsUrl, save]);
+    slist.forEach(s => { jiaApiPost('saveRow', { sheet: 'sessions' }, s).catch(e => console.warn('⚠️ Sync session failed:', e.message)); });
+  }, [bookings, sessions, save]);
 
   const updateBooking = useCallback((id, data) => {
     const next = bookings.map(b => b.id === id ? { ...b, ...data } : b);
     setBookings(next); save("jia_bookings", next);
-    if (gsUrl) gsAction(gsUrl, { action: "addBooking", data: b64({ id, ...data }) }).catch(e => console.warn('⚠️ Update booking sync failed:', e.message));
-  }, [bookings, gsUrl, save]);
+    jiaApiPost('updateRow', { sheet: 'bookings', key: id, keyCol: 'id' }, data).catch(e => console.warn('⚠️ Update booking sync failed:', e.message));
+  }, [bookings, save]);
 
   const deleteBooking = useCallback((id) => {
     const nb = bookings.filter(b => b.id !== id);
@@ -899,8 +767,8 @@ function AppContent() {
     const next = sessions.map(s => s.id === sid ? { ...s, done: !s.done, date: s.done ? "" : today() } : s);
     setSessions(next); save("jia_sessions", next);
     const s = next.find(x => x.id === sid);
-    if (gsUrl) gsAction(gsUrl, { action: "updateSession", id: sid, value: String(s.done) }).catch(e => console.warn('⚠️ Update session sync failed:', e.message));
-  }, [sessions, gsUrl, save]);
+    jiaApiPost('updateRow', { sheet: 'sessions', key: sid, keyCol: 'id' }, { done: s.done, date: s.date }).catch(e => console.warn('⚠️ Update session sync failed:', e.message));
+  }, [sessions, save]);
 
   const updateSessionDate = useCallback((sid, date) => {
     const next = sessions.map(s => s.id === sid ? { ...s, date } : s);
@@ -3306,16 +3174,9 @@ function PromoCodeManager({ promoCodes, savePromoCodes, staff }) {
     const updated = { ...paySettings, [key]: val };
     setPaySettings(updated);
     localStorage.setItem("jia_payment_settings", JSON.stringify(updated));
-    // Sync to API
-    if (window.JIA_API_URL || window.gsUrl) {
-      try {
-        const url = new URL(window.gsUrl || window.JIA_API_URL || localStorage.getItem("jia_gs_url"));
-        url.searchParams.set("action", "saveRow");
-        url.searchParams.set("sheet", "settings");
-        url.searchParams.set("data", JSON.stringify({ key, value: val }));
-        fetch(url.toString()).catch(e => console.warn('⚠️ Settings sync failed:', e.message));
-      } catch(e) { console.warn('⚠️ Settings save error:', e.message); }
-    }
+    // Sync to Supabase
+    jiaApiPost('saveRow', { sheet: 'settings' }, { key, value: val })
+      .catch(e => console.warn('⚠️ Settings sync failed:', e.message));
   };
 
   // สถิติ
@@ -4156,21 +4017,18 @@ function EditModal({ title, children, onSave, onClose }) {
 
 // ─── Setup Modal ───
 function SetupModal({ gsUrl, setGsUrl, onClose, onSync }) {
-  const [url, setUrl] = useState(gsUrl);
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-30">
       <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
-        <h2 className="font-bold text-lg text-gray-800 mb-4">ตั้งค่า Google Sheets</h2>
-        <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="ใส่ URL ของ Google Apps Script"
-          className="w-full border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:border-blue-500" />
+        <h2 className="font-bold text-lg text-gray-800 mb-4">ตั้งค่าระบบ</h2>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+          <p className="text-sm text-green-700 font-semibold">✅ เชื่อมต่อ Supabase แล้ว</p>
+          <p className="text-xs text-green-600 mt-1">ข้อมูลถูกบันทึกอัตโนมัติผ่าน Supabase API</p>
+        </div>
         <div className="flex gap-2">
-          <button onClick={() => { setGsUrl(url); onClose(); }}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors">
-            บันทึก
-          </button>
           <button onClick={onClose}
             className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 rounded-lg transition-colors">
-            ยกเลิก
+            ปิด
           </button>
         </div>
       </div>
