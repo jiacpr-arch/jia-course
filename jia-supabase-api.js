@@ -179,18 +179,22 @@ async function _handleAction(action, params, body) {
 
     // ========= AUTH =========
     case "loginPassword": {
-      const users = await _supa("users", "GET", null, "?username=eq." + encodeURIComponent(body.username || params.username));
-      if (users.length === 0) return { status: "error", message: "ไม่พบผู้ใช้" };
-      if (users[0].password_hash !== (body.password || params.password)) return { status: "error", message: "รหัสผ่านไม่ถูกต้อง" };
+      const b = body || {};
+      const username = b.username || params.username;
+      const password = b.password || params.password;
+      const users = await _supa("users", "GET", null, "?username=eq." + encodeURIComponent(username));
+      if (users.length === 0) return { success: false, message: "ไม่พบผู้ใช้" };
+      if (users[0].password_hash !== password) return { success: false, message: "รหัสผ่านไม่ถูกต้อง" };
       await _supa("users", "PATCH", { last_login: new Date().toISOString() }, "?username=eq." + encodeURIComponent(users[0].username));
-      return { status: "ok", user: toCamel(users[0]) };
+      return { success: true, username: users[0].username, name: users[0].name, role: users[0].role };
     }
 
     case "registerPassword": {
-      const code = body.code || params.code;
-      const username = body.username || params.username;
-      const name = body.name || params.name;
-      const password = body.password || params.password;
+      const b = body || {};
+      const code = b.code || params.code;
+      const username = b.username || params.username;
+      const name = b.name || params.name;
+      const password = b.password || params.password;
 
       const existing = await _supa("users", "GET", null, "?username=eq." + encodeURIComponent(username));
       if (existing.length > 0) return { status: "error", message: "ชื่อผู้ใช้ซ้ำ" };
@@ -214,12 +218,14 @@ async function _handleAction(action, params, body) {
     }
 
     case "checkUsername": {
-      const u = await _supa("users", "GET", null, "?username=eq." + encodeURIComponent(params.username || body.username));
+      const b = body || {};
+      const u = await _supa("users", "GET", null, "?username=eq." + encodeURIComponent(params.username || b.username));
       return { exists: u.length > 0 };
     }
 
     case "checkUser": {
-      const u = await _supa("users", "GET", null, "?username=eq." + encodeURIComponent(params.email || body.email));
+      const b = body || {};
+      const u = await _supa("users", "GET", null, "?username=eq." + encodeURIComponent(params.email || b.email));
       return { exists: u.length > 0 };
     }
 
@@ -227,9 +233,10 @@ async function _handleAction(action, params, body) {
       return toCamel(await _supa("users", "GET"));
 
     case "resetPassword": {
+      const b = body || {};
       await _supa("users", "PATCH", {
-        password_hash: body.newPassword || params.newPassword,
-      }, "?username=eq." + encodeURIComponent(body.targetUser || params.targetUser));
+        password_hash: b.newPassword || params.newPassword,
+      }, "?username=eq." + encodeURIComponent(b.targetUser || params.targetUser));
       return { status: "ok" };
     }
 
