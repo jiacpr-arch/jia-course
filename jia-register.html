@@ -280,8 +280,8 @@
 
 <div class="footer">JIA Course v2.0 — www.JIA1669.com — Power by JiaLuckSa</div>
 
+<script src="jia-supabase-api.js"></script>
 <script>
-const GS_URL = localStorage.getItem("jia_gs_url") || "https://script.google.com/macros/s/AKfycbw-dsaXvMsamXHybSrnzu-JMcnBvQqbW19vAVMwNjlpnwXwWtYmw6oaYoy42PizLrvU/exec";
 const COURSES = [
   { key: "Full",    label: "Full Course",    range: "10-15 คน" },
   { key: "Join",    label: "Join Course",    range: "5-7 คน" },
@@ -299,27 +299,6 @@ if (urlParams.get("code")) { formData.bookingCode = urlParams.get("code"); }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 function today() { return new Date().toISOString().slice(0, 10); }
-function b64(obj) { return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))); }
-
-function jsonp(url) {
-  return new Promise((resolve, reject) => {
-    const name = "jia_cb_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-    const s = document.createElement("script");
-    let done = false;
-    const cleanup = () => { done = true; delete window[name]; if (s.parentNode) s.parentNode.removeChild(s); };
-    window[name] = (data) => { cleanup(); resolve(data); };
-    s.onerror = () => { cleanup(); reject(new Error("JSONP failed")); };
-    s.src = url + (url.includes("?") ? "&" : "?") + "callback=" + name;
-    setTimeout(() => { if (!done) { cleanup(); reject(new Error("timeout")); } }, 10000);
-    document.head.appendChild(s);
-  });
-}
-
-function gsAction(params) {
-  if (!GS_URL) return Promise.resolve({});
-  const qs = Object.entries(params).map(([k,v]) => encodeURIComponent(k) + "=" + encodeURIComponent(v)).join("&");
-  return jsonp(GS_URL + "?" + qs);
-}
 
 function updateSteps() {
   const dots = document.querySelectorAll('.step-dot');
@@ -494,8 +473,7 @@ async function submitForm() {
   const course = COURSES.find(c => c.key === formData.courseType);
   
   try {
-    // Save to localStorage (same format as main app)
-    const customers = JSON.parse(localStorage.getItem("jia_customers") || "[]");
+    // Save customer to Supabase
     const cust = {
       id: custId,
       name: formData.name,
@@ -507,57 +485,51 @@ async function submitForm() {
       consentPDPA: true,
       consentDate: today()
     };
-    customers.push(cust);
-    localStorage.setItem("jia_customers", JSON.stringify(customers));
-    
-    const bookings = JSON.parse(localStorage.getItem("jia_bookings") || "[]");
-    // Try to link to existing booking by code
-    const existingBk = formData.bookingCode ? bookings.find(b => b.bookingCode === formData.bookingCode) : null;
-    const bk = {
-      id: existingBk ? existingBk.id : bookId,
+    await jiaApiPost("saveRow", { sheet: "customers" }, cust);
+
+    // Log PDPA consent
+    await jiaApiPost("saveRow", { sheet: "pdpa_log" }, {
+      id: uid(),
       customerId: custId,
-      bookingCode: formData.bookingCode || "",
-      courseType: existingBk ? existingBk.courseType : formData.courseType,
-      totalPeople: existingBk ? existingBk.totalPeople : 1,
-      instructors: existingBk ? existingBk.instructors : [],
-      timeSlot: existingBk ? existingBk.timeSlot : formData.timeSlot,
-      startDate: existingBk ? existingBk.startDate : "",
-      paymentStatus: existingBk ? existingBk.paymentStatus : "ยังไม่ได้โอน",
-      note: "ลงทะเบียนออนไลน์" + (formData.bookingCode ? " (รหัส " + formData.bookingCode + ")" : ""),
-      createdAt: existingBk ? existingBk.createdAt : today()
-    };
+      consentDate: today(),
+      consentType: "register",
+      note: "ลงทะเบียนออนไลน์"
+    }).catch(() => {});
+
+    // Try to link to existing booking by code
+    let existingBk = null;
+    if (formData.bookingCode) {
+      const allBookings = await jiaApiGet("getData", { sheet: "bookings" });
+      existingBk = allBookings.find(b => b.bookingCode === formData.bookingCode) || null;
+    }
+
     if (!existingBk) {
-      bookings.push(bk);
+      // Create new booking
+      const bk = {
+        id: bookId,
+        customerId: custId,
+        bookingCode: formData.bookingCode || "",
+        courseType: formData.courseType,
+        totalPeople: 1,
+        timeSlot: formData.timeSlot,
+        startDate: "",
+        paymentStatus: "ยังไม่ได้โอน",
+        note: "ลงทะเบียนออนไลน์" + (formData.bookingCode ? " (รหัส " + formData.bookingCode + ")" : ""),
+        createdAt: today()
+      };
+      await jiaApiPost("saveRow", { sheet: "bookings" }, bk);
     } else {
-      // Update registeredCount
-      const idx = bookings.findIndex(b => b.id === existingBk.id);
-      if (idx >= 0) bookings[idx].registeredCount = (bookings[idx].registeredCount || 0) + 1;
+      // Update registeredCount on existing booking
+      await jiaApiPost("updateRow", { sheet: "bookings", key: existingBk.id, keyCol: "id" }, {
+        id: existingBk.id,
+        registeredCount: (existingBk.registeredCount || 0) + 1
+      });
     }
-    localStorage.setItem("jia_bookings", JSON.stringify(bookings));
-    
-    const sessions = JSON.parse(localStorage.getItem("jia_sessions") || "[]");
-    const sess = { id: uid(), bookingId: bookId, customerId: custId, sessionNo: 1, done: false, date: "", note: "" };
-    sessions.push(sess);
-    localStorage.setItem("jia_sessions", JSON.stringify(sessions));
-    
-    // Sync to Google Sheets
-    if (GS_URL) {
-      await gsAction({ action: "addCustomer", data: b64(cust) }).catch(() => {});
-      await gsAction({
-        action: "addBooking",
-        data: b64({
-          ...bk,
-          customerName: formData.name,
-          courseName: course ? course.label : formData.courseType,
-          totalSessions: 1,
-          instructor1: "", instructor2: "", instructor3: "",
-          cash: "ยังไม่ได้โอน",
-          notes: "ลงทะเบียนออนไลน์"
-        })
-      }).catch(() => {});
-      await gsAction({ action: "addSession", data: b64(sess) }).catch(() => {});
-    }
-    
+
+    // Create session
+    const sess = { id: uid(), bookingId: existingBk ? existingBk.id : bookId, customerId: custId, sessionNo: 1, done: false, date: "", note: "" };
+    await jiaApiPost("saveRow", { sheet: "sessions" }, sess);
+
     currentStep = 4;
     renderStep();
   } catch (e) {

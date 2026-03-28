@@ -49,41 +49,14 @@
 <body class="bg-gray-50">
     <div id="root"></div>
 
+    <!-- ═══ Supabase API ═══ -->
+    <script src="jia-supabase-api.js"></script>
+
     <!-- ═══ API Bridge + Auth (ไม่ใช้ Firebase แล้ว — ใช้ username/password) ═══ -->
     <script>
     // ★★★ CONFIG ★★★
-    const JIA_API_URL = "https://script.google.com/macros/s/AKfycbyAbzjf6EyBdgv_h3k72CyesYG72voz_-ss3GpiniwI8YU8JKTBi2i8bVKhpQTXamt-YA/exec";
+    const JIA_API_URL = true; // Supabase API is active (legacy GAS compatibility flag)
     const LOGIN_PAGE = "./jia-login.html";
-
-    // ─── API Helpers ───
-    async function jiaApiGet(action, params = {}) {
-        if (!JIA_API_URL) return null;
-        const url = new URL(JIA_API_URL);
-        url.searchParams.set('action', action);
-        Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
-        return (await fetch(url.toString())).json();
-    }
-    // jiaApiPost: ใช้ GET + base64 data แทน POST เพราะ GAS redirect ทำให้ no-cors POST ใช้ไม่ได้
-    async function jiaApiPost(action, params = {}, body = {}) {
-        if (!JIA_API_URL) return null;
-        const url = new URL(JIA_API_URL);
-        url.searchParams.set('action', action);
-        Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
-        url.searchParams.set('data', btoa(unescape(encodeURIComponent(JSON.stringify(body)))));
-
-        for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-                const res = await fetch(url.toString(), { redirect: 'follow' });
-                const result = await res.json();
-                console.log('✅ API:', action, result);
-                return result;
-            } catch(err) {
-                console.warn('⚠️ Attempt ' + (attempt+1) + ' failed:', err.message);
-                if (attempt === 2) throw err;
-                await new Promise(r => setTimeout(r, 1500));
-            }
-        }
-    }
 
     // ─── Toast Notification ───
     function showToast(message, isError) {
@@ -243,24 +216,21 @@
         }
     })();
 
-    // ─── Form POST Helper ───
-    function formPostToGAS(fields) {
-        return new Promise((resolve) => {
-            const id = '_fp' + Date.now();
-            const iframe = document.createElement('iframe');
-            iframe.name = id; iframe.style.display = 'none';
-            document.body.appendChild(iframe);
-            const form = document.createElement('form');
-            form.method = 'POST'; form.action = JIA_API_URL; form.target = id;
-            Object.entries(fields).forEach(([k, v]) => {
-                const input = document.createElement('input');
-                input.type = 'hidden'; input.name = k;
-                input.value = typeof v === 'object' ? JSON.stringify(v) : String(v);
-                form.appendChild(input);
+    // ─── Form POST Helper (migrated from GAS to Supabase API) ───
+    async function formPostToGAS(fields) {
+        try {
+            const { action, ...rest } = fields;
+            const params = {};
+            const body = {};
+            Object.entries(rest).forEach(([k, v]) => {
+                body[k] = typeof v === 'object' ? v : String(v);
             });
-            document.body.appendChild(form); form.submit();
-            setTimeout(() => { form.remove(); iframe.remove(); resolve({ ok: true }); }, 3000);
-        });
+            await jiaApiPost(action, params, body);
+            return { ok: true };
+        } catch(e) {
+            console.warn('formPostToGAS (via Supabase) failed:', e.message);
+            return { ok: false };
+        }
     }
 
     // ─── Sync localStorage.setItem → API ───

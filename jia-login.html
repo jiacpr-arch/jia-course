@@ -83,12 +83,11 @@
     </div>
 </div>
 
+<script src="jia-supabase-api.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════════════════════
-
-const API_URL = "https://script.google.com/macros/s/AKfycbyAbzjf6EyBdgv_h3k72CyesYG72voz_-ss3GpiniwI8YU8JKTBi2i8bVKhpQTXamt-YA/exec";
 
 const PAGES = {
     admin:      "./jia-course-web.html",
@@ -96,41 +95,6 @@ const PAGES = {
     instructor: "./jia-instructor.html",
     booking:    "./jia-booking.html"
 };
-
-// ═══════════════════════════════════════════════════════════
-// API HELPERS
-// ═══════════════════════════════════════════════════════════
-
-async function apiGet(action, params = {}) {
-    const url = new URL(API_URL);
-    url.searchParams.set('action', action);
-    Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
-    for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-            const res = await fetch(url.toString());
-            return await res.json();
-        } catch(err) {
-            // JSONP fallback
-            try {
-                const name = '_jia' + Date.now() + Math.random().toString(36).slice(2);
-                const result = await new Promise((resolve, reject) => {
-                    let done = false;
-                    const cleanup = () => { done = true; delete window[name]; if (script.parentNode) script.remove(); };
-                    window[name] = (data) => { cleanup(); resolve(data); };
-                    const script = document.createElement('script');
-                    script.onerror = () => { cleanup(); reject(new Error('JSONP failed')); };
-                    script.src = url.toString() + '&callback=' + name;
-                    setTimeout(() => { if (!done) { cleanup(); reject(new Error('JSONP timeout')); } }, 15000);
-                    document.head.appendChild(script);
-                });
-                return result;
-            } catch(e2) {
-                if (attempt === 2) throw e2;
-                await new Promise(r => setTimeout(r, 1500));
-            }
-        }
-    }
-}
 
 // SHA-256 hash ใน browser
 async function hashPassword(password) {
@@ -210,7 +174,7 @@ async function renderStaffList(role) {
         </div>`;
 
     try {
-        const users = await apiGet('listUsers');
+        const users = await jiaApiGet('listUsers');
         const staffList = (Array.isArray(users) ? users : []).filter(u => u.role === role);
 
         if (staffList.length === 0) {
@@ -359,7 +323,7 @@ async function handlePinSubmit(username, name, role) {
 
     try {
         const pinHash = await hashPassword(pin);
-        const result = await apiGet('loginPassword', { username, password: pinHash });
+        const result = await jiaApiGet('loginPassword', { username, password: pinHash });
 
         if (result.success) {
             saveSession({ username: result.username || username, name: result.name || name, role: result.role || role });
@@ -569,7 +533,7 @@ async function handleLogin() {
 
     try {
         const passwordHash = await hashPassword(password);
-        const result = await apiGet('loginPassword', {
+        const result = await jiaApiGet('loginPassword', {
             username: username,
             password: passwordHash
         });
@@ -625,7 +589,7 @@ async function handleAddStaff() {
     try {
         // Step 1: gen invite code
         const admin = getSavedSession() || {};
-        const codeResult = await apiGet('genCode', { role, username: admin.username || 'admin' });
+        const codeResult = await jiaApiGet('genCode', { role, username: admin.username || 'admin' });
         if (!codeResult.success) { throw new Error(codeResult.message || 'สร้างรหัสไม่สำเร็จ'); }
 
         // Step 2: auto-generate username and PIN
@@ -634,7 +598,7 @@ async function handleAddStaff() {
         const pinHash = await hashPassword(autoPin);
 
         // Step 3: register
-        const regResult = await apiGet('registerPassword', {
+        const regResult = await jiaApiGet('registerPassword', {
             code: codeResult.code,
             username: autoUsername,
             name: name,
@@ -673,7 +637,7 @@ async function handleResetPassword(username, displayName) {
     try {
         const hashed = await hashPassword(newPass.trim());
         const saved = getSavedSession();
-        const result = await apiGet('resetPassword', {
+        const result = await jiaApiGet('resetPassword', {
             adminUser: saved.username,
             targetUser: username,
             newPassword: hashed
@@ -692,7 +656,7 @@ async function loadUsers() {
     listEl.innerHTML = '<div class="text-center py-4"><div class="loading-spinner mb-2"></div><p class="text-sm text-gray-400">กำลังโหลด...</p></div>';
 
     try {
-        const users = await apiGet('listUsers');
+        const users = await jiaApiGet('listUsers');
         if (!Array.isArray(users) || users.length === 0) {
             listEl.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">ยังไม่มีพนักงาน</p>';
             return;

@@ -62,48 +62,10 @@ tailwind.config = { theme: { extend: { fontFamily: { sans: ['"Noto Sans Thai"', 
 <div id="root"></div>
 
 <!-- ═══ API Bridge + Auth ═══ -->
+<script src="jia-supabase-api.js"></script>
 <script>
-const JIA_API_URL = "https://script.google.com/macros/s/AKfycbyAbzjf6EyBdgv_h3k72CyesYG72voz_-ss3GpiniwI8YU8JKTBi2i8bVKhpQTXamt-YA/exec";
+const JIA_API_URL = true; // Supabase API is active (legacy GAS compatibility flag)
 const LOGIN_PAGE = "./jia-login.html";
-
-async function jiaApiGet(action, params = {}) {
-    if (!JIA_API_URL) return null;
-    const url = new URL(JIA_API_URL);
-    url.searchParams.set('action', action);
-    Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
-    return (await fetch(url.toString())).json();
-}
-async function jiaApiPost(action, params = {}, body = {}) {
-    if (!JIA_API_URL) return null;
-    const url = new URL(JIA_API_URL);
-    url.searchParams.set('action', action);
-    Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
-    url.searchParams.set('data', btoa(unescape(encodeURIComponent(JSON.stringify(body)))));
-    for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-            const res = await fetch(url.toString(), { redirect: 'follow' });
-            return await res.json();
-        } catch(err) {
-            try {
-                const name = '_jiaPost' + Date.now() + Math.random().toString(36).slice(2);
-                const result = await new Promise((resolve, reject) => {
-                    let done = false;
-                    const cleanup = () => { done = true; delete window[name]; if (script.parentNode) script.remove(); };
-                    window[name] = (data) => { cleanup(); resolve(data); };
-                    const script = document.createElement('script');
-                    script.onerror = () => { cleanup(); reject(new Error('JSONP failed')); };
-                    script.src = url.toString() + '&callback=' + name;
-                    setTimeout(() => { if (!done) { cleanup(); reject(new Error('JSONP timeout')); } }, 15000);
-                    document.head.appendChild(script);
-                });
-                return result;
-            } catch(e2) {
-                if (attempt === 2) throw e2;
-                await new Promise(r => setTimeout(r, 1500));
-            }
-        }
-    }
-}
 function showToast(message, isError) {
     const existing = document.getElementById('jia-toast');
     if (existing) existing.remove();
@@ -172,11 +134,6 @@ window.JIA_DATA_READY = (async function() {
     }
 })();
 
-async function postToGAS(fields) {
-    const body = new URLSearchParams();
-    Object.entries(fields).forEach(([k, v]) => body.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v)));
-    try { await fetch(JIA_API_URL, { method: 'POST', mode: 'no-cors', body }); return { ok: true }; } catch(e) { return { ok: false }; }
-}
 </script>
 
 <script type="text/babel">
@@ -187,7 +144,6 @@ const uid = () => 'bk_' + Date.now() + '_' + Math.random().toString(36).slice(2,
 const today = () => new Date().toISOString().slice(0, 10);
 const fmt = (d) => { if (!d) return '-'; try { return new Date(d + 'T00:00:00').toLocaleDateString('th-TH', {day:'numeric',month:'short',year:'numeric'}); } catch(e) { return d; } };
 const fmtPrice = (p) => Number(p || 0).toLocaleString();
-const b64 = (obj) => btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
 const TIME_SLOTS_DEFAULT = ["11:00-13:00", "14:00-16:00", "17:00-19:00"];
 function getAllTimeSlots(courses) {
   if (!courses || courses.length === 0) return [...TIME_SLOTS_DEFAULT];
@@ -244,7 +200,6 @@ function SalesApp() {
   const [promoCodes, setPromoCodes] = useState(() => load('jia_promo_codes', []));
   const [commissions, setCommissions] = useState(() => load('jia_staff_commissions', {}));
   const [classes, setClasses] = useState(() => load('jia_classes', []));
-  const gsUrl = localStorage.getItem('jia_gs_url') || '';
 
   const save = useCallback((key, data) => { localStorage.setItem(key, JSON.stringify(data)); }, []);
 
@@ -272,7 +227,7 @@ function SalesApp() {
     bk.id = uid(); bk.createdAt = today();
     const next = [...bookings, bk];
     setBookings(next); save('jia_bookings', next);
-    if (gsUrl) postToGAS({ action: 'addBooking', data: b64(bk) }).catch(e => console.warn('⚠️ Sync booking failed:', e.message));
+    jiaApiPost('addBooking', {}, bk).catch(e => console.warn('⚠️ Sync booking failed:', e.message));
     jiaApiPost('notifyBooking', {}, bk).catch(e => console.warn('⚠️ Notify booking failed:', e.message));
     const slist = Array.from({ length: Number(bk.totalPeople) || 1 }, (_, i) => ({
       id: uid(), bookingId: bk.id, customerId: bk.customerId,
@@ -280,23 +235,23 @@ function SalesApp() {
     }));
     const nextS = [...sessions, ...slist];
     setSessions(nextS); save('jia_sessions', nextS);
-    slist.forEach(s => { if (gsUrl) postToGAS({ action: 'addSession', data: b64(s) }).catch(e => console.warn('⚠️ Sync session failed:', e.message)); });
+    slist.forEach(s => { jiaApiPost('addSession', {}, s).catch(e => console.warn('⚠️ Sync session failed:', e.message)); });
     showToast('✅ บันทึกการจองสำเร็จ');
-  }, [bookings, sessions, gsUrl, save]);
+  }, [bookings, sessions, save]);
 
   const updateBooking = useCallback((id, data) => {
     const next = bookings.map(b => b.id === id ? { ...b, ...data } : b);
     setBookings(next); save('jia_bookings', next);
-    if (gsUrl) postToGAS({ action: 'addBooking', data: b64({ id, ...data }) }).catch(e => console.warn('⚠️ Update booking sync failed:', e.message));
-  }, [bookings, gsUrl, save]);
+    jiaApiPost('addBooking', {}, { id, ...data }).catch(e => console.warn('⚠️ Update booking sync failed:', e.message));
+  }, [bookings, save]);
 
   const addCustomer = useCallback(async (c) => {
     const newCust = { id: uid(), ...c, createdAt: today() };
     const next = [...customers, newCust];
     setCustomers(next); save('jia_customers', next);
-    if (gsUrl) postToGAS({ action: 'addCustomer', data: b64(newCust) }).catch(e => console.warn('⚠️ Sync customer failed:', e.message));
+    jiaApiPost('addCustomer', {}, newCust).catch(e => console.warn('⚠️ Sync customer failed:', e.message));
     return newCust;
-  }, [customers, gsUrl, save]);
+  }, [customers, save]);
 
   const updateCustomer = useCallback((id, data) => {
     const next = customers.map(c => c.id === id ? { ...c, ...data } : c);

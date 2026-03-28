@@ -609,35 +609,8 @@
 
     <!-- ═══ API Bridge: โหลดข้อมูลจาก Google Sheets ═══ -->
     <script>
-    // ★★★ CONFIG — ใส่ URL ของ Apps Script ที่ Deploy แล้ว ★★★
-    const JIA_API_URL = "https://script.google.com/macros/s/AKfycbyAbzjf6EyBdgv_h3k72CyesYG72voz_-ss3GpiniwI8YU8JKTBi2i8bVKhpQTXamt-YA/exec";
-
-    // ─── API Helpers (with timeout) ───
-    function fetchWithTimeout(url, options = {}, timeout = 15000) {
-        return Promise.race([
-            fetch(url, options),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('API timeout')), timeout))
-        ]);
-    }
-    async function jiaApiGet(action, params = {}) {
-        if (!JIA_API_URL) return null;
-        const url = new URL(JIA_API_URL);
-        url.searchParams.set('action', action);
-        Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
-        const res = await fetchWithTimeout(url.toString());
-        return res.json();
-    }
-
-    async function jiaApiPost(action, params = {}, body = {}) {
-        if (!JIA_API_URL) return null;
-        const url = new URL(JIA_API_URL);
-        url.searchParams.set('action', action);
-        Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
-        // ส่ง data ผ่าน GET parameter (base64 encoded) เพื่อหลีกเลี่ยง CORS
-        url.searchParams.set('data', btoa(unescape(encodeURIComponent(JSON.stringify(body)))));
-        const res = await fetchWithTimeout(url.toString());
-        return res.json();
-    }
+    // ★★★ CONFIG — API functions provided by jia-supabase-api.js ★★★
+    const JIA_API_URL = true; // Supabase API is active (legacy GAS compatibility flag)
 
     // ─── แปลง instructor_avail rows → map ที่หน้าจองใช้ ───
     function convertAvailToMap(rows) {
@@ -789,6 +762,7 @@
     }
     </script>
 
+    <script src="jia-supabase-api.js"></script>
     <script type="text/babel">
         const { useState, useEffect } = React;
 
