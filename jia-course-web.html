@@ -650,18 +650,24 @@ function AppContent() {
       const b64Data = btoa(unescape(encodeURIComponent(JSON.stringify(allData))));
       console.log('💾 Sending saveAll — data size:', b64Data.length, 'chars');
 
-      await jiaApiPost('saveAll', {}, allData);
+      const result = await jiaApiPost('saveAll', {}, allData);
 
       setSaving(false);
-      setSaveStatus('success');
-      showToast('✅ บันทึกสำเร็จ! ข้อมูลอยู่ใน Supabase แล้ว');
+      if (result && result.failed && result.failed.length > 0) {
+        setSaveStatus('success');
+        console.warn('⚠️ บันทึกบางตารางไม่สำเร็จ:', result.failed);
+        showToast('⚠️ บันทึกส่วนใหญ่สำเร็จ (บางตารางมีปัญหา)');
+      } else {
+        setSaveStatus('success');
+        showToast('✅ บันทึกสำเร็จ! ข้อมูลอยู่ใน Supabase แล้ว');
+      }
       localStorage.setItem('jia_save_verified', 'true');
     } catch(err) {
       console.error('❌ saveAll error:', err);
       setSaving(false);
       setSaveStatus('error');
       showToast('❌ บันทึกล้มเหลว: ' + err.message, true);
-      alert('❌ บันทึกล้มเหลว!\n\nข้อมูลยังอยู่ใน localStorage ไม่หาย\nลอง: กด บันทึก อีกครั้ง');
+      alert('❌ บันทึกล้มเหลว!\n\nข้อมูลยังอยู่ใน localStorage ไม่หาย\nลอง: กด บันทึก อีกครั้ง\n\nรายละเอียด: ' + err.message);
     }
     setTimeout(() => setSaveStatus(''), 5000);
   }, [customers, bookings, sessions, courses, staff, instructors, instructorAvail, promoCodes, classes, classInstructors, jsonpCall]);

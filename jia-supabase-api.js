@@ -8,22 +8,21 @@ const SUPABASE_URL = "https://tpoiyykbgsgnrdwzgzvn.supabase.co";
 const SUPABASE_KEY = "sb_publishable_1kXSE788PB9XqH_2vU3pqg_6xtqI1Mf";
 
 // --- Low-level Supabase REST ---
-async function _supa(table, method, body, filters, upsert) {
+async function _supa(table, method, body, filters) {
   const url = SUPABASE_URL + "/rest/v1/" + table + (filters || "");
   const h = {
     apikey: SUPABASE_KEY,
     Authorization: "Bearer " + SUPABASE_KEY,
     "Content-Type": "application/json",
   };
-  if (method === "POST" && upsert) h.Prefer = "return=representation,resolution=merge-duplicates";
-  else if (method === "POST" || method === "PATCH") h.Prefer = "return=representation";
+  if (method === "POST" || method === "PATCH") h.Prefer = "return=representation";
   const opts = { method, headers: h };
   if (body && method !== "GET" && method !== "DELETE") opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
   if (!res.ok) {
     const err = await res.text();
     console.error("Supabase error:", method, table, err);
-    throw new Error(err);
+    throw new Error(table + ": " + err);
   }
   if (method === "DELETE") return [];
   const text = await res.text();
@@ -283,14 +282,39 @@ async function _handleAction(action, params, body) {
     }
 
     case "saveAll": {
-      // body = { sheetName: [rows], ... }  — upsert to handle existing rows
-      const promises = Object.entries(body).map(([s, rows]) => {
-        const t = SHEET_MAP[s] || s;
-        if (rows && rows.length > 0) return _supa(t, "POST", rows.map(toSnake), null, true);
-        return Promise.resolve([]);
-      });
-      await Promise.all(promises);
-      return { status: "ok" };
+      // body = { sheetName: [rows], ... }
+      // Strategy: delete all rows then insert fresh (like replaceSheet per table)
+      // Tables that don't use "id" as primary key need different delete filters
+      const DEL_COL = { settings: "key", courses: "key", promo_codes: "code", instructor_quals: "instructor" };
+      const entries = Object.entries(body).filter(([s, rows]) => rows && rows.length > 0);
+      const results = await Promise.allSettled(
+        entries.map(async ([s, rows]) => {
+          const t = SHEET_MAP[s] || s;
+          const snaked = rows.map(toSnake);
+          // Step 1: Delete all existing rows
+          const delCol = DEL_COL[t] || "id";
+          try {
+            await _supa(t, "DELETE", null, "?" + delCol + "=neq.____impossible____");
+          } catch(e) {
+            console.warn("Delete " + t + " failed (might be empty):", e.message);
+          }
+          // Step 2: Insert in batches of 100
+          for (let i = 0; i < snaked.length; i += 100) {
+            await _supa(t, "POST", snaked.slice(i, i + 100));
+          }
+          return t;
+        })
+      );
+      const failed = results
+        .map((r, i) => r.status === "rejected" ? entries[i][0] + ": " + r.reason.message : null)
+        .filter(Boolean);
+      if (failed.length > 0) {
+        console.warn("⚠️ saveAll failures:", failed);
+      }
+      if (failed.length > 0 && failed.length === entries.length) {
+        throw new Error("ทุกตารางล้มเหลว — " + failed[0]);
+      }
+      return { status: "ok", failed };
     }
 
     // ========= INVITE CODES =========
