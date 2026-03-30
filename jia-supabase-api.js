@@ -405,16 +405,30 @@ async function _handleAction(action, params, body) {
 
     case "saveAll": {
       // body = { sheetName: [rows], ... }
-      // Strategy: upsert each table using Supabase client
+      // Strategy: upsert row-by-row per table to avoid PGRST102 and conflict issues
       const entries = Object.entries(body).filter(([s, rows]) => rows && rows.length > 0);
       const results = await Promise.allSettled(
         entries.map(async ([s, rows]) => {
           const t = SHEET_MAP[s] || s;
           const snaked = rows.map(toSnake);
-          // Upsert in batches of 100
-          for (let i = 0; i < snaked.length; i += 100) {
-            await _supaUpsert(t, snaked.slice(i, i + 100));
+          let saved = 0, skipped = 0;
+          for (const row of snaked) {
+            try {
+              await _supaUpsert(t, row);
+              saved++;
+            } catch(e) {
+              // If upsert fails, try plain insert
+              try {
+                await _supa(t, "POST", row);
+                saved++;
+              } catch(e2) {
+                console.warn("⚠️ Skip row in " + t + ":", e2.message);
+                skipped++;
+              }
+            }
           }
+          console.log("✅ " + t + ": saved=" + saved + " skipped=" + skipped);
+          if (saved === 0 && snaked.length > 0) throw new Error(t + ": ไม่สามารถบันทึกได้เลย");
           return t;
         })
       );
