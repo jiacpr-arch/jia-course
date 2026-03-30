@@ -171,6 +171,41 @@ function _normalizeRows(rows) {
   });
 }
 
+// --- Schema whitelist per table (only send known columns) ---
+const TABLE_COLS = {
+  customers: ["id","name","tel","email","created_at","source"],
+  bookings: ["id","customer_id","name","tel","course_type","course_name","class_id","channel","package","total_people","final_price","discount_code","discount_amount","payment_mode","payment_slip","payment_status","start_date","time_slot","total_days","additional_dates","sales_staff","instructor","note","pdpa_consent","pdpa_consent_date","created_at"],
+  sessions: ["id","booking_id","customer_id","session_no","done","date","session_time","place","created_at"],
+  courses: ["key","label","range","max","color","price","discount_price","online_booking","has_packages","flex_price","fixed_price","description","time_slots","duration_hours","total_days","required_level"],
+  staff: ["id","name"],
+  instructors: ["id","name","level"],
+  instructor_avail: ["id","instructor","date","time_slot"],
+  instructor_quals: ["instructor_id","courses"],
+  classes: ["id","course_key","course_name","date","time_slot","max_students","required_instructors","current_instructors","status","place","note","created_by","created_at"],
+  class_instructors: ["id","class_id","instructor_id","assigned_by","assigned_at"],
+  promo_codes: ["code","type","discount","staff_name","created_at","used","used_at","used_by"],
+  settings: ["key","value"],
+  pdpa_log: ["id","customer_id","action","performed_by","date","details"],
+  invite_codes: ["code","role","created_by","created_at","used_by","used_at","status","level"],
+};
+
+// Strip columns not in the schema whitelist
+function _sanitize(table, row) {
+  const cols = TABLE_COLS[table];
+  if (!cols) return row; // no whitelist = pass through
+  const out = {};
+  for (const k of cols) {
+    if (row[k] !== undefined) out[k] = row[k];
+  }
+  return out;
+}
+
+// Sanitize array of rows
+function _sanitizeRows(table, rows) {
+  if (!TABLE_COLS[table]) return rows;
+  return rows.map(r => _sanitize(table, r));
+}
+
 // --- Column name mapping (camelCase ↔ snake_case) ---
 function toSnake(obj) {
   if (!obj || typeof obj !== "object") return obj;
@@ -405,44 +440,41 @@ async function _handleAction(action, params, body) {
 
     case "saveAll": {
       // body = { sheetName: [rows], ... }
-      // Primary key column per table
-      const PK = { settings: "key", courses: "key", promo_codes: "code", instructor_quals: "instructor" };
+      const PK = { settings: "key", courses: "key", promo_codes: "code", instructor_quals: "instructor_id" };
       const entries = Object.entries(body).filter(([s, rows]) => rows && rows.length > 0);
       const results = await Promise.allSettled(
         entries.map(async ([s, rows]) => {
           const t = SHEET_MAP[s] || s;
           const pk = PK[t] || "id";
-          const snaked = rows.map(toSnake);
+          // Convert to snake_case, then sanitize (strip unknown columns)
+          const snaked = _sanitizeRows(t, rows.map(toSnake));
           let saved = 0, skipped = 0;
           for (const row of snaked) {
+            if (!row || Object.keys(row).length === 0) { skipped++; continue; }
             try {
-              // Try upsert first
               await _supaUpsert(t, row);
               saved++;
             } catch(e) {
-              // Upsert failed — try PATCH (update existing row by primary key)
               const pkVal = row[pk];
               if (pkVal) {
                 try {
                   await _supa(t, "PATCH", row, "?" + pk + "=eq." + encodeURIComponent(pkVal));
                   saved++;
                 } catch(e2) {
-                  // PATCH failed — try INSERT as last resort
                   try {
                     await _supa(t, "POST", row);
                     saved++;
                   } catch(e3) {
-                    console.warn("⚠️ Skip row in " + t + " (" + pk + "=" + pkVal + "):", e3.message);
+                    console.warn("⚠️ Skip " + t + " (" + pk + "=" + pkVal + "):", e3.message);
                     skipped++;
                   }
                 }
               } else {
-                // No PK value — try INSERT
                 try {
                   await _supa(t, "POST", row);
                   saved++;
                 } catch(e2) {
-                  console.warn("⚠️ Skip row in " + t + " (no pk):", e2.message);
+                  console.warn("⚠️ Skip " + t + " (no pk):", e2.message);
                   skipped++;
                 }
               }

@@ -38,7 +38,7 @@ tailwind.config = {
 <div id="root"></div>
 
 <!-- ═══ API Bridge + Auth (Supabase) ═══ -->
-<script src="jia-supabase-api.js?v=6"></script>
+<script src="jia-supabase-api.js?v=7"></script>
 <script>
 // ── Inline override: ensure Supabase client is initialized ──
 (function() {
@@ -649,7 +649,7 @@ function AppContent() {
       const quals = JSON.parse(localStorage.getItem('jia_instructor_quals') || '{}');
       if (quals && typeof quals === 'object' && !Array.isArray(quals)) {
         allData.instructor_quals = Object.entries(quals).map(([instructor, cs]) => ({
-          instructor, courses: Array.isArray(cs) ? cs.join(',') : String(cs)
+          instructorId: instructor, courses: Array.isArray(cs) ? cs.join(',') : String(cs)
         }));
       }
     } catch(e) {}
