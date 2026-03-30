@@ -15,7 +15,7 @@ tailwind.config = {
 };
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -38,8 +38,27 @@ tailwind.config = {
 <div id="root"></div>
 
 <!-- ═══ API Bridge + Auth (Supabase) ═══ -->
-<script src="jia-supabase-api.js?v=5"></script>
+<script src="jia-supabase-api.js?v=6"></script>
 <script>
+// ── Inline override: ensure Supabase client is initialized ──
+(function() {
+  if (typeof supabase !== 'undefined' && supabase.createClient && !window._sbClient) {
+    window._sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    console.log('✅ Supabase JS client initialized inline');
+  }
+  // Override _supaUpsert to use client upsert properly
+  if (window._sbClient) {
+    window._supaUpsert = async function(table, rows) {
+      const { data, error } = await window._sbClient.from(table).upsert(
+        Array.isArray(rows) ? rows : [rows],
+        { ignoreDuplicates: false }
+      ).select();
+      if (error) throw new Error(table + ": " + error.message);
+      return data || [];
+    };
+  }
+})();
+
 const JIA_API_URL = true;
 const LOGIN_PAGE = "./jia-login.html";
 
