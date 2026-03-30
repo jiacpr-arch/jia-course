@@ -405,25 +405,46 @@ async function _handleAction(action, params, body) {
 
     case "saveAll": {
       // body = { sheetName: [rows], ... }
-      // Strategy: upsert row-by-row per table to avoid PGRST102 and conflict issues
+      // Primary key column per table
+      const PK = { settings: "key", courses: "key", promo_codes: "code", instructor_quals: "instructor" };
       const entries = Object.entries(body).filter(([s, rows]) => rows && rows.length > 0);
       const results = await Promise.allSettled(
         entries.map(async ([s, rows]) => {
           const t = SHEET_MAP[s] || s;
+          const pk = PK[t] || "id";
           const snaked = rows.map(toSnake);
           let saved = 0, skipped = 0;
           for (const row of snaked) {
             try {
+              // Try upsert first
               await _supaUpsert(t, row);
               saved++;
             } catch(e) {
-              // If upsert fails, try plain insert
-              try {
-                await _supa(t, "POST", row);
-                saved++;
-              } catch(e2) {
-                console.warn("⚠️ Skip row in " + t + ":", e2.message);
-                skipped++;
+              // Upsert failed — try PATCH (update existing row by primary key)
+              const pkVal = row[pk];
+              if (pkVal) {
+                try {
+                  await _supa(t, "PATCH", row, "?" + pk + "=eq." + encodeURIComponent(pkVal));
+                  saved++;
+                } catch(e2) {
+                  // PATCH failed — try INSERT as last resort
+                  try {
+                    await _supa(t, "POST", row);
+                    saved++;
+                  } catch(e3) {
+                    console.warn("⚠️ Skip row in " + t + " (" + pk + "=" + pkVal + "):", e3.message);
+                    skipped++;
+                  }
+                }
+              } else {
+                // No PK value — try INSERT
+                try {
+                  await _supa(t, "POST", row);
+                  saved++;
+                } catch(e2) {
+                  console.warn("⚠️ Skip row in " + t + " (no pk):", e2.message);
+                  skipped++;
+                }
               }
             }
           }
