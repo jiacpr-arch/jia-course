@@ -8,14 +8,15 @@ const SUPABASE_URL = "https://tpoiyykbgsgnrdwzgzvn.supabase.co";
 const SUPABASE_KEY = "sb_publishable_1kXSE788PB9XqH_2vU3pqg_6xtqI1Mf";
 
 // --- Low-level Supabase REST ---
-async function _supa(table, method, body, filters) {
+async function _supa(table, method, body, filters, upsert) {
   const url = SUPABASE_URL + "/rest/v1/" + table + (filters || "");
   const h = {
     apikey: SUPABASE_KEY,
     Authorization: "Bearer " + SUPABASE_KEY,
     "Content-Type": "application/json",
   };
-  if (method === "POST" || method === "PATCH") h.Prefer = "return=representation";
+  if (method === "POST" && upsert) h.Prefer = "return=representation,resolution=merge-duplicates";
+  else if (method === "POST" || method === "PATCH") h.Prefer = "return=representation";
   const opts = { method, headers: h };
   if (body && method !== "GET" && method !== "DELETE") opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
@@ -282,10 +283,10 @@ async function _handleAction(action, params, body) {
     }
 
     case "saveAll": {
-      // body = { sheetName: [rows], ... }
+      // body = { sheetName: [rows], ... }  — upsert to handle existing rows
       const promises = Object.entries(body).map(([s, rows]) => {
         const t = SHEET_MAP[s] || s;
-        if (rows && rows.length > 0) return _supa(t, "POST", rows.map(toSnake));
+        if (rows && rows.length > 0) return _supa(t, "POST", rows.map(toSnake), null, true);
         return Promise.resolve([]);
       });
       await Promise.all(promises);
