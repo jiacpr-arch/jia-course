@@ -48,7 +48,8 @@ async function _supaClient(table, method, body, filters) {
   }
 
   if (method === "POST") {
-    const { data, error } = await _sbClient.from(table).insert(body).select();
+    const normalized = Array.isArray(body) ? _normalizeRows(body) : body;
+    const { data, error } = await _sbClient.from(table).insert(normalized).select();
     if (error) { console.error("Supabase POST error:", table, error); throw new Error(table + ": " + error.message); }
     return data || [];
   }
@@ -96,7 +97,8 @@ async function _supaUpsert(table, rows) {
     // REST fallback: POST with merge-duplicates
     return _supaREST(table, "POST", rows, null, true);
   }
-  const { data, error } = await _sbClient.from(table).upsert(rows, { onConflict: undefined, ignoreDuplicates: false }).select();
+  const normalized = Array.isArray(rows) ? _normalizeRows(rows) : rows;
+  const { data, error } = await _sbClient.from(table).upsert(normalized, { ignoreDuplicates: false }).select();
   if (error) { console.error("Supabase upsert error:", table, error); throw new Error(table + ": " + error.message); }
   return data || [];
 }
@@ -112,7 +114,8 @@ async function _supaREST(table, method, body, filters, upsert) {
   if (method === "POST" && upsert) h.Prefer = "return=representation,resolution=merge-duplicates";
   else if (method === "POST" || method === "PATCH") h.Prefer = "return=representation";
   const opts = { method, headers: h };
-  if (body && method !== "GET" && method !== "DELETE") opts.body = JSON.stringify(body);
+  const sendBody = (method === "POST" && Array.isArray(body)) ? _normalizeRows(body) : body;
+  if (sendBody && method !== "GET" && method !== "DELETE") opts.body = JSON.stringify(sendBody);
   const res = await fetch(url, opts);
   if (!res.ok) {
     const err = await res.text();
@@ -154,6 +157,18 @@ async function _supaUpload(bucket, filePath, base64Data) {
   });
   if (!res.ok) throw new Error(await res.text());
   return SUPABASE_URL + "/storage/v1/object/public/" + bucket + "/" + filePath;
+}
+
+// --- Normalize rows: ensure all objects have the same keys (PGRST102 fix) ---
+function _normalizeRows(rows) {
+  if (!Array.isArray(rows) || rows.length <= 1) return rows;
+  const allKeys = new Set();
+  rows.forEach(r => { if (r && typeof r === "object") Object.keys(r).forEach(k => allKeys.add(k)); });
+  return rows.map(r => {
+    const out = {};
+    for (const k of allKeys) out[k] = r[k] !== undefined ? r[k] : null;
+    return out;
+  });
 }
 
 // --- Column name mapping (camelCase ↔ snake_case) ---
