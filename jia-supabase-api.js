@@ -7,21 +7,116 @@
 const SUPABASE_URL = "https://tpoiyykbgsgnrdwzgzvn.supabase.co";
 const SUPABASE_KEY = "sb_publishable_1kXSE788PB9XqH_2vU3pqg_6xtqI1Mf";
 
-// --- Low-level Supabase REST ---
+// --- Initialize Supabase Client ---
+const _sbClient = (typeof supabase !== 'undefined' && supabase.createClient)
+  ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+  : null;
+
+// --- Low-level Supabase operations ---
 async function _supa(table, method, body, filters) {
+  // Try Supabase JS client first, fall back to REST
+  if (_sbClient) {
+    return _supaClient(table, method, body, filters);
+  }
+  return _supaREST(table, method, body, filters);
+}
+
+// --- Supabase JS Client implementation ---
+async function _supaClient(table, method, body, filters) {
+  if (method === "GET") {
+    let q = _sbClient.from(table).select("*");
+    if (filters) {
+      const params = new URLSearchParams(filters.replace(/^\?/, ""));
+      for (const [col, rawVal] of params.entries()) {
+        const dotIdx = rawVal.indexOf(".");
+        const op = rawVal.substring(0, dotIdx);
+        const val = rawVal.substring(dotIdx + 1);
+        if (op === "eq") q = q.eq(col, val);
+        else if (op === "neq") q = q.neq(col, val);
+        else if (op === "gt") q = q.gt(col, val);
+        else if (op === "gte") q = q.gte(col, val);
+        else if (op === "lt") q = q.lt(col, val);
+        else if (op === "lte") q = q.lte(col, val);
+        else if (op === "like") q = q.like(col, val);
+        else if (op === "ilike") q = q.ilike(col, val);
+        else if (op === "in") q = q.in(col, val.replace(/[()]/g, "").split(","));
+      }
+    }
+    const { data, error } = await q;
+    if (error) { console.error("Supabase GET error:", table, error); throw new Error(table + ": " + error.message); }
+    return data || [];
+  }
+
+  if (method === "POST") {
+    const { data, error } = await _sbClient.from(table).insert(body).select();
+    if (error) { console.error("Supabase POST error:", table, error); throw new Error(table + ": " + error.message); }
+    return data || [];
+  }
+
+  if (method === "PATCH") {
+    let q = _sbClient.from(table).update(body);
+    if (filters) {
+      const params = new URLSearchParams(filters.replace(/^\?/, ""));
+      for (const [col, rawVal] of params.entries()) {
+        const dotIdx = rawVal.indexOf(".");
+        const op = rawVal.substring(0, dotIdx);
+        const val = rawVal.substring(dotIdx + 1);
+        if (op === "eq") q = q.eq(col, val);
+        else if (op === "neq") q = q.neq(col, val);
+      }
+    }
+    const { data, error } = await q.select();
+    if (error) { console.error("Supabase PATCH error:", table, error); throw new Error(table + ": " + error.message); }
+    return data || [];
+  }
+
+  if (method === "DELETE") {
+    let q = _sbClient.from(table).delete();
+    if (filters) {
+      const params = new URLSearchParams(filters.replace(/^\?/, ""));
+      for (const [col, rawVal] of params.entries()) {
+        const dotIdx = rawVal.indexOf(".");
+        const op = rawVal.substring(0, dotIdx);
+        const val = rawVal.substring(dotIdx + 1);
+        if (op === "eq") q = q.eq(col, val);
+        else if (op === "neq") q = q.neq(col, val);
+      }
+    }
+    const { error } = await q;
+    if (error) { console.error("Supabase DELETE error:", table, error); throw new Error(table + ": " + error.message); }
+    return [];
+  }
+
+  throw new Error("Unknown method: " + method);
+}
+
+// --- Supabase upsert via JS client ---
+async function _supaUpsert(table, rows) {
+  if (!_sbClient) {
+    // REST fallback: POST with merge-duplicates
+    return _supaREST(table, "POST", rows, null, true);
+  }
+  const { data, error } = await _sbClient.from(table).upsert(rows, { onConflict: undefined, ignoreDuplicates: false }).select();
+  if (error) { console.error("Supabase upsert error:", table, error); throw new Error(table + ": " + error.message); }
+  return data || [];
+}
+
+// --- REST API fallback ---
+async function _supaREST(table, method, body, filters, upsert) {
   const url = SUPABASE_URL + "/rest/v1/" + table + (filters || "");
   const h = {
     apikey: SUPABASE_KEY,
     Authorization: "Bearer " + SUPABASE_KEY,
     "Content-Type": "application/json",
   };
-  if (method === "POST" || method === "PATCH") h.Prefer = "return=representation";
+  if (method === "POST" && upsert) h.Prefer = "return=representation,resolution=merge-duplicates";
+  else if (method === "POST" || method === "PATCH") h.Prefer = "return=representation";
   const opts = { method, headers: h };
   if (body && method !== "GET" && method !== "DELETE") opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
   if (!res.ok) {
     const err = await res.text();
-    console.error("Supabase error:", method, table, err);
+    console.error("Supabase REST error:", method, table, err);
     throw new Error(table + ": " + err);
   }
   if (method === "DELETE") return [];
@@ -36,6 +131,15 @@ async function _supaUpload(bucket, filePath, base64Data) {
   const byteArr = new Uint8Array(byteChars.length);
   for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
   const blob = new Blob([byteArr], { type: "image/jpeg" });
+
+  if (_sbClient) {
+    const { data, error } = await _sbClient.storage.from(bucket).upload(filePath, blob, {
+      contentType: "image/jpeg",
+      upsert: true,
+    });
+    if (error) throw new Error(error.message);
+    return SUPABASE_URL + "/storage/v1/object/public/" + bucket + "/" + filePath;
+  }
 
   const url = SUPABASE_URL + "/storage/v1/object/" + bucket + "/" + filePath;
   const res = await fetch(url, {
@@ -123,14 +227,19 @@ async function _handleAction(action, params, body) {
 
     case "saveRow": {
       const data = toSnake(body);
-      // Check if row exists (upsert)
-      if (data.id) {
-        const existing = await _supa(table, "GET", null, "?id=eq." + encodeURIComponent(data.id));
-        if (existing.length > 0) {
-          return toCamel(await _supa(table, "PATCH", data, "?id=eq." + encodeURIComponent(data.id)));
+      // Use upsert to handle both insert and update
+      try {
+        return toCamel(await _supaUpsert(table, data));
+      } catch(e) {
+        // Fallback: check if exists then PATCH/POST
+        if (data.id) {
+          const existing = await _supa(table, "GET", null, "?id=eq." + encodeURIComponent(data.id));
+          if (existing.length > 0) {
+            return toCamel(await _supa(table, "PATCH", data, "?id=eq." + encodeURIComponent(data.id)));
+          }
         }
+        return toCamel(await _supa(table, "POST", data));
       }
-      return toCamel(await _supa(table, "POST", data));
     }
 
     case "updateRow": {
@@ -153,14 +262,12 @@ async function _handleAction(action, params, body) {
     case "replaceSheet": {
       // Delete all rows then insert new data
       try {
-        // Delete all (use a filter that matches everything)
         await _supa(table, "DELETE", null, "?id=neq.____impossible____");
       } catch (e) {
         console.warn("Clear failed (table might be empty):", e);
       }
       if (body && Array.isArray(body) && body.length > 0) {
         const rows = body.map(toSnake);
-        // Insert in batches of 100
         for (let i = 0; i < rows.length; i += 100) {
           await _supa(table, "POST", rows.slice(i, i + 100));
         }
@@ -283,24 +390,15 @@ async function _handleAction(action, params, body) {
 
     case "saveAll": {
       // body = { sheetName: [rows], ... }
-      // Strategy: delete all rows then insert fresh (like replaceSheet per table)
-      // Tables that don't use "id" as primary key need different delete filters
-      const DEL_COL = { settings: "key", courses: "key", promo_codes: "code", instructor_quals: "instructor" };
+      // Strategy: upsert each table using Supabase client
       const entries = Object.entries(body).filter(([s, rows]) => rows && rows.length > 0);
       const results = await Promise.allSettled(
         entries.map(async ([s, rows]) => {
           const t = SHEET_MAP[s] || s;
           const snaked = rows.map(toSnake);
-          // Step 1: Delete all existing rows
-          const delCol = DEL_COL[t] || "id";
-          try {
-            await _supa(t, "DELETE", null, "?" + delCol + "=neq.____impossible____");
-          } catch(e) {
-            console.warn("Delete " + t + " failed (might be empty):", e.message);
-          }
-          // Step 2: Insert in batches of 100
+          // Upsert in batches of 100
           for (let i = 0; i < snaked.length; i += 100) {
-            await _supa(t, "POST", snaked.slice(i, i + 100));
+            await _supaUpsert(t, snaked.slice(i, i + 100));
           }
           return t;
         })
@@ -374,7 +472,6 @@ async function _handleAction(action, params, body) {
       const fileName = (body.fileName || "slip") + "_" + Date.now() + ".jpg";
       try {
         const publicUrl = await _supaUpload("slips", fileName, body.base64);
-        // Update booking if bookingId provided
         if (body.bookingId) {
           try {
             await _supa("bookings", "PATCH", {
@@ -390,7 +487,7 @@ async function _handleAction(action, params, body) {
       }
     }
 
-    // ========= NOTIFICATIONS (no-op for now, can add webhook later) =========
+    // ========= NOTIFICATIONS (no-op for now) =========
     case "notifyBooking":
     case "notifyPayment":
     case "notifyNewClass":
