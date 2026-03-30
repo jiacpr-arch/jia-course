@@ -276,7 +276,7 @@ async function _handleAction(action, params, body) {
       return toCamel(await _supa(table, "GET"));
 
     case "saveRow": {
-      const data = toSnake(body);
+      const data = _sanitize(table, toSnake(body));
       // Use upsert to handle both insert and update
       try {
         return toCamel(await _supaUpsert(table, data));
@@ -295,7 +295,7 @@ async function _handleAction(action, params, body) {
     case "updateRow": {
       const key = params.key || body._key || body.id;
       const keyCol = params.keyCol || body._keyCol || "id";
-      const data = toSnake(body);
+      const data = _sanitize(table, toSnake(body));
       delete data._key;
       delete data._key_col;
       return toCamel(await _supa(table, "PATCH", data, "?" + keyCol + "=eq." + encodeURIComponent(key)));
