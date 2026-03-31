@@ -983,36 +983,70 @@ function AppContent() {
   );
 }
 
-// ─── Monthly Class Report (รายงานคลาสรายเดือน) ───
+// ─── Class Report (รายงานคลาสตามช่วงวัน) ───
 function MonthlyClassReport({ classes, classInstructors, courses, instructors }) {
-  const [selectedMonth, setSelectedMonth] = useState(() => {
+  const [dateFrom, setDateFrom] = useState(() => {
     const now = new Date();
-    return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-01';
+  });
+  const [dateTo, setDateTo] = useState(() => {
+    const now = new Date();
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return last.getFullYear() + '-' + String(last.getMonth() + 1).padStart(2, '0') + '-' + String(last.getDate()).padStart(2, '0');
   });
 
   const getInstructorName = (i) => typeof i === 'object' ? i.name : i;
 
-  const report = useMemo(() => {
-    const [year, month] = selectedMonth.split('-').map(Number);
-    const daysInMonth = new Date(year, month, 0).getDate();
+  // Quick range presets
+  const setThisMonth = () => {
+    const now = new Date();
+    setDateFrom(now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-01');
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    setDateTo(last.getFullYear() + '-' + String(last.getMonth() + 1).padStart(2, '0') + '-' + String(last.getDate()).padStart(2, '0'));
+  };
+  const setNextMonth = () => {
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    setDateFrom(first.getFullYear() + '-' + String(first.getMonth() + 1).padStart(2, '0') + '-01');
+    const last = new Date(first.getFullYear(), first.getMonth() + 1, 0);
+    setDateTo(last.getFullYear() + '-' + String(last.getMonth() + 1).padStart(2, '0') + '-' + String(last.getDate()).padStart(2, '0'));
+  };
+  const setThisWeek = () => {
+    const now = new Date();
+    const dow = now.getDay();
+    const mon = new Date(now); mon.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    const fmt = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    setDateFrom(fmt(mon));
+    setDateTo(fmt(sun));
+  };
 
-    // Filter classes for selected month
-    const monthClasses = classes.filter(cls => {
+  const report = useMemo(() => {
+    if (!dateFrom || !dateTo) return { days: [], totalClasses: 0, daysWithClasses: 0, allReady: 0, notReady: 0 };
+
+    // Generate all dates in range
+    const start = new Date(dateFrom + 'T00:00:00');
+    const end = new Date(dateTo + 'T00:00:00');
+    const allDates = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      allDates.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'));
+    }
+
+    // Filter classes in range
+    const rangeClasses = classes.filter(cls => {
       if (!cls.date) return false;
-      const d = new Date(cls.date);
-      return d.getFullYear() === year && (d.getMonth() + 1) === month;
+      const dateStr = cls.date.substring(0, 10);
+      return dateStr >= dateFrom && dateStr <= dateTo;
     });
 
     // Group by date
     const byDate = {};
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dateStr = year + '-' + String(month).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-      byDate[dateStr] = [];
-    }
-    monthClasses.forEach(cls => {
+    allDates.forEach(d => byDate[d] = []);
+    rangeClasses.forEach(cls => {
       const dateStr = cls.date.substring(0, 10);
       if (byDate[dateStr]) byDate[dateStr].push(cls);
       else byDate[dateStr] = [cls];
+    });
     });
 
     // Build day rows
@@ -1062,7 +1096,7 @@ function MonthlyClassReport({ classes, classInstructors, courses, instructors })
     const notReady = totalClasses - allReady;
 
     return { days, totalClasses, daysWithClasses, allReady, notReady };
-  }, [classes, classInstructors, courses, instructors, selectedMonth]);
+  }, [classes, classInstructors, courses, instructors, dateFrom, dateTo]);
 
   const statusBadge = (cls) => {
     if (cls.instructorReady) return React.createElement('span', { className: 'inline-block px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 font-medium' }, 'ครบ');
@@ -1072,12 +1106,27 @@ function MonthlyClassReport({ classes, classInstructors, courses, instructors })
   return React.createElement('div', { className: 'space-y-4' },
     // Header
     React.createElement('div', { className: 'flex flex-wrap items-center justify-between gap-4' },
-      React.createElement('h2', { className: 'text-xl font-bold' }, 'รายงานคลาสรายเดือน'),
-      React.createElement('input', {
-        type: 'month', value: selectedMonth,
-        onChange: e => setSelectedMonth(e.target.value),
-        className: 'border rounded-lg px-3 py-2 text-sm'
-      })
+      React.createElement('h2', { className: 'text-xl font-bold' }, 'รายงานคลาส'),
+      React.createElement('div', { className: 'flex flex-wrap items-center gap-2' },
+        React.createElement('span', { className: 'text-sm text-gray-500' }, 'จาก'),
+        React.createElement('input', {
+          type: 'date', value: dateFrom,
+          onChange: e => setDateFrom(e.target.value),
+          className: 'border rounded-lg px-3 py-2 text-sm'
+        }),
+        React.createElement('span', { className: 'text-sm text-gray-500' }, 'ถึง'),
+        React.createElement('input', {
+          type: 'date', value: dateTo,
+          onChange: e => setDateTo(e.target.value),
+          className: 'border rounded-lg px-3 py-2 text-sm'
+        })
+      )
+    ),
+    // Quick range buttons
+    React.createElement('div', { className: 'flex flex-wrap gap-2' },
+      React.createElement('button', { onClick: setThisWeek, className: 'px-3 py-1 text-xs rounded-full border border-gray-300 hover:bg-gray-100' }, 'สัปดาห์นี้'),
+      React.createElement('button', { onClick: setThisMonth, className: 'px-3 py-1 text-xs rounded-full border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100' }, 'เดือนนี้'),
+      React.createElement('button', { onClick: setNextMonth, className: 'px-3 py-1 text-xs rounded-full border border-gray-300 hover:bg-gray-100' }, 'เดือนหน้า')
     ),
 
     // Summary cards
