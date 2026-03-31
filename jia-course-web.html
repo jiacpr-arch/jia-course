@@ -1047,7 +1047,6 @@ function MonthlyClassReport({ classes, classInstructors, courses, instructors })
       if (byDate[dateStr]) byDate[dateStr].push(cls);
       else byDate[dateStr] = [cls];
     });
-    });
 
     // Build day rows
     const days = Object.entries(byDate).map(([date, dayClasses]) => {
