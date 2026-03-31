@@ -1492,7 +1492,16 @@ function InstructorAvailReport({ instructors, instructorAvail, courses, classes 
   const [year, setYear] = useState(() => new Date().getFullYear() + 543);
   const [month, setMonth] = useState(() => new Date().getMonth());
   const [selectedInstructor, setSelectedInstructor] = useState('all');
+  const [viewMode, setViewMode] = useState('ready'); // 'ready' = คลาสพร้อมเรียน, 'avail' = วันว่างผู้สอน
   const dynSlots = useMemo(() => getAllTimeSlots(courses), [courses]);
+
+  const CLASS_STATUS = {
+    waiting_instructor: { label: "รอผู้สอน", color: "bg-yellow-100 text-yellow-700", icon: "🟡" },
+    ready:              { label: "พร้อมรับนักเรียน", color: "bg-blue-100 text-blue-700", icon: "🔵" },
+    full:               { label: "เต็ม", color: "bg-green-100 text-green-700", icon: "🟢" },
+    completed:          { label: "สอนแล้ว", color: "bg-gray-100 text-gray-500", icon: "✅" },
+    cancelled:          { label: "ยกเลิก", color: "bg-red-100 text-red-600", icon: "❌" },
+  };
 
   const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
     "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
@@ -1517,15 +1526,24 @@ function InstructorAvailReport({ instructors, instructorAvail, courses, classes 
     return instructorAvail.filter(a => a.instructor === selectedInstructor);
   }, [instructorAvail, selectedInstructor]);
 
-  // Monthly stats per instructor
+  // Classes in this month
+  const monthPrefix = ceYear + '-' + String(month + 1).padStart(2, '0');
+  const monthClasses = useMemo(() =>
+    (classes || []).filter(c => (c.date || '').startsWith(monthPrefix)),
+    [classes, monthPrefix]);
+
+  // Ready classes = status 'ready' (พร้อมรับนักเรียน) — ลูกค้าจองได้เลย
+  const readyClasses = useMemo(() =>
+    monthClasses.filter(c => c.status === 'ready'),
+    [monthClasses]);
+
+  // Monthly stats
   const monthStats = useMemo(() => {
-    const monthPrefix = ceYear + '-' + String(month + 1).padStart(2, '0');
     const stats = {};
     const relevantInstructors = selectedInstructor === 'all' ? instructors : [selectedInstructor];
     relevantInstructors.forEach(inst => {
       const instAvail = instructorAvail.filter(a => a.instructor === inst && (a.date || '').startsWith(monthPrefix));
       const dates = new Set(instAvail.map(a => a.date));
-      const monthClasses = (classes || []).filter(c => (c.date || '').startsWith(monthPrefix));
       const assignedClasses = monthClasses.filter(c => {
         return instAvail.some(a => a.date === c.date && a.timeSlot === c.timeSlot);
       });
@@ -1536,34 +1554,51 @@ function InstructorAvailReport({ instructors, instructorAvail, courses, classes 
       };
     });
     return stats;
-  }, [instructors, instructorAvail, classes, ceYear, month, selectedInstructor]);
+  }, [instructors, instructorAvail, monthClasses, monthPrefix, selectedInstructor]);
 
-  // Get availability for a specific date (all instructors or selected)
-  const getDateAvail = (date) => {
-    return filteredAvail.filter(a => a.date === date);
-  };
+  // Get availability for a specific date
+  const getDateAvail = (date) => filteredAvail.filter(a => a.date === date);
 
   // Get classes for a date
-  const getDateClasses = (date) => {
-    return (classes || []).filter(c => c.date === date);
+  const getDateClasses = (date) => (classes || []).filter(c => c.date === date);
+
+  // Get ready classes for a date
+  const getDateReadyClasses = (date) => (classes || []).filter(c => c.date === date && c.status === 'ready');
+
+  // Find course label
+  const getCourseLabel = (cls) => {
+    const c = (courses || []).find(co => co.key === cls.courseKey);
+    return c ? c.label : cls.courseName || cls.courseKey || '-';
   };
 
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold text-emerald-800">รายงานวันพร้อมสอน</h2>
 
-      {/* Instructor Filter */}
-      <div className="bg-white rounded-xl border p-4 space-y-3">
-        <div>
-          <label className="text-xs text-gray-500 block mb-1">เลือกผู้สอน</label>
-          <select value={selectedInstructor} onChange={e => setSelectedInstructor(e.target.value)}
-            className="w-full border border-emerald-200 bg-emerald-50 rounded-lg px-3 py-2 text-sm input-focus">
-            <option value="all">ทุกคน</option>
-            {instructors.map(inst => <option key={inst} value={inst}>{inst}</option>)}
-          </select>
-        </div>
+      {/* View Mode Toggle */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+        <button onClick={() => setViewMode('ready')}
+          className={`flex-1 text-xs font-medium py-2.5 rounded-lg transition-all ${viewMode === 'ready' ? 'bg-white shadow text-blue-700' : 'text-gray-500'}`}>
+          คลาสพร้อมเรียน
+        </button>
+        <button onClick={() => setViewMode('avail')}
+          className={`flex-1 text-xs font-medium py-2.5 rounded-lg transition-all ${viewMode === 'avail' ? 'bg-white shadow text-emerald-700' : 'text-gray-500'}`}>
+          วันว่างผู้สอน
+        </button>
+      </div>
 
-        {/* Month Navigation */}
+      {/* Month Navigation */}
+      <div className="bg-white rounded-xl border p-4 space-y-3">
+        {viewMode === 'avail' && (
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">เลือกผู้สอน</label>
+            <select value={selectedInstructor} onChange={e => setSelectedInstructor(e.target.value)}
+              className="w-full border border-emerald-200 bg-emerald-50 rounded-lg px-3 py-2 text-sm input-focus">
+              <option value="all">ทุกคน</option>
+              {instructors.map(inst => <option key={inst} value={inst}>{inst}</option>)}
+            </select>
+          </div>
+        )}
         <div className="flex justify-between items-center">
           <button onClick={handlePrevMonth} className="text-emerald-600 hover:text-emerald-800 font-bold px-2">◀</button>
           <h3 className="font-bold text-gray-800">{monthNames[month]} {year}</h3>
@@ -1571,139 +1606,258 @@ function InstructorAvailReport({ instructors, instructorAvail, courses, classes 
         </div>
       </div>
 
-      {/* Summary Cards */}
-      {(() => {
-        const relevantInstructors = selectedInstructor === 'all' ? instructors : [selectedInstructor];
-        return (
-          <div className="space-y-2">
-            {relevantInstructors.map(inst => {
-              const s = monthStats[inst] || { availDays: 0, availSlots: 0, matchingClasses: 0 };
-              return (
-                <div key={inst} className="bg-white rounded-xl border p-4">
-                  <div className="font-bold text-sm text-gray-800 mb-2">{inst}</div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <div className="text-lg font-bold text-emerald-600">{s.availDays}</div>
-                      <div className="text-[10px] text-gray-500">วันว่าง</div>
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold text-blue-600">{s.availSlots}</div>
-                      <div className="text-[10px] text-gray-500">ช่วงเวลา</div>
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold text-amber-600">{s.matchingClasses}</div>
-                      <div className="text-[10px] text-gray-500">คลาสตรงเวลา</div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+      {/* ══════════ VIEW: คลาสพร้อมเรียน ══════════ */}
+      {viewMode === 'ready' && (
+        <>
+          {/* Summary */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-white rounded-xl border p-3 text-center">
+              <div className="text-lg font-bold text-gray-800">{monthClasses.length}</div>
+              <div className="text-[10px] text-gray-500">คลาสทั้งหมด</div>
+            </div>
+            <div className="bg-blue-50 rounded-xl border border-blue-200 p-3 text-center">
+              <div className="text-lg font-bold text-blue-700">{readyClasses.length}</div>
+              <div className="text-[10px] text-blue-600">พร้อมรับนักเรียน</div>
+            </div>
+            <div className="bg-yellow-50 rounded-xl border border-yellow-200 p-3 text-center">
+              <div className="text-lg font-bold text-yellow-700">{monthClasses.filter(c => c.status === 'waiting_instructor').length}</div>
+              <div className="text-[10px] text-yellow-600">รอผู้สอน</div>
+            </div>
           </div>
-        );
-      })()}
 
-      {/* Calendar Grid */}
-      <div className="bg-white rounded-xl border p-4">
-        <div className="grid grid-cols-7 gap-1">
-          {dayNames.map(d => <div key={d} className="text-center text-xs font-semibold text-gray-600 py-1">{d}</div>)}
-          {Array.from({ length: firstDay }).map((_, i) => <div key={"e-" + i} className="min-h-[70px]" />)}
-          {days.map(d => {
-            const avail = getDateAvail(d.date);
-            const dateClasses = getDateClasses(d.date);
-            const hasAvail = avail.length > 0;
-            const hasClass = dateClasses.length > 0;
-            const isToday = d.date === today();
+          {/* Calendar — Ready Classes */}
+          <div className="bg-white rounded-xl border p-4">
+            <div className="grid grid-cols-7 gap-1">
+              {dayNames.map(d => <div key={d} className="text-center text-xs font-semibold text-gray-600 py-1">{d}</div>)}
+              {Array.from({ length: firstDay }).map((_, i) => <div key={"e-" + i} className="min-h-[70px]" />)}
+              {days.map(d => {
+                const dateClasses = getDateClasses(d.date);
+                const readyCls = dateClasses.filter(c => c.status === 'ready');
+                const waitingCls = dateClasses.filter(c => c.status === 'waiting_instructor');
+                const fullCls = dateClasses.filter(c => c.status === 'full');
+                const isToday = d.date === today();
+                const hasReady = readyCls.length > 0;
 
-            // Group availability by instructor
-            const byInstructor = {};
-            avail.forEach(a => {
-              if (!byInstructor[a.instructor]) byInstructor[a.instructor] = [];
-              byInstructor[a.instructor].push(a.timeSlot);
-            });
-            const instructorCount = Object.keys(byInstructor).length;
-
-            return (
-              <div key={d.date} className={`border rounded p-1 min-h-[70px] transition-colors ${
-                isToday ? 'border-emerald-400 bg-emerald-50' :
-                hasAvail && hasClass ? 'bg-blue-50 border-blue-300' :
-                hasAvail ? 'bg-green-50 border-green-300' :
-                'bg-gray-50 border-gray-200'
-              }`}>
-                <div className={`text-xs font-semibold text-center mb-0.5 ${isToday ? 'text-emerald-700' : 'text-gray-700'}`}>
-                  {d.day}
-                </div>
-                {hasAvail && selectedInstructor === 'all' && (
-                  <div className="text-[8px] text-center text-green-700 font-medium">{instructorCount} คน</div>
-                )}
-                {hasAvail && selectedInstructor !== 'all' && (
-                  <div className="flex flex-col gap-0.5">
-                    {avail.map(a => (
-                      <div key={a.timeSlot} className="text-[8px] bg-green-500 text-white rounded px-0.5 text-center truncate font-medium">
-                        {a.timeSlot}
+                return (
+                  <div key={d.date} className={`border rounded p-1 min-h-[70px] transition-colors ${
+                    isToday ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300' :
+                    hasReady ? 'bg-blue-50 border-blue-300' :
+                    dateClasses.length > 0 ? 'bg-yellow-50 border-yellow-200' :
+                    'bg-gray-50 border-gray-200'
+                  }`}>
+                    <div className={`text-xs font-semibold text-center mb-0.5 ${isToday ? 'text-emerald-700' : 'text-gray-700'}`}>
+                      {d.day}
+                    </div>
+                    {readyCls.length > 0 && (
+                      <div className="text-[8px] text-center text-blue-700 font-bold bg-blue-100 rounded px-0.5 mb-0.5">
+                        {readyCls.length} พร้อม
                       </div>
-                    ))}
+                    )}
+                    {waitingCls.length > 0 && (
+                      <div className="text-[8px] text-center text-yellow-700 font-medium">
+                        {waitingCls.length} รอ
+                      </div>
+                    )}
+                    {fullCls.length > 0 && (
+                      <div className="text-[8px] text-center text-green-700 font-medium">
+                        {fullCls.length} เต็ม
+                      </div>
+                    )}
                   </div>
-                )}
-                {hasClass && (
-                  <div className="text-[8px] text-center text-blue-600 font-medium mt-0.5">
-                    {dateClasses.length} คลาส
-                  </div>
-                )}
+                );
+              })}
+            </div>
+            <div className="flex gap-3 justify-center mt-3 text-[10px] text-gray-500">
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-50 border border-blue-300 inline-block"></span> พร้อมรับนักเรียน</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-50 border border-yellow-200 inline-block"></span> รอผู้สอน</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 border border-green-300 inline-block"></span> เต็ม</span>
+            </div>
+          </div>
+
+          {/* Ready Classes Detail List */}
+          <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="px-4 py-3 bg-blue-50 border-b">
+              <h3 className="font-bold text-sm text-blue-800">คลาสที่พร้อมให้ลูกค้าเรียน</h3>
+            </div>
+            <div className="divide-y max-h-[500px] overflow-y-auto">
+              {(() => {
+                const daysWithClasses = days.filter(d => getDateClasses(d.date).length > 0);
+                if (daysWithClasses.length === 0) {
+                  return <div className="p-6 text-center text-gray-400 text-sm">ไม่มีคลาสในเดือนนี้</div>;
+                }
+                return daysWithClasses.map(d => {
+                  const dateClasses = getDateClasses(d.date);
+                  return (
+                    <div key={d.date} className="px-4 py-3">
+                      <div className="font-semibold text-sm text-gray-800 mb-2">{fmt(d.date)}</div>
+                      <div className="space-y-1.5">
+                        {dateClasses.map(cls => {
+                          const st = CLASS_STATUS[cls.status] || CLASS_STATUS.waiting_instructor;
+                          const isReady = cls.status === 'ready';
+                          const isFull = cls.status === 'full';
+                          const maxSt = parseInt(cls.maxStudents) || '-';
+                          return (
+                            <div key={cls.id} className={`flex items-center justify-between rounded-lg px-3 py-2 ${
+                              isReady ? 'bg-blue-50 border border-blue-200' :
+                              isFull ? 'bg-green-50 border border-green-200' :
+                              'bg-gray-50 border border-gray-200'
+                            }`}>
+                              <div className="min-w-0">
+                                <div className="text-xs font-semibold text-gray-800 truncate">{getCourseLabel(cls)}</div>
+                                <div className="text-[10px] text-gray-500">{cls.timeSlot} | max {maxSt} คน</div>
+                              </div>
+                              <span className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-bold ${st.color}`}>
+                                {st.icon} {st.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ══════════ VIEW: วันว่างผู้สอน ══════════ */}
+      {viewMode === 'avail' && (
+        <>
+          {/* Summary Cards per instructor */}
+          {(() => {
+            const relevantInstructors = selectedInstructor === 'all' ? instructors : [selectedInstructor];
+            return (
+              <div className="space-y-2">
+                {relevantInstructors.map(inst => {
+                  const s = monthStats[inst] || { availDays: 0, availSlots: 0, matchingClasses: 0 };
+                  return (
+                    <div key={inst} className="bg-white rounded-xl border p-4">
+                      <div className="font-bold text-sm text-gray-800 mb-2">{inst}</div>
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div>
+                          <div className="text-lg font-bold text-emerald-600">{s.availDays}</div>
+                          <div className="text-[10px] text-gray-500">วันว่าง</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-bold text-blue-600">{s.availSlots}</div>
+                          <div className="text-[10px] text-gray-500">ช่วงเวลา</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-bold text-amber-600">{s.matchingClasses}</div>
+                          <div className="text-[10px] text-gray-500">คลาสตรงเวลา</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             );
-          })}
-        </div>
-        <div className="flex gap-3 justify-center mt-3 text-[10px] text-gray-500">
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-50 border border-green-300 inline-block"></span> ว่าง</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-50 border border-blue-300 inline-block"></span> ว่าง+มีคลาส</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-50 border border-gray-200 inline-block"></span> ไม่ว่าง</span>
-        </div>
-      </div>
+          })()}
 
-      {/* Daily Detail List */}
-      <div className="bg-white rounded-xl border overflow-hidden">
-        <div className="px-4 py-3 bg-emerald-50 border-b">
-          <h3 className="font-bold text-sm text-emerald-800">รายละเอียดวันพร้อมสอน</h3>
-        </div>
-        <div className="divide-y max-h-[400px] overflow-y-auto">
-          {days.filter(d => getDateAvail(d.date).length > 0).length === 0 ? (
-            <div className="p-6 text-center text-gray-400 text-sm">ไม่มีข้อมูลวันว่างในเดือนนี้</div>
-          ) : days.filter(d => getDateAvail(d.date).length > 0).map(d => {
-            const avail = getDateAvail(d.date);
-            const dateClasses = getDateClasses(d.date);
-            const byInstructor = {};
-            avail.forEach(a => {
-              if (!byInstructor[a.instructor]) byInstructor[a.instructor] = [];
-              byInstructor[a.instructor].push(a.timeSlot);
-            });
+          {/* Calendar Grid — Instructor Availability */}
+          <div className="bg-white rounded-xl border p-4">
+            <div className="grid grid-cols-7 gap-1">
+              {dayNames.map(d => <div key={d} className="text-center text-xs font-semibold text-gray-600 py-1">{d}</div>)}
+              {Array.from({ length: firstDay }).map((_, i) => <div key={"e-" + i} className="min-h-[70px]" />)}
+              {days.map(d => {
+                const avail = getDateAvail(d.date);
+                const dateClasses = getDateClasses(d.date);
+                const hasAvail = avail.length > 0;
+                const hasClass = dateClasses.length > 0;
+                const isToday = d.date === today();
+                const byInstructor = {};
+                avail.forEach(a => {
+                  if (!byInstructor[a.instructor]) byInstructor[a.instructor] = [];
+                  byInstructor[a.instructor].push(a.timeSlot);
+                });
+                const instructorCount = Object.keys(byInstructor).length;
 
-            return (
-              <div key={d.date} className="px-4 py-3">
-                <div className="flex justify-between items-center mb-1">
-                  <div className="font-semibold text-sm text-gray-800">{fmt(d.date)}</div>
-                  {dateClasses.length > 0 && (
-                    <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{dateClasses.length} คลาส</span>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  {Object.entries(byInstructor).map(([inst, slots]) => (
-                    <div key={inst} className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-gray-700 min-w-[60px]">{inst}</span>
-                      <div className="flex gap-1 flex-wrap">
-                        {slots.sort().map(slot => (
-                          <span key={slot} className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">{slot}</span>
+                return (
+                  <div key={d.date} className={`border rounded p-1 min-h-[70px] transition-colors ${
+                    isToday ? 'border-emerald-400 bg-emerald-50' :
+                    hasAvail && hasClass ? 'bg-blue-50 border-blue-300' :
+                    hasAvail ? 'bg-green-50 border-green-300' :
+                    'bg-gray-50 border-gray-200'
+                  }`}>
+                    <div className={`text-xs font-semibold text-center mb-0.5 ${isToday ? 'text-emerald-700' : 'text-gray-700'}`}>
+                      {d.day}
+                    </div>
+                    {hasAvail && selectedInstructor === 'all' && (
+                      <div className="text-[8px] text-center text-green-700 font-medium">{instructorCount} คน</div>
+                    )}
+                    {hasAvail && selectedInstructor !== 'all' && (
+                      <div className="flex flex-col gap-0.5">
+                        {avail.map(a => (
+                          <div key={a.timeSlot} className="text-[8px] bg-green-500 text-white rounded px-0.5 text-center truncate font-medium">
+                            {a.timeSlot}
+                          </div>
                         ))}
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                    )}
+                    {hasClass && (
+                      <div className="text-[8px] text-center text-blue-600 font-medium mt-0.5">
+                        {dateClasses.length} คลาส
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex gap-3 justify-center mt-3 text-[10px] text-gray-500">
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-50 border border-green-300 inline-block"></span> ว่าง</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-50 border border-blue-300 inline-block"></span> ว่าง+มีคลาส</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-50 border border-gray-200 inline-block"></span> ไม่ว่าง</span>
+            </div>
+          </div>
 
-      {instructors.length === 0 && (
+          {/* Daily Detail List */}
+          <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="px-4 py-3 bg-emerald-50 border-b">
+              <h3 className="font-bold text-sm text-emerald-800">รายละเอียดวันพร้อมสอน</h3>
+            </div>
+            <div className="divide-y max-h-[400px] overflow-y-auto">
+              {days.filter(d => getDateAvail(d.date).length > 0).length === 0 ? (
+                <div className="p-6 text-center text-gray-400 text-sm">ไม่มีข้อมูลวันว่างในเดือนนี้</div>
+              ) : days.filter(d => getDateAvail(d.date).length > 0).map(d => {
+                const avail = getDateAvail(d.date);
+                const dateClasses = getDateClasses(d.date);
+                const byInstructor = {};
+                avail.forEach(a => {
+                  if (!byInstructor[a.instructor]) byInstructor[a.instructor] = [];
+                  byInstructor[a.instructor].push(a.timeSlot);
+                });
+
+                return (
+                  <div key={d.date} className="px-4 py-3">
+                    <div className="flex justify-between items-center mb-1">
+                      <div className="font-semibold text-sm text-gray-800">{fmt(d.date)}</div>
+                      {dateClasses.length > 0 && (
+                        <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{dateClasses.length} คลาส</span>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      {Object.entries(byInstructor).map(([inst, slots]) => (
+                        <div key={inst} className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-700 min-w-[60px]">{inst}</span>
+                          <div className="flex gap-1 flex-wrap">
+                            {slots.sort().map(slot => (
+                              <span key={slot} className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">{slot}</span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      {instructors.length === 0 && viewMode === 'avail' && (
         <div className="bg-white rounded-xl border p-8 text-center">
           <div className="text-4xl mb-2">👨‍🏫</div>
           <div className="text-gray-500">ยังไม่มีข้อมูลผู้สอน</div>
