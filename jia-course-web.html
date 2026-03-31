@@ -954,7 +954,7 @@ function AppContent() {
 
       <main className="admin-main max-w-5xl mx-auto px-3 md:px-4 py-4 md:py-6">
         {tab === 'ops' && <OperationsBoard bookings={bookings} customers={customers} courses={courses} cfg={cfg} instructors={instructors} updateBooking={updateBooking} userRole={userRole} currentUserName={window.JIA_AUTH_USER?.name || ''} />}
-        {tab === 'myBookings' && <MyBookingsReview bookings={bookings} customers={customers} sessions={sessions} cfg={cfg} currentUserName={window.JIA_AUTH_USER?.name || ''} />}
+        {tab === 'myBookings' && <MyBookingsReview bookings={bookings} customers={customers} sessions={sessions} cfg={cfg} currentUserName={window.JIA_AUTH_USER?.name || ''} classes={classes} classInstructors={classInstructors} instructors={instructors} />}
         {tab === 'dashboard' && <Dashboard stats={stats} bookings={bookings} customers={customers} enrolled={enrolled} courses={courses} cfg={cfg} courseKeys={courseKeys} instructors={instructors} />}
         {tab === 'classes' && <ClassManager classes={classes} classInstructors={classInstructors} courses={courses} instructors={instructors} bookings={bookings}
           addClass={addClass} updateClass={updateClass} deleteClass={deleteClass}
@@ -1438,9 +1438,10 @@ function ClassManager({ classes, classInstructors, courses, instructors, booking
 
 // ─── Operations Board (บอร์ดหน้างาน) ───
 // ─── Sales: My Bookings Review ───
-function MyBookingsReview({ bookings, customers, sessions, cfg, currentUserName }) {
+function MyBookingsReview({ bookings, customers, sessions, cfg, currentUserName, classes, classInstructors, instructors }) {
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const getInstName = (i) => typeof i === 'object' ? i.name : i;
 
   const myBookings = useMemo(() => {
     let list = bookings.filter(b => b.salesStaff === currentUserName || b.createdBy === currentUserName);
@@ -1485,6 +1486,53 @@ function MyBookingsReview({ bookings, customers, sessions, cfg, currentUserName 
           <div className="text-2xl font-bold mt-1">฿{fmtPrice(stats.totalRevenue)}</div>
         </div>
       </div>
+
+      {/* ตารางคลาส 7 วันข้างหน้า */}
+      {(() => {
+        const t = today();
+        const end7 = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); })();
+        const upcoming = (classes || []).filter(c => c.date && c.date.substring(0,10) >= t && c.date.substring(0,10) <= end7)
+          .sort((a,b) => (a.date||'').localeCompare(b.date||'') || (a.timeSlot||'').localeCompare(b.timeSlot||''));
+        const dowNames = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+        return upcoming.length > 0 ? (
+          <div className="bg-white rounded-xl border border-blue-200 p-4">
+            <div className="font-bold text-gray-800 mb-3">📅 คลาส 7 วันข้างหน้า</div>
+            <div className="space-y-2">
+              {upcoming.map(cls => {
+                const dateStr = cls.date.substring(0,10);
+                const dow = dowNames[new Date(dateStr).getDay()];
+                const assigned = (classInstructors || []).filter(ci => ci.classId === cls.id);
+                const needed = Number(cls.requiredInstructors) || 1;
+                const ready = assigned.length >= needed;
+                const instNames = assigned.map(ci => {
+                  const inst = (instructors || []).find(i => i.id === ci.instructorId);
+                  return inst ? getInstName(inst) : '?';
+                }).join(', ');
+                return (
+                  <div key={cls.id} className={`flex items-center justify-between p-2 rounded-lg text-sm ${ready ? 'bg-green-50' : 'bg-amber-50'}`}>
+                    <div className="flex-1">
+                      <span className="font-medium text-gray-700">{fmt(dateStr)} ({dow})</span>
+                      <span className="mx-2 text-gray-400">|</span>
+                      <span className="text-gray-600">{cls.courseName || cls.courseKey}</span>
+                      {cls.timeSlot && <span className="text-gray-400 ml-2">{cls.timeSlot}</span>}
+                    </div>
+                    <div className="flex items-center gap-2 ml-2">
+                      <span className="text-xs text-gray-500">{instNames || '-'}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ready ? 'bg-green-200 text-green-800' : 'bg-amber-200 text-amber-800'}`}>
+                        {assigned.length}/{needed} {ready ? '✓' : '!'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-blue-100 p-4 text-center text-sm text-gray-500">
+            📅 ไม่มีคลาสใน 7 วันข้างหน้า
+          </div>
+        );
+      })()}
 
       {/* Filters */}
       <div className="flex flex-col md:flex-row gap-3">
