@@ -1086,9 +1086,9 @@ function MonthlyClassReport({ classes, classInstructors, courses, instructors })
     });
 
     // Summary stats
-    const totalClasses = monthClasses.length;
+    const totalClasses = rangeClasses.length;
     const daysWithClasses = days.filter(d => d.totalClasses > 0).length;
-    const allReady = monthClasses.filter(cls => {
+    const allReady = rangeClasses.filter(cls => {
       const ci = classInstructors.filter(c => (c.classId || c.class_id) === cls.id);
       return ci.length >= (parseInt(cls.requiredInstructors) || 1);
     }).length;
