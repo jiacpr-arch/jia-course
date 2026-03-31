@@ -675,9 +675,9 @@ function AppContent() {
 
       setSaving(false);
       if (result && result.failed && result.failed.length > 0) {
-        setSaveStatus('success');
+        setSaveStatus('error');
         console.warn('⚠️ บันทึกบางตารางไม่สำเร็จ:', result.failed);
-        showToast('⚠️ บันทึกส่วนใหญ่สำเร็จ (บางตารางมีปัญหา)');
+        showToast('⚠️ บันทึกไม่ครบ: ' + result.failed.length + ' ตารางมีปัญหา — ' + result.failed[0], true);
       } else {
         setSaveStatus('success');
         showToast('✅ บันทึกสำเร็จ! ข้อมูลอยู่ใน Supabase แล้ว');
@@ -2147,43 +2147,39 @@ function BookingForm({ customers, addCustomer, addBooking, enrolled, courses, cf
 
   const courseConfig = cfg(courseType);
   let basePrice = courseConfig.price;
-  let finalPrice = useCustomPrice && customPrice !== "" ? Number(customPrice) : basePrice;
-  let discountAmount = 0;
+  const [discountAmount, setDiscountAmount] = useState(0);
+  let finalPrice = useCustomPrice && customPrice !== "" ? Number(customPrice) : Math.max(0, basePrice - discountAmount);
 
   // Validate discount code
-  const validateDiscountCode = () => {
+  useEffect(() => {
     if (!discountCode.trim()) {
       setDiscountValidation("");
+      setDiscountAmount(0);
       return;
     }
     const code = discountCode.toUpperCase();
     if (code.startsWith("JIA-")) {
       setDiscountValidation("valid");
-      discountAmount = 100;
+      setDiscountAmount(100);
     } else if (code.startsWith("SALE-")) {
       const promo = promoCodes.find(p => p.code === code);
       if (promo) {
         if (promo.used) {
           setDiscountValidation("used");
+          setDiscountAmount(0);
         } else {
           setDiscountValidation("valid");
-          discountAmount = Number(promo.discount) || 0;
+          setDiscountAmount(Number(promo.discount) || 0);
         }
       } else {
         setDiscountValidation("invalid");
+        setDiscountAmount(0);
       }
     } else {
       setDiscountValidation("invalid");
+      setDiscountAmount(0);
     }
-  };
-
-  useEffect(() => {
-    if (discountCode) validateDiscountCode();
-  }, [discountCode]);
-
-  if (!useCustomPrice) {
-    finalPrice = Math.max(0, finalPrice - discountAmount);
-  }
+  }, [discountCode, promoCodes]);
 
   const discountPct = courseConfig.price > 0
     ? Math.round(((courseConfig.price - finalPrice) / courseConfig.price) * 100)
@@ -2223,33 +2219,43 @@ function BookingForm({ customers, addCustomer, addBooking, enrolled, courses, cf
 
   const confirmBooking = async () => {
     if (!pendingBooking) return;
-    // Mark promo code as used
-    if (discountValidation === "valid" && pendingBooking.discountCode) {
-      const usedCode = pendingBooking.discountCode;
-      if (usedCode.startsWith("SALE-")) {
-        const promo = promoCodes.find(p => p.code === usedCode);
-        if (promo) {
-          const updated = promoCodes.map(p =>
-            p.code === usedCode ? { ...p, used: true, usedBy: pendingBooking.name } : p
-          );
-          updatePromoCodes(updated);
+    try {
+      // Mark promo code as used
+      if (discountValidation === "valid" && pendingBooking.discountCode) {
+        const usedCode = pendingBooking.discountCode;
+        if (usedCode.startsWith("SALE-")) {
+          const promo = promoCodes.find(p => p.code === usedCode);
+          if (promo) {
+            const updated = promoCodes.map(p =>
+              p.code === usedCode ? { ...p, used: true, usedBy: pendingBooking.name } : p
+            );
+            updatePromoCodes(updated);
+          }
         }
       }
+      await addBooking(pendingBooking);
+      setShowConfirmDialog(false);
+      setPendingBooking(null);
+      setCourseType(""); setChannel(""); setTotalPeople(""); setPaymentMode(""); setStartDate(""); setTimeSlot("");
+      setSalesStaff(isSales ? currentUserName : ""); setInstructor(""); setNote(""); setSelectedCustomer(null); setCprPackage(""); setDiscountCode(""); setDiscountValidation("");
+      setCustomPrice(""); setUseCustomPrice(false); setDiscountAmount(0);
+      showToast('✅ บันทึกการจองสำเร็จ');
+    } catch(err) {
+      console.error('❌ Booking error:', err);
+      showToast('❌ บันทึกการจองไม่สำเร็จ: ' + err.message, true);
     }
-    await addBooking(pendingBooking);
-    setShowConfirmDialog(false);
-    setPendingBooking(null);
-    setCourseType(""); setChannel(""); setTotalPeople(""); setPaymentMode(""); setStartDate(""); setTimeSlot("");
-    setSalesStaff(isSales ? currentUserName : ""); setInstructor(""); setNote(""); setSelectedCustomer(null); setCprPackage(""); setDiscountCode(""); setDiscountValidation("");
-    setCustomPrice(""); setUseCustomPrice(false);
-    showToast('✅ บันทึกการจองสำเร็จ');
   };
 
   const handleAddCustomer = async () => {
     if (!name || !tel) return;
-    const newCust = await addCustomer({ name, tel, note });
-    setSelectedCustomer(newCust);
-    setName(""); setTel(""); setShowNewCustomer(false);
+    try {
+      const newCust = await addCustomer({ name, tel, note });
+      setSelectedCustomer(newCust);
+      setName(""); setTel(""); setShowNewCustomer(false);
+    } catch(err) {
+      console.error('❌ Add customer error:', err);
+      showToast('❌ เพิ่มลูกค้าไม่สำเร็จ: ' + err.message, true);
+    }
   };
 
   const nonFullCourses = courses.filter(c => {
@@ -4313,15 +4319,26 @@ window.addEventListener('offline', () => {
 window.addEventListener('online', () => { const b = document.getElementById('jia-offline'); if (b) b.remove(); showToast('✅ กลับมาออนไลน์แล้ว'); });
 setInterval(() => {
   if (!navigator.onLine) return;
-  const user = JSON.parse(localStorage.getItem('jia_user') || sessionStorage.getItem('jia_user') || 'null');
-  if (!user) return;
-  jiaApiGet('getAllData', { username: user.username }).then(data => {
-    if (!data || data.error) return;
-    Object.keys(data).forEach(k => {
-      if (Array.isArray(data[k])) localStorage.setItem('jia_' + k, JSON.stringify(data[k]));
-    });
-    console.log('🔄 Auto-refresh done:', new Date().toLocaleTimeString());
-  }).catch(() => {});
+  try {
+    const user = JSON.parse(localStorage.getItem('jia_user') || sessionStorage.getItem('jia_user') || 'null');
+    if (!user || !user.username) return;
+    jiaApiGet('getAllData', { username: user.username }).then(data => {
+      if (!data || data.error) return;
+      // Only update if API returned meaningful data (not empty/partial)
+      Object.keys(data).forEach(k => {
+        if (Array.isArray(data[k]) && data[k].length > 0) {
+          const existing = localStorage.getItem('jia_' + k);
+          let localLen = 0;
+          try { localLen = JSON.parse(existing || '[]').length; } catch(e) {}
+          // Only overwrite if API has same or more data (prevent data loss)
+          if (data[k].length >= localLen) {
+            localStorage.setItem('jia_' + k, JSON.stringify(data[k]));
+          }
+        }
+      });
+      console.log('🔄 Auto-refresh done:', new Date().toLocaleTimeString());
+    }).catch(() => {});
+  } catch(e) { console.warn('Auto-refresh parse error:', e); }
 }, 5 * 60 * 1000);
 </script>
 </body>
