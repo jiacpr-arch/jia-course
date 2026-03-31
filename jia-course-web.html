@@ -244,6 +244,7 @@ const ALL_TABS = [
   { id: 'calendar',   label: 'ปฏิทิน',       roles: ['admin','sales'] },
   { id: 'promo',      label: 'โค้ดโปรโม',    roles: ['admin','sales'] },
   { id: 'instSched',  label: 'ตารางผู้สอน',  roles: ['admin'] },
+  { id: 'report',     label: 'รายงาน',       roles: ['admin'] },
   { id: 'users',      label: 'จัดการผู้ใช้',  roles: ['admin'] },
   { id: 'settings',   label: 'ตั้งค่า',      roles: ['admin'] },
 ];
@@ -974,10 +975,191 @@ function AppContent() {
         {tab === 'calendar' && <CalendarView sessions={sessions} bookings={bookings} courses={courses} cfg={cfg} customers={customers} classes={classes} classInstructors={classInstructors} />}
         {tab === 'promo' && <ErrorBoundary><PromoCodeManager promoCodes={promoCodes} savePromoCodes={savePromoCodes} staff={staff} /></ErrorBoundary>}
         {tab === 'instSched' && <InstructorSchedule bookings={bookings} instructors={instructors} classes={classes} classInstructors={classInstructors} />}
+        {tab === 'report' && <MonthlyClassReport classes={classes} classInstructors={classInstructors} courses={courses} instructors={instructors} />}
         {tab === 'users' && <UserManager />}
         {tab === 'settings' && <CourseSettings courses={courses} saveCourses={saveCourses} staff={staff} saveStaff={saveStaff} instructors={instructors} saveInstructors={saveInstructors} enrolled={enrolled} />}
       </main>
     </div>
+  );
+}
+
+// ─── Monthly Class Report (รายงานคลาสรายเดือน) ───
+function MonthlyClassReport({ classes, classInstructors, courses, instructors }) {
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  });
+
+  const getInstructorName = (i) => typeof i === 'object' ? i.name : i;
+
+  const report = useMemo(() => {
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    // Filter classes for selected month
+    const monthClasses = classes.filter(cls => {
+      if (!cls.date) return false;
+      const d = new Date(cls.date);
+      return d.getFullYear() === year && (d.getMonth() + 1) === month;
+    });
+
+    // Group by date
+    const byDate = {};
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = year + '-' + String(month).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+      byDate[dateStr] = [];
+    }
+    monthClasses.forEach(cls => {
+      const dateStr = cls.date.substring(0, 10);
+      if (byDate[dateStr]) byDate[dateStr].push(cls);
+      else byDate[dateStr] = [cls];
+    });
+
+    // Build day rows
+    const days = Object.entries(byDate).map(([date, dayClasses]) => {
+      const dow = new Date(date).getDay();
+      const dowNames = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+      return {
+        date,
+        dow: dowNames[dow],
+        isWeekend: dow === 0 || dow === 6,
+        classes: dayClasses.map(cls => {
+          const ci = classInstructors.filter(c =>
+            (c.classId || c.class_id) === cls.id
+          );
+          const assignedNames = ci.map(c => {
+            const instId = c.instructorId || c.instructor_id || c.instructor;
+            const inst = instructors.find(i =>
+              (typeof i === 'object' ? (i.id || i.name) : i) === instId
+            );
+            return inst ? getInstructorName(inst) : instId;
+          });
+          const required = parseInt(cls.requiredInstructors) || 1;
+          const current = ci.length;
+          return {
+            id: cls.id,
+            courseName: cls.courseName || cls.courseKey || '-',
+            timeSlot: cls.timeSlot || '-',
+            place: cls.place || '',
+            status: cls.status,
+            required,
+            current,
+            instructorReady: current >= required,
+            assignedNames,
+          };
+        }),
+        totalClasses: dayClasses.length,
+      };
+    });
+
+    // Summary stats
+    const totalClasses = monthClasses.length;
+    const daysWithClasses = days.filter(d => d.totalClasses > 0).length;
+    const allReady = monthClasses.filter(cls => {
+      const ci = classInstructors.filter(c => (c.classId || c.class_id) === cls.id);
+      return ci.length >= (parseInt(cls.requiredInstructors) || 1);
+    }).length;
+    const notReady = totalClasses - allReady;
+
+    return { days, totalClasses, daysWithClasses, allReady, notReady };
+  }, [classes, classInstructors, courses, instructors, selectedMonth]);
+
+  const statusBadge = (cls) => {
+    if (cls.instructorReady) return React.createElement('span', { className: 'inline-block px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 font-medium' }, 'ครบ');
+    return React.createElement('span', { className: 'inline-block px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700 font-medium' }, 'ขาด ' + (cls.required - cls.current) + ' คน');
+  };
+
+  return React.createElement('div', { className: 'space-y-4' },
+    // Header
+    React.createElement('div', { className: 'flex flex-wrap items-center justify-between gap-4' },
+      React.createElement('h2', { className: 'text-xl font-bold' }, 'รายงานคลาสรายเดือน'),
+      React.createElement('input', {
+        type: 'month', value: selectedMonth,
+        onChange: e => setSelectedMonth(e.target.value),
+        className: 'border rounded-lg px-3 py-2 text-sm'
+      })
+    ),
+
+    // Summary cards
+    React.createElement('div', { className: 'grid grid-cols-2 md:grid-cols-4 gap-3' },
+      React.createElement('div', { className: 'bg-blue-50 rounded-xl p-4 text-center' },
+        React.createElement('div', { className: 'text-2xl font-bold text-blue-700' }, report.totalClasses),
+        React.createElement('div', { className: 'text-sm text-blue-500' }, 'คลาสทั้งหมด')
+      ),
+      React.createElement('div', { className: 'bg-purple-50 rounded-xl p-4 text-center' },
+        React.createElement('div', { className: 'text-2xl font-bold text-purple-700' }, report.daysWithClasses),
+        React.createElement('div', { className: 'text-sm text-purple-500' }, 'วันที่มีคลาส')
+      ),
+      React.createElement('div', { className: 'bg-green-50 rounded-xl p-4 text-center' },
+        React.createElement('div', { className: 'text-2xl font-bold text-green-700' }, report.allReady),
+        React.createElement('div', { className: 'text-sm text-green-500' }, 'คนสอนครบ')
+      ),
+      React.createElement('div', { className: 'bg-red-50 rounded-xl p-4 text-center' },
+        React.createElement('div', { className: 'text-2xl font-bold text-red-700' }, report.notReady),
+        React.createElement('div', { className: 'text-sm text-red-500' }, 'ยังขาดคนสอน')
+      )
+    ),
+
+    // Day-by-day table
+    React.createElement('div', { className: 'bg-white rounded-xl shadow overflow-x-auto' },
+      React.createElement('table', { className: 'w-full text-sm' },
+        React.createElement('thead', null,
+          React.createElement('tr', { className: 'bg-gray-50 text-gray-600' },
+            React.createElement('th', { className: 'px-3 py-2 text-left w-28' }, 'วันที่'),
+            React.createElement('th', { className: 'px-3 py-2 text-center w-16' }, 'จำนวน'),
+            React.createElement('th', { className: 'px-3 py-2 text-left' }, 'รายละเอียดคลาส'),
+            React.createElement('th', { className: 'px-3 py-2 text-center w-24' }, 'ผู้สอน'),
+            React.createElement('th', { className: 'px-3 py-2 text-center w-20' }, 'สถานะ')
+          )
+        ),
+        React.createElement('tbody', null,
+          report.days.map(day => {
+            if (day.totalClasses === 0) return React.createElement('tr', {
+              key: day.date,
+              className: 'border-t ' + (day.isWeekend ? 'bg-orange-50/40' : 'bg-gray-50/30')
+            },
+              React.createElement('td', { className: 'px-3 py-1.5 text-gray-400' },
+                day.date.substring(8) + ' ' + day.dow
+              ),
+              React.createElement('td', { className: 'px-3 py-1.5 text-center text-gray-300' }, '-'),
+              React.createElement('td', { className: 'px-3 py-1.5 text-gray-300 italic' }, 'ไม่มีคลาส'),
+              React.createElement('td', null),
+              React.createElement('td', null)
+            );
+
+            return day.classes.map((cls, i) => React.createElement('tr', {
+              key: day.date + '-' + i,
+              className: 'border-t ' + (day.isWeekend ? 'bg-orange-50' : '')
+            },
+              i === 0 ? React.createElement('td', {
+                className: 'px-3 py-2 font-medium align-top',
+                rowSpan: day.classes.length
+              },
+                React.createElement('div', null, day.date.substring(8) + ' ' + day.dow),
+                day.totalClasses > 1 && React.createElement('div', { className: 'text-xs text-gray-400' }, day.totalClasses + ' คลาส')
+              ) : null,
+              i === 0 ? React.createElement('td', {
+                className: 'px-3 py-2 text-center font-semibold align-top',
+                rowSpan: day.classes.length
+              }, day.totalClasses) : null,
+              React.createElement('td', { className: 'px-3 py-2' },
+                React.createElement('div', { className: 'font-medium' }, cls.courseName),
+                React.createElement('div', { className: 'text-xs text-gray-500' },
+                  cls.timeSlot + (cls.place ? ' | ' + cls.place : '')
+                )
+              ),
+              React.createElement('td', { className: 'px-3 py-2 text-center' },
+                React.createElement('div', null, cls.current + '/' + cls.required),
+                cls.assignedNames.length > 0 && React.createElement('div', { className: 'text-xs text-gray-500' },
+                  cls.assignedNames.join(', ')
+                )
+              ),
+              React.createElement('td', { className: 'px-3 py-2 text-center' }, statusBadge(cls))
+            ));
+          })
+        )
+      )
+    )
   );
 }
 
