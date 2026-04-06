@@ -286,13 +286,18 @@
         }
 
         .calendar-day {
-            padding: 8px;
+            padding: 6px 4px;
             border: 2px solid var(--jia-warm-gray);
             border-radius: 8px;
             cursor: pointer;
             text-align: center;
             font-weight: 500;
             transition: all 0.2s ease;
+            min-height: 48px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
         }
 
         .calendar-day:hover {
@@ -1041,16 +1046,18 @@
                 return classes.filter(c => c.status === 'ready' && c.courseKey === courseKey);
             };
 
+            // คืน ready classes ทุกคอร์สสำหรับวันนั้น
+            const getReadyClassesForDate = (dateStr) => {
+                if (!useClassMode) return [];
+                return classes.filter(c => c.status === 'ready' && c.date === dateStr);
+            };
+
             const isDateAvailable = (dateStr) => {
-                if (useClassMode && selectedCourse) {
-                    // v2: ตรวจจาก classes ที่ ready
-                    const readyClasses = getReadyClassesForCourse(selectedCourse.key);
-                    if (readyClasses.length > 0) {
-                        return readyClasses.some(c => c.date === dateStr);
-                    }
-                    // ถ้าไม่มี ready class สำหรับคอร์สนี้เลย → fallback ใช้ instructor availability
+                if (useClassMode) {
+                    // v2: แสดงวันที่มี ready class จากคอร์สใดก็ได้
+                    if (getReadyClassesForDate(dateStr).length > 0) return true;
+                    // fallback ถ้าไม่มี ready class เลย → ใช้ instructor availability
                 }
-                // fallback: ใช้ instructor availability เดิม
                 return instructorAvailability[dateStr] && instructorAvailability[dateStr].length > 0;
             };
 
@@ -1068,17 +1075,16 @@
             })();
 
             const getAvailableTimeSlotsForDate = (dateStr) => {
-                if (useClassMode && selectedCourse) {
-                    // v2: ดึง time slots จาก ready classes
-                    const readyClasses = getReadyClassesForCourse(selectedCourse.key);
+                if (useClassMode) {
+                    const readyClasses = getReadyClassesForDate(dateStr);
                     if (readyClasses.length > 0) {
-                        return readyClasses
-                            .filter(c => c.date === dateStr)
-                            .map(c => c.timeSlot);
+                        // ถ้าเลือกคอร์สแล้ว → กรองเฉพาะคอร์สนั้น
+                        const filtered = selectedCourse
+                            ? readyClasses.filter(c => c.courseKey === selectedCourse.key)
+                            : readyClasses;
+                        return [...new Set((filtered.length > 0 ? filtered : readyClasses).map(c => c.timeSlot))];
                     }
-                    // ถ้าไม่มี ready class → fallback
                 }
-                // fallback
                 const slots = instructorAvailability[dateStr];
                 if (!slots) return [];
                 const courseSlots = selectedCourse?.timeSlots || TIME_SLOTS;
@@ -1364,6 +1370,7 @@
                     const dateStr = formatDate(new Date(month.getFullYear(), month.getMonth(), day));
                     const isAvailable = isDateAvailable(dateStr);
                     const isSelected = selectedDate === dateStr;
+                    const dayClasses = useClassMode ? getReadyClassesForDate(dateStr) : [];
 
                     days.push(
                         <div
@@ -1371,9 +1378,28 @@
                             className={`calendar-day ${isAvailable ? 'available' : 'unavailable'} ${
                                 isSelected ? 'selected' : ''
                             }`}
-                            onClick={() => isAvailable && setSelectedDate(dateStr)}
+                            style={isAvailable && !isSelected ? {borderColor:'#C8102E'} : {}}
+                            onClick={() => {
+                                if (!isAvailable) return;
+                                setSelectedDate(dateStr);
+                                // auto-set course จาก class ถ้ามีเพียงคอร์สเดียว
+                                if (useClassMode && dayClasses.length > 0) {
+                                    const keys = [...new Set(dayClasses.map(c => c.courseKey))];
+                                    if (keys.length === 1) {
+                                        const course = availableCourses.find(c => c.key === keys[0]);
+                                        if (course) setSelectedCourse(course);
+                                    }
+                                }
+                            }}
                         >
-                            {day}
+                            <div>{day}</div>
+                            {isAvailable && dayClasses.length > 0 && (
+                                <div style={{fontSize:'9px', lineHeight:'1.2', marginTop:'2px', color: isSelected ? 'white' : '#C8102E', fontWeight:'600'}}>
+                                    {[...new Set(dayClasses.map(c => c.courseName || c.courseKey))].slice(0,2).map((name, i) => (
+                                        <div key={i} style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{name}</div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     );
                 }
