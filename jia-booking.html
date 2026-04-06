@@ -1050,6 +1050,19 @@
                 return instructorAvailability[dateStr] && instructorAvailability[dateStr].length > 0;
             };
 
+            // ตรวจว่ามีวันใดๆ ที่จองได้ในเดือนปัจจุบัน+เดือนหน้า
+            const hasAvailableDatesInView = (() => {
+                const checkMonth = (month) => {
+                    const days = getDaysInMonth(month);
+                    for (let d = 1; d <= days; d++) {
+                        if (isDateAvailable(formatDate(new Date(month.getFullYear(), month.getMonth(), d)))) return true;
+                    }
+                    return false;
+                };
+                const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
+                return checkMonth(currentMonth) || checkMonth(nextMonth);
+            })();
+
             const getAvailableTimeSlotsForDate = (dateStr) => {
                 if (useClassMode && selectedCourse) {
                     // v2: ดึง time slots จาก ready classes
@@ -1517,6 +1530,26 @@
                                         {renderCalendar(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
                                     </div>
                                 </div>
+
+                                {/* No dates available — contact banner */}
+                                {!hasAvailableDatesInView && (
+                                    <div className="bg-white rounded-2xl p-6 card-shadow mb-8 text-center" style={{border:'2px solid #C8102E'}}>
+                                        <p className="text-lg font-bold jia-red mb-2">ขณะนี้ยังไม่มีวันเรียนที่เปิดรับจอง</p>
+                                        <p className="text-gray-600 mb-4">ติดต่อเราเพื่อจองโดยตรง ทีมงานยินดีช่วยเหลือ</p>
+                                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                            <a href="https://line.me/R/ti/p/@jiacpr" target="_blank"
+                                                className="btn-primary inline-flex items-center justify-center gap-2"
+                                                style={{background:'#06C755', textDecoration:'none', padding:'12px 24px', borderRadius:'8px', color:'white', fontWeight:'bold'}}>
+                                                LINE @jiacpr
+                                            </a>
+                                            <a href="tel:0885588078"
+                                                className="inline-flex items-center justify-center gap-2"
+                                                style={{background:'#C8102E', textDecoration:'none', padding:'12px 24px', borderRadius:'8px', color:'white', fontWeight:'bold'}}>
+                                                โทร 088-558-8078
+                                            </a>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Time Slot Selection */}
                                 {selectedDate && (
