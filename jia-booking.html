@@ -612,6 +612,8 @@
 <body>
     <div id="root"></div>
 
+    <!-- Supabase JS Client (for reliable upsert) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <!-- โหลด Supabase API ก่อนใช้ jiaApiGet/jiaApiPost -->
     <script src="jia-supabase-api.js"></script>
 
@@ -1304,17 +1306,27 @@
                     const existingCustomers = JSON.parse(localStorage.getItem('jia_customers') || '[]');
                     existingCustomers.push(customer);
                     localStorage.setItem('jia_customers', JSON.stringify(existingCustomers));
-                    jiaApiPost('saveRow', { sheet: 'customers' }, customer).catch(e => console.warn('⚠️ customer sync:', e.message));
 
                     const existingBookings = JSON.parse(localStorage.getItem('jia_bookings') || '[]');
                     existingBookings.push(booking);
                     localStorage.setItem('jia_bookings', JSON.stringify(existingBookings));
-                    jiaApiPost('saveRow', { sheet: 'bookings' }, booking).catch(e => console.warn('⚠️ booking sync:', e.message));
 
                     const existingSessions = JSON.parse(localStorage.getItem('jia_sessions') || '[]');
                     sessions.forEach(s => existingSessions.push(s));
                     localStorage.setItem('jia_sessions', JSON.stringify(existingSessions));
-                    sessions.forEach(s => jiaApiPost('saveRow', { sheet: 'sessions' }, s).catch(e => console.warn('⚠️ session sync:', e.message)));
+
+                    // Sync to Supabase — รอทั้งหมด เพื่อยืนยันว่าบันทึกสำเร็จ
+                    try {
+                        await Promise.all([
+                            jiaApiPost('saveRow', { sheet: 'customers' }, customer),
+                            jiaApiPost('saveRow', { sheet: 'bookings' }, booking),
+                            ...sessions.map(s => jiaApiPost('saveRow', { sheet: 'sessions' }, s))
+                        ]);
+                        console.log('✅ Booking synced to Supabase:', bookingId);
+                    } catch(syncErr) {
+                        console.error('❌ Supabase sync failed:', syncErr);
+                        // ยังดำเนินการจองต่อได้ — ข้อมูลอยู่ใน localStorage แล้ว
+                    }
 
                     // Mark promo code as used (ทั้ง SALE- และ JIA-)
                     if (promoCode.startsWith('SALE-') || promoCode.startsWith('JIA-')) {

@@ -136,9 +136,13 @@ window.JIA_DATA_READY = (async function() {
                 console.log('📦', key, '← fallback');
             }
         };
-        _safeSave('jia_customers', data.customers);
-        _safeSave('jia_bookings', data.bookings);
-        _safeSave('jia_sessions', data.sessions);
+        // ข้อมูล transaction: ใช้ Supabase เป็น source of truth เสมอ (ป้องกัน stale cache ซ่อน booking ใหม่)
+        _set('jia_customers', JSON.stringify(Array.isArray(data.customers) ? data.customers : []));
+        _set('jia_bookings',  JSON.stringify(Array.isArray(data.bookings)  ? data.bookings  : []));
+        _set('jia_sessions',  JSON.stringify(Array.isArray(data.sessions)  ? data.sessions  : []));
+        console.log('📥 jia_customers ← API (' + (data.customers||[]).length + ' rows) [always trust server]');
+        console.log('📥 jia_bookings ← API ('  + (data.bookings||[]).length  + ' rows) [always trust server]');
+        console.log('📥 jia_sessions ← API ('  + (data.sessions||[]).length  + ' rows) [always trust server]');
         _safeSave('jia_courses', courses, courses);
         _safeSave('jia_staff', (data.staff || []).map(s => typeof s === 'object' ? s.name : s));
         _safeSave('jia_instructors', (data.instructors || []).map(i => typeof i === 'object' ? i.name : i));
