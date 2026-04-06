@@ -612,6 +612,9 @@
 <body>
     <div id="root"></div>
 
+    <!-- โหลด Supabase API ก่อนใช้ jiaApiGet/jiaApiPost -->
+    <script src="jia-supabase-api.js"></script>
+
     <!-- ═══ API Bridge: โหลดข้อมูลจาก Google Sheets ═══ -->
     <script>
     // ★★★ CONFIG — API functions provided by jia-supabase-api.js ★★★
@@ -771,7 +774,6 @@
     }
     </script>
 
-    <script src="jia-supabase-api.js"></script>
     <script type="text/babel">
         const { useState, useEffect } = React;
 
