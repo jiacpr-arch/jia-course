@@ -1001,10 +1001,13 @@
                 // v2: Load classes
                 try {
                     const cls = JSON.parse(localStorage.getItem('jia_classes') || '[]');
-                    if (cls.length > 0) {
+                    const readyCls = cls.filter(c => c.status === 'ready');
+                    if (readyCls.length > 0) {
                         setClasses(cls);
                         setUseClassMode(true);
-                        console.log('📋 Class mode ON —', cls.filter(c => c.status === 'ready').length, 'ready classes');
+                        console.log('📋 Class mode ON —', readyCls.length, 'ready classes');
+                    } else if (cls.length > 0) {
+                        console.log('📋 Class mode OFF — classes exist but none are ready (', cls.length, 'total)');
                     }
                 } catch(e) {}
 
