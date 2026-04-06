@@ -1694,6 +1694,11 @@ function OperationsBoard({ bookings, customers, courses, cfg, instructors, updat
           <div className="text-4xl mb-2">😎</div>
           <div className="text-lg font-semibold text-gray-700">ว่าง</div>
           <div className="text-sm text-gray-500 mt-1">ไม่มีการจองในวันนี้</div>
+          {pendingPayments.length > 0 && (
+            <div className="mt-4 text-sm font-semibold text-amber-600">
+              🧾 มี {pendingPayments.length} รายการรอตรวจสอบสลิป — ดูด้านล่าง
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
@@ -2855,6 +2860,17 @@ function BookingEditModal({ bk, setBk, enrolled, courses, staff, instructors, on
             className="w-full border border-amber-200 bg-white rounded px-2 py-1 text-xs">
             <option value="">เลือก</option>
             {["เงินสด", "ธนาคาร", "Prompt Pay", "ลงชื่อสัญญา"].map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-700 block mb-1">สถานะการชำระเงิน</label>
+          <select value={bk.paymentStatus || ""} onChange={(e) => setBk({ ...bk, paymentStatus: e.target.value })}
+            className="w-full border border-amber-200 bg-white rounded px-2 py-1 text-xs">
+            <option value="รอตรวจสอบ">รอตรวจสอบ</option>
+            <option value="ชำระแล้ว">ชำระแล้ว</option>
+            <option value="ไม่ผ่าน">ไม่ผ่าน</option>
+            <option value="ยกเว้น">ยกเว้น</option>
           </select>
         </div>
 
