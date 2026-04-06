@@ -1044,7 +1044,11 @@
             const isDateAvailable = (dateStr) => {
                 if (useClassMode && selectedCourse) {
                     // v2: ตรวจจาก classes ที่ ready
-                    return getReadyClassesForCourse(selectedCourse.key).some(c => c.date === dateStr);
+                    const readyClasses = getReadyClassesForCourse(selectedCourse.key);
+                    if (readyClasses.length > 0) {
+                        return readyClasses.some(c => c.date === dateStr);
+                    }
+                    // ถ้าไม่มี ready class สำหรับคอร์สนี้เลย → fallback ใช้ instructor availability
                 }
                 // fallback: ใช้ instructor availability เดิม
                 return instructorAvailability[dateStr] && instructorAvailability[dateStr].length > 0;
@@ -1066,9 +1070,13 @@
             const getAvailableTimeSlotsForDate = (dateStr) => {
                 if (useClassMode && selectedCourse) {
                     // v2: ดึง time slots จาก ready classes
-                    return getReadyClassesForCourse(selectedCourse.key)
-                        .filter(c => c.date === dateStr)
-                        .map(c => c.timeSlot);
+                    const readyClasses = getReadyClassesForCourse(selectedCourse.key);
+                    if (readyClasses.length > 0) {
+                        return readyClasses
+                            .filter(c => c.date === dateStr)
+                            .map(c => c.timeSlot);
+                    }
+                    // ถ้าไม่มี ready class → fallback
                 }
                 // fallback
                 const slots = instructorAvailability[dateStr];
