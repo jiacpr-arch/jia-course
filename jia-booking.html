@@ -973,54 +973,62 @@
             const [useClassMode, setUseClassMode] = useState(false); // true = ใช้ class system ใหม่
 
             useEffect(() => {
-                const availData = localStorage.getItem('jia_instructor_avail');
-                if (availData) {
+                const loadFromStorage = () => {
+                    // Load instructor availability
                     try {
-                        const raw = JSON.parse(availData);
-                        console.log('📅 raw instructor_avail:', raw);
-                        // แปลง array format → object { date: [timeSlot, ...] }
-                        if (Array.isArray(raw)) {
-                            const map = {};
-                            raw.forEach(a => {
-                                if (!a.date || !a.timeSlot) return;
-                                if (!map[a.date]) map[a.date] = [];
-                                if (!map[a.date].includes(a.timeSlot)) map[a.date].push(a.timeSlot);
-                            });
-                            console.log('📅 converted availability map:', map);
-                            setInstructorAvailability(map);
-                        } else {
-                            console.log('📅 availability already object:', raw);
-                            setInstructorAvailability(raw);
+                        const availData = localStorage.getItem('jia_instructor_avail');
+                        if (availData) {
+                            const raw = JSON.parse(availData);
+                            if (Array.isArray(raw)) {
+                                const map = {};
+                                raw.forEach(a => {
+                                    if (!a.date || !a.timeSlot) return;
+                                    if (!map[a.date]) map[a.date] = [];
+                                    if (!map[a.date].includes(a.timeSlot)) map[a.date].push(a.timeSlot);
+                                });
+                                setInstructorAvailability(map);
+                            } else {
+                                setInstructorAvailability(raw);
+                            }
                         }
-                    } catch (e) {
-                        console.error('Failed to parse instructor availability', e);
+                    } catch (e) {}
+
+                    // Load payment settings
+                    try {
+                        const ps = localStorage.getItem('jia_payment_settings');
+                        if (ps) setPaymentSettings(JSON.parse(ps));
+                    } catch(e) {}
+
+                    // v2: Load classes
+                    try {
+                        const cls = JSON.parse(localStorage.getItem('jia_classes') || '[]');
+                        if (cls.length > 0) {
+                            setClasses(cls);
+                            setUseClassMode(true);
+                            console.log('📋 Class mode ON —', cls.filter(c => c.status === 'ready').length, 'ready classes');
+                        }
+                    } catch(e) {}
+
+                    // Load available courses
+                    const courses = getCourses();
+                    setAvailableCourses(courses);
+
+                    // Auto-select course if only one is available
+                    if (courses.length === 1) {
+                        setSelectedCourse(courses[0]);
+                        setStep(2);
                     }
-                }
+                };
 
-                // Load payment settings
-                try {
-                    const ps = localStorage.getItem('jia_payment_settings');
-                    if (ps) setPaymentSettings(JSON.parse(ps));
-                } catch(e) {}
+                // โหลดจาก localStorage ทันที (ข้อมูล cache)
+                loadFromStorage();
 
-                // v2: Load classes
-                try {
-                    const cls = JSON.parse(localStorage.getItem('jia_classes') || '[]');
-                    if (cls.length > 0) {
-                        setClasses(cls);
-                        setUseClassMode(true);
-                        console.log('📋 Class mode ON —', cls.filter(c => c.status === 'ready').length, 'ready classes');
-                    }
-                } catch(e) {}
-
-                // Load available courses
-                const courses = getCourses();
-                setAvailableCourses(courses);
-
-                // Auto-select course if only one is available
-                if (courses.length === 1) {
-                    setSelectedCourse(courses[0]);
-                    setStep(2); // Skip to step 2
+                // รอ API fetch เสร็จ แล้ว reload ใหม่ (แก้ race condition)
+                if (window.JIA_DATA_READY && typeof window.JIA_DATA_READY.then === 'function') {
+                    window.JIA_DATA_READY.then(() => {
+                        console.log('✅ JIA_DATA_READY resolved — reloading data from localStorage');
+                        loadFromStorage();
+                    }).catch(() => {});
                 }
 
                 // Read promo code from URL parameter (?code=SALE-XXXXXX)
@@ -1028,7 +1036,6 @@
                 const urlCode = urlParams.get('code');
                 if (urlCode) {
                     setPromoCode(urlCode.toUpperCase());
-                    // Trigger validation after a short delay to ensure state is set
                     setTimeout(() => {
                         validatePromoCode(urlCode.toUpperCase());
                     }, 100);
