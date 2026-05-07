@@ -373,7 +373,7 @@ async function _handleAction(action, params, body) {
         used_at: new Date().toISOString(),
       }, "?code=eq." + encodeURIComponent(code));
 
-      return { status: "ok", role: codes[0].role };
+      return { status: "ok", success: true, role: codes[0].role };
     }
 
     case "checkUsername": {
@@ -499,23 +499,26 @@ async function _handleAction(action, params, body) {
 
     // ========= INVITE CODES =========
     case "genCode": {
-      const role = body.role || params.role;
+      const b = body || {};
+      const role = b.role || params.role;
+      if (!role) return { status: "error", success: false, message: "ไม่ได้ระบุ role" };
       const code = role.slice(0, 1).toUpperCase() + Math.random().toString(36).slice(2, 8).toUpperCase();
       await _supa("invite_codes", "POST", {
         code,
         role,
-        created_by: body.username || body.email || params.username || "",
-        level: body.level || params.level || 1,
+        created_by: b.username || b.email || params.username || "",
+        level: b.level || params.level || 1,
         status: "active",
       });
-      return { status: "ok", code };
+      return { status: "ok", success: true, code };
     }
     case "listCodes":
       return toCamel(await _supa("invite_codes", "GET"));
 
     // ========= INSTRUCTOR =========
     case "ensureInstructor": {
-      const name = body.name || params.name;
+      const b = body || {};
+      const name = b.name || params.name;
       const existing = await _supa("instructors", "GET", null, "?name=eq." + encodeURIComponent(name));
       if (existing.length > 0) return { status: "ok", id: existing[0].id };
       const id = "inst_" + Date.now();
@@ -526,13 +529,14 @@ async function _handleAction(action, params, body) {
 
     // ========= CLASS =========
     case "acceptClass": {
-      const classId = body.classId || params.classId;
-      const instructor = body.instructor || params.instructor;
+      const b = body || {};
+      const classId = b.classId || params.classId;
+      const instructor = b.instructor || params.instructor;
       await _supa("class_instructors", "POST", {
         id: "ci_" + Date.now() + "_" + Math.random().toString(36).slice(2, 5),
         class_id: classId,
         instructor_id: instructor,
-        assigned_by: body.assignedBy || params.assignedBy || "",
+        assigned_by: b.assignedBy || params.assignedBy || "",
       });
       const cls = await _supa("classes", "GET", null, "?id=eq." + encodeURIComponent(classId));
       if (cls.length > 0) {
@@ -545,8 +549,9 @@ async function _handleAction(action, params, body) {
     case "addClassInstructor":
       return _supa("class_instructors", "POST", toSnake(body));
     case "updateClassStatus": {
-      const cid = body.classId || params.classId;
-      return _supa("classes", "PATCH", toSnake(body), "?id=eq." + encodeURIComponent(cid));
+      const b = body || {};
+      const cid = b.classId || params.classId;
+      return _supa("classes", "PATCH", toSnake(b), "?id=eq." + encodeURIComponent(cid));
     }
 
     // ========= FILE UPLOAD =========
