@@ -373,7 +373,7 @@ async function _handleAction(action, params, body) {
         used_at: new Date().toISOString(),
       }, "?code=eq." + encodeURIComponent(code));
 
-      return { status: "ok", role: codes[0].role };
+      return { status: "ok", success: true, role: codes[0].role, name, username };
     }
 
     case "checkUsername": {
@@ -499,16 +499,18 @@ async function _handleAction(action, params, body) {
 
     // ========= INVITE CODES =========
     case "genCode": {
-      const role = body.role || params.role;
+      const b = body || {};
+      const role = b.role || params.role;
+      if (!role) return { status: "error", message: "missing role" };
       const code = role.slice(0, 1).toUpperCase() + Math.random().toString(36).slice(2, 8).toUpperCase();
       await _supa("invite_codes", "POST", {
         code,
         role,
-        created_by: body.username || body.email || params.username || "",
-        level: body.level || params.level || 1,
+        created_by: b.username || b.email || params.username || "",
+        level: b.level || params.level || 1,
         status: "active",
       });
-      return { status: "ok", code };
+      return { status: "ok", success: true, code };
     }
     case "listCodes":
       return toCamel(await _supa("invite_codes", "GET"));
