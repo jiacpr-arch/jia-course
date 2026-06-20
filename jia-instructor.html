@@ -6,7 +6,6 @@
     <title>JIA Trainer Center - ระบบผู้สอน</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -282,1313 +281,1289 @@
     })();
     </script>
 
-    <script type="text/babel">
-        const { useState, useEffect, useMemo, useCallback } = React;
+    <script>const {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback
+} = React;
 
-        // Utility functions
-        const getThaiMonthYear = (date) => {
-            const months = [
-                'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-                'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
-            ];
-            const thaiYear = date.getFullYear() + 543;
-            return `${months[date.getMonth()]} ${thaiYear}`;
-        };
+// Utility functions
+const getThaiMonthYear = date => {
+  const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+  const thaiYear = date.getFullYear() + 543;
+  return `${months[date.getMonth()]} ${thaiYear}`;
+};
+const getThaiDayName = dayIndex => {
+  const days = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+  return days[dayIndex];
+};
+const formatThaiDate = date => {
+  const day = date.getDate();
+  const month = date.getMonth() + 1;
+  const thaiYear = date.getFullYear() + 543;
+  return `${day}/${month}/${thaiYear}`;
+};
+const getDaysInMonth = date => {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+};
+const getFirstDayOfMonth = date => {
+  return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+};
+const isToday = date => {
+  const today = new Date();
+  return date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
+};
+const isPastDate = date => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return date < today;
+};
 
-        const getThaiDayName = (dayIndex) => {
-            const days = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
-            return days[dayIndex];
-        };
+// PIN Authentication Component
+function PINGate({
+  instructor,
+  onSuccess
+}) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState(false);
+  const getPINFromStorage = () => {
+    const pins = JSON.parse(localStorage.getItem("jia_instructor_pins") || '{}');
+    return pins[instructor] || "0000";
+  };
+  const correctPin = getPINFromStorage();
+  const handlePinInput = digit => {
+    if (pin.length < 4) {
+      const newPin = pin + digit;
+      setPin(newPin);
+      if (newPin.length === 4) {
+        setTimeout(() => checkPin(newPin), 300);
+      }
+    }
+  };
+  const handleBackspace = () => {
+    setPin(pin.slice(0, -1));
+  };
+  const checkPin = testPin => {
+    if (testPin === correctPin) {
+      sessionStorage.setItem(`jia_instructor_auth_${instructor}`, "true");
+      onSuccess();
+    } else {
+      setError(true);
+      setPin("");
+      setTimeout(() => setError(false), 1500);
+    }
+  };
+  const handleChangePIN = () => {
+    const oldPin = prompt("กรุณาใส่รหัส PIN เดิม:");
+    if (oldPin === null) return;
+    if (oldPin !== correctPin) {
+      alert("รหัส PIN เดิมไม่ถูกต้อง");
+      return;
+    }
+    const newPin = prompt("กรุณาใส่รหัส PIN ใหม่ (4 หลัก):");
+    if (newPin === null || newPin.length !== 4 || !/^\d+$/.test(newPin)) {
+      alert("รหัส PIN ต้องเป็นตัวเลข 4 หลัก");
+      return;
+    }
+    const pins = JSON.parse(localStorage.getItem("jia_instructor_pins") || '{}');
+    pins[instructor] = newPin;
+    localStorage.setItem("jia_instructor_pins", JSON.stringify(pins));
+    alert("เปลี่ยนรหัส PIN สำเร็จ");
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "min-h-screen bg-gradient-to-b from-teal-50 to-gray-50 flex flex-col items-center justify-center px-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-center mb-8"
+  }, /*#__PURE__*/React.createElement("h1", {
+    className: "text-4xl font-bold text-teal-700 mb-2"
+  }, "JIA TRAINER CENTER"), /*#__PURE__*/React.createElement("p", {
+    className: "text-gray-600 text-lg"
+  }, "ยืนยันตัวตนผู้สอน"), /*#__PURE__*/React.createElement("p", {
+    className: "text-2xl font-bold text-teal-600 mt-4"
+  }, instructor)), /*#__PURE__*/React.createElement("div", {
+    className: `bg-white rounded-xl shadow-lg p-8 w-full max-w-sm ${error ? 'shake' : ''}`
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-center text-gray-600 mb-6"
+  }, "กรุณาใส่รหัส PIN (4 หลัก)"), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-center gap-3 mb-8"
+  }, [0, 1, 2, 3].map(i => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: `w-14 h-14 rounded-lg border-2 flex items-center justify-center font-bold text-2xl ${i < pin.length ? 'bg-teal-100 border-teal-500' : 'bg-gray-100 border-gray-300'}`
+  }, i < pin.length ? '●' : ''))), error && /*#__PURE__*/React.createElement("div", {
+    className: "text-center mb-6 text-red-600 font-semibold"
+  }, "รหัสไม่ถูกต้อง"), /*#__PURE__*/React.createElement("div", {
+    className: "pin-pad"
+  }, [1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => /*#__PURE__*/React.createElement("button", {
+    key: num,
+    onClick: () => handlePinInput(String(num)),
+    className: "pin-pad-btn"
+  }, num)), /*#__PURE__*/React.createElement("button", {
+    onClick: handleBackspace,
+    className: "pin-pad-btn text-sm"
+  }, "ลบ"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => handlePinInput("0"),
+    className: "pin-pad-btn col-span-2"
+  }, "0")), /*#__PURE__*/React.createElement("button", {
+    onClick: handleChangePIN,
+    className: "w-full py-2 text-sm text-teal-600 hover:text-teal-700 font-semibold mb-4"
+  }, "เปลี่ยนรหัส PIN")));
+}
 
-        const formatThaiDate = (date) => {
-            const day = date.getDate();
-            const month = date.getMonth() + 1;
-            const thaiYear = date.getFullYear() + 543;
-            return `${day}/${month}/${thaiYear}`;
-        };
+// Main App Component
+function AppLoader() {
+  const [ready, setReady] = useState(!window.JIA_API_URL);
+  useEffect(() => {
+    if (window.JIA_DATA_READY) {
+      window.JIA_DATA_READY.then(() => setReady(true)).catch(() => setReady(true));
+      // Safety timeout: ถ้า 15 วินาทีแล้วยังไม่ ready → force ready
+      setTimeout(() => setReady(true), 15000);
+    } else {
+      setReady(true);
+    }
+  }, []);
+  if (!ready) return /*#__PURE__*/React.createElement("div", {
+    className: "min-h-screen flex items-center justify-center bg-gray-50"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-4xl mb-4"
+  }, "🟢"), /*#__PURE__*/React.createElement("h1", {
+    className: "text-2xl font-bold text-teal-600 mb-2"
+  }, "JIA INSTRUCTOR"), /*#__PURE__*/React.createElement("p", {
+    className: "text-gray-500 mb-4"
+  }, "กำลังโหลดข้อมูล..."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 32,
+      height: 32,
+      border: '3px solid #e0e0e0',
+      borderTop: '3px solid #0D9488',
+      borderRadius: '50%',
+      animation: 'spin 0.8s linear infinite',
+      margin: '0 auto'
+    }
+  })));
+  return /*#__PURE__*/React.createElement(App, null);
+}
+function App() {
+  // ── ผู้สอน login ผ่านหน้า login แล้ว → ข้ามเลือกชื่อและ PIN ──
+  const authUser = window.JIA_AUTH_USER || {};
+  const loggedInName = authUser.name || '';
+  const [authenticatedInstructor, setAuthenticatedInstructor] = useState(() => {
+    // ถ้า login ผ่าน jia-login แล้ว → ใช้ชื่อนั้นเลย
+    if (loggedInName) return loggedInName;
+    // fallback: check sessionStorage
+    const saved = sessionStorage.getItem('selectedInstructor');
+    if (saved && sessionStorage.getItem(`jia_instructor_auth_${saved}`) === 'true') return saved;
+    // fallback: check localStorage session
+    try {
+      const lsUser = JSON.parse(localStorage.getItem('jia_user') || 'null');
+      if (lsUser && lsUser.name && lsUser.role === 'instructor') return lsUser.name;
+    } catch (e) {}
+    return null;
+  });
+  const [activeTab, setActiveTab] = useState('classes');
+  const instructors = JSON.parse(localStorage.getItem('jia_instructors') || '[]');
 
-        const getDaysInMonth = (date) => {
-            return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-        };
+  // ถ้ายังไม่ได้ login → clear session แล้วส่งกลับ login page (ป้องกัน redirect loop)
+  useEffect(() => {
+    if (!authenticatedInstructor) {
+      localStorage.removeItem('jia_user');
+      sessionStorage.removeItem('jia_user');
+      window.location.href = './jia-login.html';
+    } else {
+      sessionStorage.setItem('selectedInstructor', authenticatedInstructor);
+      sessionStorage.setItem(`jia_instructor_auth_${authenticatedInstructor}`, 'true');
+    }
+  }, [authenticatedInstructor]);
+  const handleLogout = () => {
+    if (authenticatedInstructor) {
+      sessionStorage.removeItem(`jia_instructor_auth_${authenticatedInstructor}`);
+    }
+    setAuthenticatedInstructor(null);
+    sessionStorage.removeItem('selectedInstructor');
+    localStorage.removeItem('jia_user');
+    sessionStorage.removeItem('jia_user');
+    setActiveTab('classes');
+    window.location.href = './jia-login.html';
+  };
+  const handleChangeInstructor = () => {
+    handleLogout();
+  };
+  if (!authenticatedInstructor) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "min-h-screen flex items-center justify-center"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "loading-spinner"
+    }));
+  }
+  const INST_TABS = [{
+    id: 'classes',
+    label: 'รับสอนคลาส',
+    icon: '📚',
+    mobileLabel: 'คลาส'
+  }, {
+    id: 'availability',
+    label: 'ลงวันว่าง',
+    icon: '📅',
+    mobileLabel: 'วันว่าง'
+  }, {
+    id: 'schedule',
+    label: 'ตารางสอน',
+    icon: '🗓️',
+    mobileLabel: 'ตาราง'
+  }, {
+    id: 'earnings',
+    label: 'สรุปรายได้',
+    icon: '💰',
+    mobileLabel: 'รายได้'
+  }, {
+    id: 'settings',
+    label: 'ตั้งค่า',
+    icon: '⚙️',
+    mobileLabel: 'ตั้งค่า'
+  }];
+  return /*#__PURE__*/React.createElement("div", {
+    className: "min-h-screen bg-gray-50"
+  }, /*#__PURE__*/React.createElement("header", {
+    className: "bg-gradient-to-r from-teal-600 to-teal-500 text-white sticky top-0 z-40 shadow-md"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "max-w-6xl mx-auto px-4 py-3 md:py-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", {
+    className: "text-xl md:text-2xl font-bold"
+  }, "JIA TRAINER"), /*#__PURE__*/React.createElement("p", {
+    className: "text-teal-100 text-xs md:text-sm"
+  }, "ระบบผู้สอน")), /*#__PURE__*/React.createElement("div", {
+    className: "text-right flex items-center gap-3"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "font-semibold text-sm md:text-base"
+  }, authenticatedInstructor), /*#__PURE__*/React.createElement("button", {
+    onClick: handleChangeInstructor,
+    className: "text-xs md:text-sm bg-teal-500 hover:bg-teal-700 px-3 py-1.5 rounded-lg transition-colors"
+  }, "ออก"))))), /*#__PURE__*/React.createElement("div", {
+    className: "desktop-tabs max-w-6xl mx-auto px-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-0 border-b border-gray-200 overflow-x-auto"
+  }, INST_TABS.map(t => /*#__PURE__*/React.createElement(TabButton, {
+    key: t.id,
+    active: activeTab === t.id,
+    onClick: () => setActiveTab(t.id),
+    label: t.icon + ' ' + t.label
+  })))), /*#__PURE__*/React.createElement("div", {
+    className: "main-content-inst max-w-6xl mx-auto px-3 md:px-4 py-4 md:py-6"
+  }, activeTab === 'classes' && /*#__PURE__*/React.createElement(ClassPickerTab, {
+    instructor: authenticatedInstructor
+  }), activeTab === 'availability' && /*#__PURE__*/React.createElement(AvailabilityTab, {
+    instructor: authenticatedInstructor
+  }), activeTab === 'schedule' && /*#__PURE__*/React.createElement(ScheduleTab, {
+    instructor: authenticatedInstructor
+  }), activeTab === 'earnings' && /*#__PURE__*/React.createElement(EarningsTab, {
+    instructor: authenticatedInstructor
+  }), activeTab === 'settings' && /*#__PURE__*/React.createElement(SettingsTab, {
+    instructor: authenticatedInstructor
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "bottom-nav-inst bg-white border-t shadow-lg safe-bottom"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-around items-center py-1"
+  }, INST_TABS.map(t => /*#__PURE__*/React.createElement("button", {
+    key: t.id,
+    onClick: () => setActiveTab(t.id),
+    className: `flex flex-col items-center py-2 px-1 min-w-0 flex-1 transition-colors ${activeTab === t.id ? 'text-teal-600' : 'text-gray-400'}`
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-xl leading-none"
+  }, t.icon), /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] mt-0.5 truncate w-full text-center font-medium"
+  }, t.mobileLabel))))));
+}
 
-        const getFirstDayOfMonth = (date) => {
-            return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
-        };
+// Tab Button Component
+function TabButton({
+  active,
+  onClick,
+  label
+}) {
+  return /*#__PURE__*/React.createElement("button", {
+    onClick: onClick,
+    className: `tab-btn px-6 py-3 font-semibold transition-all ${active ? 'text-teal-600 border-b-2 border-teal-600' : 'text-gray-600 hover:text-gray-800 border-b-2 border-transparent'}`
+  }, label);
+}
 
-        const isToday = (date) => {
-            const today = new Date();
-            return date.getDate() === today.getDate() &&
-                   date.getMonth() === today.getMonth() &&
-                   date.getFullYear() === today.getFullYear();
-        };
+// ═══ v2: Class Picker Tab (ผู้สอนเลือกคลาสที่จะสอน) ═══
+function ClassPickerTab({
+  instructor
+}) {
+  const [classes, setClasses] = useState([]);
+  const [classInstructors, setClassInstructors] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [instructors, setInstructors] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState('');
 
-        const isPastDate = (date) => {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            return date < today;
-        };
+  // Load data
+  useEffect(() => {
+    try {
+      setClasses(JSON.parse(localStorage.getItem('jia_classes') || '[]'));
+      setClassInstructors(JSON.parse(localStorage.getItem('jia_class_instructors') || '[]'));
+      setCourses(JSON.parse(localStorage.getItem('jia_courses') || '[]'));
+      setInstructors(JSON.parse(localStorage.getItem('jia_instructors') || '[]'));
+    } catch (e) {}
+  }, []);
 
-        // PIN Authentication Component
-        function PINGate({ instructor, onSuccess }) {
-            const [pin, setPin] = useState("");
-            const [error, setError] = useState(false);
+  // My level
+  const myLevel = useMemo(() => {
+    const me = instructors.find(i => (typeof i === 'object' ? i.name : i) === instructor);
+    return me && typeof me === 'object' ? parseInt(me.level) || 1 : 1;
+  }, [instructors, instructor]);
+  const levelBadge = myLevel >= 3 ? '🥇' : myLevel >= 2 ? '🥈' : '🥉';
 
-            const getPINFromStorage = () => {
-                const pins = JSON.parse(localStorage.getItem("jia_instructor_pins") || '{}');
-                return pins[instructor] || "0000";
-            };
+  // Classes I can teach (level >= required) and still need instructors
+  const availableClasses = useMemo(() => {
+    return classes.filter(cls => {
+      // ต้อง waiting_instructor
+      if (cls.status !== 'waiting_instructor') return false;
+      // ต้อง level ถึง
+      const course = courses.find(c => c.key === cls.courseKey);
+      const reqLevel = course ? parseInt(course.requiredLevel) || 1 : 1;
+      if (myLevel < reqLevel) return false;
+      // ต้องยังไม่ได้ assign ตัวเอง
+      if (classInstructors.some(ci => ci.classId === cls.id && ci.instructor === instructor)) return false;
+      // ต้องยังไม่ครบจำนวนผู้สอน
+      const assigned = classInstructors.filter(ci => ci.classId === cls.id).length;
+      if (assigned >= (parseInt(cls.requiredInstructors) || 1)) return false;
+      return true;
+    }).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  }, [classes, classInstructors, courses, myLevel, instructor]);
 
-            const correctPin = getPINFromStorage();
+  // Classes I'm already teaching
+  const myClasses = useMemo(() => {
+    const myClassIds = classInstructors.filter(ci => ci.instructor === instructor).map(ci => ci.classId);
+    return classes.filter(c => myClassIds.includes(c.id)).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  }, [classes, classInstructors, instructor]);
 
-            const handlePinInput = (digit) => {
-                if (pin.length < 4) {
-                    const newPin = pin + digit;
-                    setPin(newPin);
-                    if (newPin.length === 4) {
-                        setTimeout(() => checkPin(newPin), 300);
-                    }
-                }
-            };
+  // Accept a class
+  const acceptClass = async cls => {
+    // Check time conflict
+    const conflict = myClasses.find(mc => mc.date === cls.date && mc.timeSlot === cls.timeSlot);
+    if (conflict) {
+      alert('เวลาชนกับคลาส: ' + conflict.courseName + ' วันที่ ' + cls.date + ' ' + cls.timeSlot);
+      return;
+    }
+    setLoading(true);
+    setMsg('');
 
-            const handleBackspace = () => {
-                setPin(pin.slice(0, -1));
-            };
-
-            const checkPin = (testPin) => {
-                if (testPin === correctPin) {
-                    sessionStorage.setItem(`jia_instructor_auth_${instructor}`, "true");
-                    onSuccess();
-                } else {
-                    setError(true);
-                    setPin("");
-                    setTimeout(() => setError(false), 1500);
-                }
-            };
-
-            const handleChangePIN = () => {
-                const oldPin = prompt("กรุณาใส่รหัส PIN เดิม:");
-                if (oldPin === null) return;
-                if (oldPin !== correctPin) {
-                    alert("รหัส PIN เดิมไม่ถูกต้อง");
-                    return;
-                }
-                const newPin = prompt("กรุณาใส่รหัส PIN ใหม่ (4 หลัก):");
-                if (newPin === null || newPin.length !== 4 || !/^\d+$/.test(newPin)) {
-                    alert("รหัส PIN ต้องเป็นตัวเลข 4 หลัก");
-                    return;
-                }
-                const pins = JSON.parse(localStorage.getItem("jia_instructor_pins") || '{}');
-                pins[instructor] = newPin;
-                localStorage.setItem("jia_instructor_pins", JSON.stringify(pins));
-                alert("เปลี่ยนรหัส PIN สำเร็จ");
-            };
-
-            return (
-                <div className="min-h-screen bg-gradient-to-b from-teal-50 to-gray-50 flex flex-col items-center justify-center px-4">
-                    <div className="text-center mb-8">
-                        <h1 className="text-4xl font-bold text-teal-700 mb-2">JIA TRAINER CENTER</h1>
-                        <p className="text-gray-600 text-lg">ยืนยันตัวตนผู้สอน</p>
-                        <p className="text-2xl font-bold text-teal-600 mt-4">{instructor}</p>
-                    </div>
-
-                    <div className={`bg-white rounded-xl shadow-lg p-8 w-full max-w-sm ${error ? 'shake' : ''}`}>
-                        <p className="text-center text-gray-600 mb-6">กรุณาใส่รหัส PIN (4 หลัก)</p>
-
-                        {/* PIN Display */}
-                        <div className="flex justify-center gap-3 mb-8">
-                            {[0, 1, 2, 3].map((i) => (
-                                <div
-                                    key={i}
-                                    className={`w-14 h-14 rounded-lg border-2 flex items-center justify-center font-bold text-2xl ${
-                                        i < pin.length
-                                            ? 'bg-teal-100 border-teal-500'
-                                            : 'bg-gray-100 border-gray-300'
-                                    }`}
-                                >
-                                    {i < pin.length ? '●' : ''}
-                                </div>
-                            ))}
-                        </div>
-
-                        {error && (
-                            <div className="text-center mb-6 text-red-600 font-semibold">
-                                รหัสไม่ถูกต้อง
-                            </div>
-                        )}
-
-                        {/* Number Pad */}
-                        <div className="pin-pad">
-                            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                                <button
-                                    key={num}
-                                    onClick={() => handlePinInput(String(num))}
-                                    className="pin-pad-btn"
-                                >
-                                    {num}
-                                </button>
-                            ))}
-                            <button onClick={handleBackspace} className="pin-pad-btn text-sm">
-                                ลบ
-                            </button>
-                            <button
-                                onClick={() => handlePinInput("0")}
-                                className="pin-pad-btn col-span-2"
-                            >
-                                0
-                            </button>
-                        </div>
-
-                        <button
-                            onClick={handleChangePIN}
-                            className="w-full py-2 text-sm text-teal-600 hover:text-teal-700 font-semibold mb-4"
-                        >
-                            เปลี่ยนรหัส PIN
-                        </button>
-                    </div>
-                </div>
-            );
+    // ── บันทึกผ่าน API (source of truth) ──
+    let apiSuccess = false;
+    let apiResult = null;
+    if (window.JIA_API_URL) {
+      try {
+        apiResult = await jiaApiGet('acceptClass', {
+          classId: cls.id,
+          instructor: instructor,
+          assignedBy: instructor
+        });
+        console.log('acceptClass result:', JSON.stringify(apiResult));
+        if (apiResult && apiResult.success) {
+          apiSuccess = true;
+        } else if (apiResult && apiResult.error) {
+          setLoading(false);
+          setMsg('❌ ' + (apiResult.error || 'รับคลาสไม่สำเร็จ'));
+          setTimeout(() => setMsg(''), 5000);
+          return; // หยุดเลย ไม่ save local
         }
+      } catch (e) {
+        console.error('API acceptClass failed:', e);
+        setLoading(false);
+        setMsg('❌ เชื่อมต่อ server ไม่สำเร็จ: ' + e.message);
+        setTimeout(() => setMsg(''), 5000);
+        return; // หยุดเลย ไม่ save local
+      }
+    }
 
-        // Main App Component
-        function AppLoader() {
-            const [ready, setReady] = useState(!window.JIA_API_URL);
-            useEffect(() => {
-                if (window.JIA_DATA_READY) {
-                    window.JIA_DATA_READY.then(() => setReady(true)).catch(() => setReady(true));
-                    // Safety timeout: ถ้า 15 วินาทีแล้วยังไม่ ready → force ready
-                    setTimeout(() => setReady(true), 15000);
-                } else {
-                    setReady(true);
-                }
-            }, []);
-            if (!ready) return (
-                <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                    <div className="text-center">
-                        <div className="text-4xl mb-4">🟢</div>
-                        <h1 className="text-2xl font-bold text-teal-600 mb-2">JIA INSTRUCTOR</h1>
-                        <p className="text-gray-500 mb-4">กำลังโหลดข้อมูล...</p>
-                        <div style={{width:32,height:32,border:'3px solid #e0e0e0',borderTop:'3px solid #0D9488',borderRadius:'50%',animation:'spin 0.8s linear infinite',margin:'0 auto'}}></div>
-                    </div>
-                </div>
-            );
-            return <App />;
+    // Save locally (sync กับ API)
+    const newCi = {
+      id: apiResult?.id || 'ci_' + Date.now(),
+      classId: cls.id,
+      instructor: instructor,
+      assignedBy: instructor,
+      assignedAt: new Date().toISOString()
+    };
+    const nextCi = [...classInstructors, newCi];
+    setClassInstructors(nextCi);
+    localStorage.setItem('jia_class_instructors', JSON.stringify(nextCi));
+
+    // Update class status
+    const assigned = nextCi.filter(ci => ci.classId === cls.id).length;
+    const needed = parseInt(cls.requiredInstructors) || 1;
+    const newStatus = assigned >= needed ? 'ready' : 'waiting_instructor';
+    const nextClasses = classes.map(c => c.id === cls.id ? {
+      ...c,
+      currentInstructors: assigned,
+      status: newStatus
+    } : c);
+    setClasses(nextClasses);
+    localStorage.setItem('jia_classes', JSON.stringify(nextClasses));
+
+    // ── Backup POST: เขียน class_instructors row ไปที่ GAS โดยตรง ──
+    try {
+      formPostToGAS({
+        action: 'addClassInstructor',
+        data: JSON.stringify(newCi)
+      });
+      formPostToGAS({
+        action: 'updateClassStatus',
+        data: JSON.stringify({
+          classId: cls.id,
+          status: newStatus,
+          currentInstructors: assigned
+        })
+      });
+    } catch (e2) {
+      console.warn('Backup POST failed:', e2);
+      showToast('⚠️ Backup sync ไม่สำเร็จ — ข้อมูลอาจยังไม่ถูกบันทึกบน server', true);
+    }
+    setLoading(false);
+    setMsg(apiSuccess ? '✅ รับสอนคลาส ' + cls.courseName + ' สำเร็จ!' : '⚠️ บันทึกในเครื่องแล้ว แต่ยังไม่ได้ sync กับ server');
+    setTimeout(() => setMsg(''), 3000);
+  };
+  const fmt = d => d ? new Date(d).toLocaleDateString('th-TH', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: '2-digit'
+  }) : '-';
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-4"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-xl font-bold text-teal-700"
+  }, "รับสอนคลาส"), /*#__PURE__*/React.createElement("span", {
+    className: "bg-teal-100 text-teal-700 px-3 py-1 rounded-full text-sm font-semibold"
+  }, levelBadge, " Level ", myLevel)), msg && /*#__PURE__*/React.createElement("div", {
+    className: "bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg mb-4 text-sm font-semibold"
+  }, msg), myClasses.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "mb-6"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-semibold text-gray-600 mb-2"
+  }, "คลาสที่ฉันรับสอนแล้ว (", myClasses.length, ")"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, myClasses.map(cls => /*#__PURE__*/React.createElement("div", {
+    key: cls.id,
+    className: "bg-teal-50 border border-teal-200 rounded-xl p-4 flex justify-between items-center"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "font-bold text-teal-800"
+  }, cls.courseName), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm text-teal-600"
+  }, fmt(cls.date), " | ", cls.timeSlot), cls.place && /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "📍 ", cls.place)), /*#__PURE__*/React.createElement("span", {
+    className: 'px-2 py-1 rounded-full text-xs font-semibold ' + (cls.status === 'ready' ? 'bg-blue-100 text-blue-700' : cls.status === 'waiting_instructor' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600')
+  }, cls.status === 'ready' ? '🔵 พร้อม' : cls.status === 'waiting_instructor' ? '🟡 รอผู้สอนเพิ่ม' : cls.status))))), /*#__PURE__*/React.createElement("h3", {
+    className: "font-semibold text-gray-600 mb-2"
+  }, "คลาสที่รอผู้สอน (", availableClasses.length, ")"), availableClasses.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "text-center text-gray-400 py-12 bg-white rounded-xl"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-4xl mb-3"
+  }, "✅"), /*#__PURE__*/React.createElement("p", null, "ไม่มีคลาสที่รอผู้สอนในตอนนี้"), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs mt-1"
+  }, "คลาสที่ Level สูงกว่าของคุณจะไม่แสดง")) : /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3"
+  }, availableClasses.map(cls => {
+    const course = courses.find(c => c.key === cls.courseKey);
+    const reqLevel = course ? parseInt(course.requiredLevel) || 1 : 1;
+    const assigned = classInstructors.filter(ci => ci.classId === cls.id).length;
+    const needed = parseInt(cls.requiredInstructors) || 1;
+    return /*#__PURE__*/React.createElement("div", {
+      key: cls.id,
+      className: "bg-white rounded-xl p-5 shadow-sm border-l-4 border-yellow-400"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex justify-between items-start"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h4", {
+      className: "font-bold text-lg text-gray-800"
+    }, cls.courseName), /*#__PURE__*/React.createElement("div", {
+      className: "text-sm text-gray-600 mt-1"
+    }, "📅 ", fmt(cls.date), " | ⏰ ", cls.timeSlot), /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-wrap gap-2 mt-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold"
+    }, "Level ", reqLevel, " ขึ้นไป"), /*#__PURE__*/React.createElement("span", {
+      className: "text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full"
+    }, "ผู้สอน ", assigned, "/", needed, " คน"), /*#__PURE__*/React.createElement("span", {
+      className: "text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full"
+    }, cls.maxStudents, " ที่นั่ง"), cls.place && /*#__PURE__*/React.createElement("span", {
+      className: "text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full"
+    }, "📍 ", cls.place))), /*#__PURE__*/React.createElement("button", {
+      onClick: () => acceptClass(cls),
+      disabled: loading,
+      className: "bg-teal-600 hover:bg-teal-700 text-white px-5 py-2 rounded-lg font-semibold text-sm transition-colors disabled:opacity-50 flex-shrink-0"
+    }, loading ? '...' : '✋ รับสอน')));
+  })));
+}
+
+// Instructor Selection Screen
+function InstructorSelectionScreen({
+  instructors,
+  onSelect
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "min-h-screen bg-gradient-to-b from-teal-50 to-gray-50 flex flex-col items-center justify-center px-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-center mb-12"
+  }, /*#__PURE__*/React.createElement("h1", {
+    className: "text-4xl font-bold text-teal-700 mb-2"
+  }, "JIA TRAINER CENTER"), /*#__PURE__*/React.createElement("p", {
+    className: "text-gray-600 text-lg"
+  }, "เลือกชื่อผู้สอนของคุณ")), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-2xl"
+  }, instructors.map(inst => {
+    const name = typeof inst === 'object' ? inst.name : inst;
+    const level = typeof inst === 'object' ? parseInt(inst.level) || 1 : 1;
+    const badge = level >= 3 ? '🥇' : level >= 2 ? '🥈' : '🥉';
+    return /*#__PURE__*/React.createElement("button", {
+      key: name,
+      onClick: () => onSelect(name),
+      className: "instructor-card bg-white rounded-xl shadow-md p-8 hover:shadow-lg border-2 border-transparent hover:border-teal-300 active:border-teal-500"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-4xl mb-3 text-center"
+    }, "👨‍🏫"), /*#__PURE__*/React.createElement("p", {
+      className: "text-xl font-bold text-gray-800 text-center"
+    }, name), /*#__PURE__*/React.createElement("p", {
+      className: "text-sm text-teal-600 text-center mt-1"
+    }, badge, " Level ", level), /*#__PURE__*/React.createElement("p", {
+      className: "text-sm text-gray-500 text-center mt-2"
+    }, "แตะเพื่อเข้า"));
+  })));
+}
+
+// Availability Tab
+function AvailabilityTab({
+  instructor
+}) {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [classes, setClasses] = useState([]);
+  const [classInstructors, setClassInstructors] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [instructors, setInstructors] = useState([]);
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => {
+    try {
+      setClasses(JSON.parse(localStorage.getItem('jia_classes') || '[]'));
+      setClassInstructors(JSON.parse(localStorage.getItem('jia_class_instructors') || '[]'));
+      setCourses(JSON.parse(localStorage.getItem('jia_courses') || '[]'));
+      setInstructors(JSON.parse(localStorage.getItem('jia_instructors') || '[]'));
+    } catch (e) {}
+  }, []);
+
+  // ── รับสอนคลาส (เหมือน ClassPickerTab) ──
+  const acceptClass = async cls => {
+    const myIds = classInstructors.filter(ci => ci.instructor === instructor).map(ci => ci.classId);
+    const myClasses = classes.filter(c => myIds.includes(c.id));
+    const conflict = myClasses.find(mc => mc.date === cls.date && mc.timeSlot === cls.timeSlot);
+    if (conflict) {
+      alert('เวลาชนกับคลาส: ' + (conflict.courseName || conflict.courseKey) + ' วันที่ ' + cls.date + ' ' + cls.timeSlot);
+      return;
+    }
+    setLoading(true);
+    setMsg('');
+    if (window.JIA_API_URL) {
+      try {
+        const apiResult = await jiaApiGet('acceptClass', {
+          classId: cls.id,
+          instructor,
+          assignedBy: instructor
+        });
+        if (apiResult && apiResult.error) {
+          setLoading(false);
+          setMsg('❌ ' + apiResult.error);
+          setTimeout(() => setMsg(''), 5000);
+          return;
         }
-
-        function App() {
-            // ── ผู้สอน login ผ่านหน้า login แล้ว → ข้ามเลือกชื่อและ PIN ──
-            const authUser = window.JIA_AUTH_USER || {};
-            const loggedInName = authUser.name || '';
-
-            const [authenticatedInstructor, setAuthenticatedInstructor] = useState(() => {
-                // ถ้า login ผ่าน jia-login แล้ว → ใช้ชื่อนั้นเลย
-                if (loggedInName) return loggedInName;
-                // fallback: check sessionStorage
-                const saved = sessionStorage.getItem('selectedInstructor');
-                if (saved && sessionStorage.getItem(`jia_instructor_auth_${saved}`) === 'true') return saved;
-                // fallback: check localStorage session
-                try {
-                    const lsUser = JSON.parse(localStorage.getItem('jia_user') || 'null');
-                    if (lsUser && lsUser.name && lsUser.role === 'instructor') return lsUser.name;
-                } catch(e) {}
-                return null;
-            });
-            const [activeTab, setActiveTab] = useState('classes');
-
-            const instructors = JSON.parse(localStorage.getItem('jia_instructors') || '[]');
-
-            // ถ้ายังไม่ได้ login → clear session แล้วส่งกลับ login page (ป้องกัน redirect loop)
-            useEffect(() => {
-                if (!authenticatedInstructor) {
-                    localStorage.removeItem('jia_user');
-                    sessionStorage.removeItem('jia_user');
-                    window.location.href = './jia-login.html';
-                } else {
-                    sessionStorage.setItem('selectedInstructor', authenticatedInstructor);
-                    sessionStorage.setItem(`jia_instructor_auth_${authenticatedInstructor}`, 'true');
-                }
-            }, [authenticatedInstructor]);
-
-            const handleLogout = () => {
-                if (authenticatedInstructor) {
-                    sessionStorage.removeItem(`jia_instructor_auth_${authenticatedInstructor}`);
-                }
-                setAuthenticatedInstructor(null);
-                sessionStorage.removeItem('selectedInstructor');
-                localStorage.removeItem('jia_user');
-                sessionStorage.removeItem('jia_user');
-                setActiveTab('classes');
-                window.location.href = './jia-login.html';
-            };
-
-            const handleChangeInstructor = () => {
-                handleLogout();
-            };
-
-            if (!authenticatedInstructor) {
-                return <div className="min-h-screen flex items-center justify-center"><div className="loading-spinner"></div></div>;
-            }
-
-            const INST_TABS = [
-                { id: 'classes', label: 'รับสอนคลาส', icon: '📚', mobileLabel: 'คลาส' },
-                { id: 'availability', label: 'ลงวันว่าง', icon: '📅', mobileLabel: 'วันว่าง' },
-                { id: 'schedule', label: 'ตารางสอน', icon: '🗓️', mobileLabel: 'ตาราง' },
-                { id: 'earnings', label: 'สรุปรายได้', icon: '💰', mobileLabel: 'รายได้' },
-                { id: 'settings', label: 'ตั้งค่า', icon: '⚙️', mobileLabel: 'ตั้งค่า' },
-            ];
-
-            return (
-                <div className="min-h-screen bg-gray-50">
-                    {/* Header — compact on mobile */}
-                    <header className="bg-gradient-to-r from-teal-600 to-teal-500 text-white sticky top-0 z-40 shadow-md">
-                        <div className="max-w-6xl mx-auto px-4 py-3 md:py-4">
-                            <div className="flex justify-between items-center">
-                                <div>
-                                    <h1 className="text-xl md:text-2xl font-bold">JIA TRAINER</h1>
-                                    <p className="text-teal-100 text-xs md:text-sm">ระบบผู้สอน</p>
-                                </div>
-                                <div className="text-right flex items-center gap-3">
-                                    <p className="font-semibold text-sm md:text-base">{authenticatedInstructor}</p>
-                                    <button
-                                        onClick={handleChangeInstructor}
-                                        className="text-xs md:text-sm bg-teal-500 hover:bg-teal-700 px-3 py-1.5 rounded-lg transition-colors"
-                                    >
-                                        ออก
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </header>
-
-                    {/* Desktop Tabs */}
-                    <div className="desktop-tabs max-w-6xl mx-auto px-4">
-                        <div className="flex gap-0 border-b border-gray-200 overflow-x-auto">
-                            {INST_TABS.map(t => (
-                                <TabButton key={t.id} active={activeTab === t.id} onClick={() => setActiveTab(t.id)} label={t.icon + ' ' + t.label} />
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Content */}
-                    <div className="main-content-inst max-w-6xl mx-auto px-3 md:px-4 py-4 md:py-6">
-                        {activeTab === 'classes' && <ClassPickerTab instructor={authenticatedInstructor} />}
-                        {activeTab === 'availability' && <AvailabilityTab instructor={authenticatedInstructor} />}
-                        {activeTab === 'schedule' && <ScheduleTab instructor={authenticatedInstructor} />}
-                        {activeTab === 'earnings' && <EarningsTab instructor={authenticatedInstructor} />}
-                        {activeTab === 'settings' && <SettingsTab instructor={authenticatedInstructor} />}
-                    </div>
-
-                    {/* Mobile Bottom Nav */}
-                    <div className="bottom-nav-inst bg-white border-t shadow-lg safe-bottom">
-                        <div className="flex justify-around items-center py-1">
-                            {INST_TABS.map(t => (
-                                <button key={t.id} onClick={() => setActiveTab(t.id)}
-                                    className={`flex flex-col items-center py-2 px-1 min-w-0 flex-1 transition-colors ${
-                                        activeTab === t.id ? 'text-teal-600' : 'text-gray-400'
-                                    }`}>
-                                    <span className="text-xl leading-none">{t.icon}</span>
-                                    <span className="text-[10px] mt-0.5 truncate w-full text-center font-medium">{t.mobileLabel}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // Tab Button Component
-        function TabButton({ active, onClick, label }) {
-            return (
-                <button
-                    onClick={onClick}
-                    className={`tab-btn px-6 py-3 font-semibold transition-all ${
-                        active
-                            ? 'text-teal-600 border-b-2 border-teal-600'
-                            : 'text-gray-600 hover:text-gray-800 border-b-2 border-transparent'
-                    }`}
-                >
-                    {label}
-                </button>
-            );
-        }
-
-        // ═══ v2: Class Picker Tab (ผู้สอนเลือกคลาสที่จะสอน) ═══
-        function ClassPickerTab({ instructor }) {
-            const [classes, setClasses] = useState([]);
-            const [classInstructors, setClassInstructors] = useState([]);
-            const [courses, setCourses] = useState([]);
-            const [instructors, setInstructors] = useState([]);
-            const [loading, setLoading] = useState(false);
-            const [msg, setMsg] = useState('');
-
-            // Load data
-            useEffect(() => {
-                try {
-                    setClasses(JSON.parse(localStorage.getItem('jia_classes') || '[]'));
-                    setClassInstructors(JSON.parse(localStorage.getItem('jia_class_instructors') || '[]'));
-                    setCourses(JSON.parse(localStorage.getItem('jia_courses') || '[]'));
-                    setInstructors(JSON.parse(localStorage.getItem('jia_instructors') || '[]'));
-                } catch(e) {}
-            }, []);
-
-            // My level
-            const myLevel = useMemo(() => {
-                const me = instructors.find(i => (typeof i === 'object' ? i.name : i) === instructor);
-                return me && typeof me === 'object' ? (parseInt(me.level) || 1) : 1;
-            }, [instructors, instructor]);
-
-            const levelBadge = myLevel >= 3 ? '🥇' : myLevel >= 2 ? '🥈' : '🥉';
-
-            // Classes I can teach (level >= required) and still need instructors
-            const availableClasses = useMemo(() => {
-                return classes
-                    .filter(cls => {
-                        // ต้อง waiting_instructor
-                        if (cls.status !== 'waiting_instructor') return false;
-                        // ต้อง level ถึง
-                        const course = courses.find(c => c.key === cls.courseKey);
-                        const reqLevel = course ? (parseInt(course.requiredLevel) || 1) : 1;
-                        if (myLevel < reqLevel) return false;
-                        // ต้องยังไม่ได้ assign ตัวเอง
-                        if (classInstructors.some(ci => ci.classId === cls.id && ci.instructor === instructor)) return false;
-                        // ต้องยังไม่ครบจำนวนผู้สอน
-                        const assigned = classInstructors.filter(ci => ci.classId === cls.id).length;
-                        if (assigned >= (parseInt(cls.requiredInstructors) || 1)) return false;
-                        return true;
-                    })
-                    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-            }, [classes, classInstructors, courses, myLevel, instructor]);
-
-            // Classes I'm already teaching
-            const myClasses = useMemo(() => {
-                const myClassIds = classInstructors.filter(ci => ci.instructor === instructor).map(ci => ci.classId);
-                return classes.filter(c => myClassIds.includes(c.id)).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-            }, [classes, classInstructors, instructor]);
-
-            // Accept a class
-            const acceptClass = async (cls) => {
-                // Check time conflict
-                const conflict = myClasses.find(mc => mc.date === cls.date && mc.timeSlot === cls.timeSlot);
-                if (conflict) {
-                    alert('เวลาชนกับคลาส: ' + conflict.courseName + ' วันที่ ' + cls.date + ' ' + cls.timeSlot);
-                    return;
-                }
-
-                setLoading(true);
-                setMsg('');
-
-                // ── บันทึกผ่าน API (source of truth) ──
-                let apiSuccess = false;
-                let apiResult = null;
-                if (window.JIA_API_URL) {
-                    try {
-                        apiResult = await jiaApiGet('acceptClass', { classId: cls.id, instructor: instructor, assignedBy: instructor });
-                        console.log('acceptClass result:', JSON.stringify(apiResult));
-                        if (apiResult && apiResult.success) {
-                            apiSuccess = true;
-                        } else if (apiResult && apiResult.error) {
-                            setLoading(false);
-                            setMsg('❌ ' + (apiResult.error || 'รับคลาสไม่สำเร็จ'));
-                            setTimeout(() => setMsg(''), 5000);
-                            return; // หยุดเลย ไม่ save local
-                        }
-                    } catch(e) {
-                        console.error('API acceptClass failed:', e);
-                        setLoading(false);
-                        setMsg('❌ เชื่อมต่อ server ไม่สำเร็จ: ' + e.message);
-                        setTimeout(() => setMsg(''), 5000);
-                        return; // หยุดเลย ไม่ save local
-                    }
-                }
-
-                // Save locally (sync กับ API)
-                const newCi = { id: apiResult?.id || ('ci_' + Date.now()), classId: cls.id, instructor: instructor, assignedBy: instructor, assignedAt: new Date().toISOString() };
-                const nextCi = [...classInstructors, newCi];
-                setClassInstructors(nextCi);
-                localStorage.setItem('jia_class_instructors', JSON.stringify(nextCi));
-
-                // Update class status
-                const assigned = nextCi.filter(ci => ci.classId === cls.id).length;
-                const needed = parseInt(cls.requiredInstructors) || 1;
-                const newStatus = assigned >= needed ? 'ready' : 'waiting_instructor';
-                const nextClasses = classes.map(c => c.id === cls.id ? { ...c, currentInstructors: assigned, status: newStatus } : c);
-                setClasses(nextClasses);
-                localStorage.setItem('jia_classes', JSON.stringify(nextClasses));
-
-                // ── Backup POST: เขียน class_instructors row ไปที่ GAS โดยตรง ──
-                try {
-                    formPostToGAS({ action: 'addClassInstructor', data: JSON.stringify(newCi) });
-                    formPostToGAS({ action: 'updateClassStatus', data: JSON.stringify({ classId: cls.id, status: newStatus, currentInstructors: assigned }) });
-                } catch(e2) {
-                    console.warn('Backup POST failed:', e2);
-                    showToast('⚠️ Backup sync ไม่สำเร็จ — ข้อมูลอาจยังไม่ถูกบันทึกบน server', true);
-                }
-
-                setLoading(false);
-                setMsg(apiSuccess ? '✅ รับสอนคลาส ' + cls.courseName + ' สำเร็จ!' : '⚠️ บันทึกในเครื่องแล้ว แต่ยังไม่ได้ sync กับ server');
-                setTimeout(() => setMsg(''), 3000);
-            };
-
-            const fmt = (d) => d ? new Date(d).toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: '2-digit' }) : '-';
-
-            return (
-                <div>
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-xl font-bold text-teal-700">รับสอนคลาส</h2>
-                        <span className="bg-teal-100 text-teal-700 px-3 py-1 rounded-full text-sm font-semibold">
-                            {levelBadge} Level {myLevel}
-                        </span>
-                    </div>
-
-                    {msg && <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg mb-4 text-sm font-semibold">{msg}</div>}
-
-                    {/* My Classes */}
-                    {myClasses.length > 0 && (
-                        <div className="mb-6">
-                            <h3 className="font-semibold text-gray-600 mb-2">คลาสที่ฉันรับสอนแล้ว ({myClasses.length})</h3>
-                            <div className="space-y-2">
-                                {myClasses.map(cls => (
-                                    <div key={cls.id} className="bg-teal-50 border border-teal-200 rounded-xl p-4 flex justify-between items-center">
-                                        <div>
-                                            <div className="font-bold text-teal-800">{cls.courseName}</div>
-                                            <div className="text-sm text-teal-600">{fmt(cls.date)} | {cls.timeSlot}</div>
-                                            {cls.place && <div className="text-xs text-gray-500">📍 {cls.place}</div>}
-                                        </div>
-                                        <span className={'px-2 py-1 rounded-full text-xs font-semibold ' + (cls.status === 'ready' ? 'bg-blue-100 text-blue-700' : cls.status === 'waiting_instructor' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600')}>
-                                            {cls.status === 'ready' ? '🔵 พร้อม' : cls.status === 'waiting_instructor' ? '🟡 รอผู้สอนเพิ่ม' : cls.status}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Available Classes */}
-                    <h3 className="font-semibold text-gray-600 mb-2">คลาสที่รอผู้สอน ({availableClasses.length})</h3>
-                    {availableClasses.length === 0 ? (
-                        <div className="text-center text-gray-400 py-12 bg-white rounded-xl">
-                            <div className="text-4xl mb-3">✅</div>
-                            <p>ไม่มีคลาสที่รอผู้สอนในตอนนี้</p>
-                            <p className="text-xs mt-1">คลาสที่ Level สูงกว่าของคุณจะไม่แสดง</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {availableClasses.map(cls => {
-                                const course = courses.find(c => c.key === cls.courseKey);
-                                const reqLevel = course ? (parseInt(course.requiredLevel) || 1) : 1;
-                                const assigned = classInstructors.filter(ci => ci.classId === cls.id).length;
-                                const needed = parseInt(cls.requiredInstructors) || 1;
-                                return (
-                                    <div key={cls.id} className="bg-white rounded-xl p-5 shadow-sm border-l-4 border-yellow-400">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <h4 className="font-bold text-lg text-gray-800">{cls.courseName}</h4>
-                                                <div className="text-sm text-gray-600 mt-1">
-                                                    📅 {fmt(cls.date)} | ⏰ {cls.timeSlot}
-                                                </div>
-                                                <div className="flex flex-wrap gap-2 mt-2">
-                                                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
-                                                        Level {reqLevel} ขึ้นไป
-                                                    </span>
-                                                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                                                        ผู้สอน {assigned}/{needed} คน
-                                                    </span>
-                                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                                                        {cls.maxStudents} ที่นั่ง
-                                                    </span>
-                                                    {cls.place && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">📍 {cls.place}</span>}
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={() => acceptClass(cls)}
-                                                disabled={loading}
-                                                className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2 rounded-lg font-semibold text-sm transition-colors disabled:opacity-50 flex-shrink-0"
-                                            >
-                                                {loading ? '...' : '✋ รับสอน'}
-                                            </button>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
-        // Instructor Selection Screen
-        function InstructorSelectionScreen({ instructors, onSelect }) {
-            return (
-                <div className="min-h-screen bg-gradient-to-b from-teal-50 to-gray-50 flex flex-col items-center justify-center px-4">
-                    <div className="text-center mb-12">
-                        <h1 className="text-4xl font-bold text-teal-700 mb-2">JIA TRAINER CENTER</h1>
-                        <p className="text-gray-600 text-lg">เลือกชื่อผู้สอนของคุณ</p>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-2xl">
-                        {instructors.map((inst) => {
-                            const name = typeof inst === 'object' ? inst.name : inst;
-                            const level = typeof inst === 'object' ? (parseInt(inst.level) || 1) : 1;
-                            const badge = level >= 3 ? '🥇' : level >= 2 ? '🥈' : '🥉';
-                            return (
-                                <button
-                                    key={name}
-                                    onClick={() => onSelect(name)}
-                                    className="instructor-card bg-white rounded-xl shadow-md p-8 hover:shadow-lg border-2 border-transparent hover:border-teal-300 active:border-teal-500"
-                                >
-                                    <div className="text-4xl mb-3 text-center">👨‍🏫</div>
-                                    <p className="text-xl font-bold text-gray-800 text-center">{name}</p>
-                                    <p className="text-sm text-teal-600 text-center mt-1">{badge} Level {level}</p>
-                                    <p className="text-sm text-gray-500 text-center mt-2">แตะเพื่อเข้า</p>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            );
-        }
-
-        // Availability Tab
-        function AvailabilityTab({ instructor }) {
-            const [currentDate, setCurrentDate] = useState(new Date());
-            const [classes, setClasses] = useState([]);
-            const [classInstructors, setClassInstructors] = useState([]);
-            const [courses, setCourses] = useState([]);
-            const [instructors, setInstructors] = useState([]);
-            const [selectedDay, setSelectedDay] = useState(null);
-            const [loading, setLoading] = useState(false);
-            const [msg, setMsg] = useState('');
-
-            useEffect(() => {
-                try {
-                    setClasses(JSON.parse(localStorage.getItem('jia_classes') || '[]'));
-                    setClassInstructors(JSON.parse(localStorage.getItem('jia_class_instructors') || '[]'));
-                    setCourses(JSON.parse(localStorage.getItem('jia_courses') || '[]'));
-                    setInstructors(JSON.parse(localStorage.getItem('jia_instructors') || '[]'));
-                } catch(e) {}
-            }, []);
-
-            // ── รับสอนคลาส (เหมือน ClassPickerTab) ──
-            const acceptClass = async (cls) => {
-                const myIds = classInstructors.filter(ci => ci.instructor === instructor).map(ci => ci.classId);
-                const myClasses = classes.filter(c => myIds.includes(c.id));
-                const conflict = myClasses.find(mc => mc.date === cls.date && mc.timeSlot === cls.timeSlot);
-                if (conflict) {
-                    alert('เวลาชนกับคลาส: ' + (conflict.courseName || conflict.courseKey) + ' วันที่ ' + cls.date + ' ' + cls.timeSlot);
-                    return;
-                }
-                setLoading(true); setMsg('');
-                if (window.JIA_API_URL) {
-                    try {
-                        const apiResult = await jiaApiGet('acceptClass', { classId: cls.id, instructor, assignedBy: instructor });
-                        if (apiResult && apiResult.error) {
-                            setLoading(false); setMsg('❌ ' + apiResult.error); setTimeout(() => setMsg(''), 5000); return;
-                        }
-                    } catch(e) {
-                        setLoading(false); setMsg('❌ เชื่อมต่อไม่ได้: ' + e.message); setTimeout(() => setMsg(''), 5000); return;
-                    }
-                }
-                const newCi = { id: 'ci_' + Date.now(), classId: cls.id, instructor, assignedBy: instructor, assignedAt: new Date().toISOString() };
-                const nextCi = [...classInstructors, newCi];
-                setClassInstructors(nextCi);
-                localStorage.setItem('jia_class_instructors', JSON.stringify(nextCi));
-                const assigned = nextCi.filter(ci => ci.classId === cls.id).length;
-                const needed = parseInt(cls.requiredInstructors) || 1;
-                const newStatus = assigned >= needed ? 'ready' : 'waiting_instructor';
-                const nextClasses = classes.map(c => c.id === cls.id ? { ...c, currentInstructors: assigned, status: newStatus } : c);
-                setClasses(nextClasses);
-                localStorage.setItem('jia_classes', JSON.stringify(nextClasses));
-                // Backup POST เขียนไปที่ GAS
-                try {
-                    formPostToGAS({ action: 'addClassInstructor', data: JSON.stringify(newCi) });
-                    formPostToGAS({ action: 'updateClassStatus', data: JSON.stringify({ classId: cls.id, status: newStatus, currentInstructors: assigned }) });
-                } catch(e2) { console.warn('Backup POST failed:', e2); }
-                setLoading(false); setMsg('✅ รับสอน ' + (cls.courseName || cls.courseKey) + ' สำเร็จ!');
-                setTimeout(() => setMsg(''), 3000);
-            };
-
-            const previousMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
-            const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
-
-            // คลาสที่ admin สร้างในเดือนนี้
-            const monthStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-            const monthClasses = useMemo(() => {
-                return classes.filter(cls => (cls.date || '').startsWith(monthStr))
-                    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-            }, [classes, monthStr]);
-
-            // จัดกลุ่มคลาสตามวัน
-            const classesByDay = useMemo(() => {
-                const map = {};
-                monthClasses.forEach(cls => {
-                    const day = parseInt((cls.date || '').split('-')[2]);
-                    if (!map[day]) map[day] = [];
-                    map[day].push(cls);
-                });
-                return map;
-            }, [monthClasses]);
-
-            // คลาสที่ฉันรับสอนแล้ว
-            const myClassIds = useMemo(() => {
-                return new Set(classInstructors.filter(ci => ci.instructor === instructor).map(ci => ci.classId));
-            }, [classInstructors, instructor]);
-
-            // Calendar grid
-            const daysInMonth = getDaysInMonth(currentDate);
-            const firstDay = getFirstDayOfMonth(currentDate);
-            const days = [];
-            for (let i = 0; i < firstDay; i++) days.push(null);
-            for (let i = 1; i <= daysInMonth; i++) days.push(i);
-
-            // สรุปเดือนนี้
-            const totalClasses = monthClasses.length;
-            const myCount = monthClasses.filter(c => myClassIds.has(c.id)).length;
-            const waitingCount = monthClasses.filter(c => c.status === 'waiting_instructor').length;
-
-            // คลาสของวันที่เลือก
-            const selectedDateStr = selectedDay ? `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}` : '';
-            const selectedDayClasses = selectedDay ? (classesByDay[selectedDay] || []) : [];
-
-            const fmt = (d) => d ? new Date(d).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: '2-digit' }) : '-';
-
-            return (
-                <div className="space-y-4">
-                    {msg && <div className={`px-4 py-2 rounded-lg text-sm font-semibold ${msg.startsWith('✅') ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>{msg}</div>}
-
-                    {/* Header + Nav */}
-                    <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
-                        <div className="flex justify-between items-center mb-3">
-                            <h2 className="text-lg font-bold text-gray-800">📅 ตารางคลาส</h2>
-                            <div className="flex gap-1">
-                                <button onClick={previousMonth} className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors text-sm">◀</button>
-                                <span className="px-3 py-1 font-semibold text-gray-700 bg-gray-50 rounded min-w-max text-sm">
-                                    {getThaiMonthYear(currentDate)}
-                                </span>
-                                <button onClick={nextMonth} className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors text-sm">▶</button>
-                            </div>
-                        </div>
-
-                        {/* สรุป */}
-                        <div className="grid grid-cols-3 gap-2 mb-3">
-                            <div className="bg-gray-50 rounded-lg p-2 text-center">
-                                <div className="text-lg font-bold text-gray-800">{totalClasses}</div>
-                                <div className="text-[10px] text-gray-500">คลาสทั้งหมด</div>
-                            </div>
-                            <div className="bg-teal-50 rounded-lg p-2 text-center">
-                                <div className="text-lg font-bold text-teal-700">{myCount}</div>
-                                <div className="text-[10px] text-teal-600">ฉันรับสอน</div>
-                            </div>
-                            <div className="bg-yellow-50 rounded-lg p-2 text-center">
-                                <div className="text-lg font-bold text-yellow-700">{waitingCount}</div>
-                                <div className="text-[10px] text-yellow-600">รอผู้สอน</div>
-                            </div>
-                        </div>
-
-                        {/* Day headers */}
-                        <div className="grid grid-cols-7 gap-1 mb-1">
-                            {[0, 1, 2, 3, 4, 5, 6].map(dayIndex => (
-                                <div key={dayIndex} className="text-center font-bold text-gray-500 text-[10px] py-1">
-                                    {getThaiDayName(dayIndex)}
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Calendar grid — กดวันที่เพื่อดูรายละเอียด */}
-                        <div className="grid grid-cols-7 gap-1">
-                            {days.map((day, index) => {
-                                const dayClasses = day ? (classesByDay[day] || []) : [];
-                                const hasClasses = dayClasses.length > 0;
-                                const hasMyClass = dayClasses.some(c => myClassIds.has(c.id));
-                                const hasWaiting = dayClasses.some(c => c.status === 'waiting_instructor' && !myClassIds.has(c.id));
-                                const todayDate = day ? new Date(currentDate.getFullYear(), currentDate.getMonth(), day) : null;
-                                const isTodayCell = todayDate && isToday(todayDate);
-                                const isSelected = day === selectedDay;
-
-                                return (
-                                    <div key={index} className="min-h-[44px]">
-                                        {day ? (
-                                            <button
-                                                onClick={() => setSelectedDay(isSelected ? null : day)}
-                                                className={`w-full rounded-lg p-1 h-full text-center border-2 transition-all ${
-                                                    isSelected ? 'border-teal-600 bg-teal-100 ring-2 ring-teal-300' :
-                                                    isTodayCell ? 'border-teal-400 bg-teal-50' :
-                                                    hasWaiting ? 'border-yellow-300 bg-yellow-50' :
-                                                    hasMyClass ? 'border-teal-200 bg-teal-50' :
-                                                    hasClasses ? 'border-gray-200 bg-white' :
-                                                    'border-gray-100 bg-gray-50'
-                                                }`}>
-                                                <div className={`text-sm font-bold ${isSelected ? 'text-teal-700' : isTodayCell ? 'text-teal-600' : hasClasses ? 'text-gray-700' : 'text-gray-400'}`}>
-                                                    {day}
-                                                </div>
-                                                {hasClasses && (
-                                                    <div className="flex justify-center gap-0.5 mt-0.5 flex-wrap">
-                                                        {dayClasses.map(cls => (
-                                                            <div key={cls.id} className={`w-2 h-2 rounded-full ${
-                                                                myClassIds.has(cls.id) ? 'bg-teal-500' :
-                                                                cls.status === 'waiting_instructor' ? 'bg-yellow-400' :
-                                                                'bg-gray-300'
-                                                            }`}></div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </button>
-                                        ) : null}
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        {/* Legend */}
-                        <div className="flex justify-center gap-4 mt-3 text-[10px] text-gray-400">
-                            <span><span className="inline-block w-2 h-2 bg-teal-500 rounded-full mr-1"></span>รับสอนแล้ว</span>
-                            <span><span className="inline-block w-2 h-2 bg-yellow-400 rounded-full mr-1"></span>รอผู้สอน</span>
-                            <span><span className="inline-block w-2 h-2 bg-gray-300 rounded-full mr-1"></span>ครบแล้ว</span>
-                        </div>
-                    </div>
-
-                    {/* ── รายละเอียดวันที่เลือก ── */}
-                    {selectedDay && (
-                        <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
-                            <h3 className="font-bold text-gray-800 mb-1">📋 {fmt(selectedDateStr)}</h3>
-                            {selectedDayClasses.length === 0 ? (
-                                <p className="text-sm text-gray-400 py-4 text-center">ไม่มีคลาสในวันนี้</p>
-                            ) : (
-                                <div className="space-y-3 mt-3">
-                                    {selectedDayClasses.map(cls => {
-                                        const isMine = myClassIds.has(cls.id);
-                                        const assigned = classInstructors.filter(ci => ci.classId === cls.id).length;
-                                        const needed = parseInt(cls.requiredInstructors) || 1;
-                                        const isFull = assigned >= needed;
-                                        const canAccept = !isMine && cls.status === 'waiting_instructor' && !isFull;
-
-                                        return (
-                                            <div key={cls.id} className={`rounded-xl p-4 border-l-4 ${
-                                                isMine ? 'bg-teal-50 border-teal-500' :
-                                                canAccept ? 'bg-yellow-50 border-yellow-400' :
-                                                'bg-gray-50 border-gray-300'
-                                            }`}>
-                                                <div className="flex justify-between items-start gap-3">
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="font-bold text-gray-800">{cls.courseName || cls.courseKey}</div>
-                                                        <div className="text-sm text-gray-600 mt-1">⏰ {cls.timeSlot}</div>
-                                                        <div className="flex flex-wrap gap-1.5 mt-2">
-                                                            <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                                                                ผู้สอน {assigned}/{needed}
-                                                            </span>
-                                                            {cls.maxStudents && <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{cls.maxStudents} ที่นั่ง</span>}
-                                                            {cls.place && <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">📍 {cls.place}</span>}
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex-shrink-0">
-                                                        {isMine ? (
-                                                            <span className="bg-teal-600 text-white px-3 py-2 rounded-lg text-sm font-semibold">✅ รับแล้ว</span>
-                                                        ) : canAccept ? (
-                                                            <button onClick={() => acceptClass(cls)} disabled={loading}
-                                                                className="bg-yellow-500 hover:bg-yellow-600 active:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
-                                                                {loading ? '...' : '✋ รับสอน'}
-                                                            </button>
-                                                        ) : (
-                                                            <span className="bg-gray-200 text-gray-500 px-3 py-2 rounded-lg text-sm font-semibold">ครบแล้ว</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* ถ้ายังไม่ได้เลือกวัน แสดงคลาสรอผู้สอนทั้งหมด */}
-                    {!selectedDay && waitingCount > 0 && (
-                        <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
-                            <h3 className="font-bold text-gray-800 mb-3">🟡 คลาสที่รอผู้สอน</h3>
-                            <div className="space-y-2">
-                                {monthClasses.filter(c => c.status === 'waiting_instructor' && !myClassIds.has(c.id)).map(cls => {
-                                    const assigned = classInstructors.filter(ci => ci.classId === cls.id).length;
-                                    const needed = parseInt(cls.requiredInstructors) || 1;
-                                    return (
-                                        <div key={cls.id} className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 flex justify-between items-center">
-                                            <div>
-                                                <div className="font-bold text-gray-800 text-sm">{cls.courseName || cls.courseKey}</div>
-                                                <div className="text-xs text-gray-600">
-                                                    {fmt(cls.date)} | {cls.timeSlot}
-                                                </div>
-                                                <div className="text-[10px] text-gray-500 mt-0.5">ผู้สอน {assigned}/{needed}</div>
-                                            </div>
-                                            <button onClick={() => acceptClass(cls)} disabled={loading}
-                                                className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 flex-shrink-0">
-                                                {loading ? '...' : '✋ รับสอน'}
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    {totalClasses === 0 && (
-                        <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-                            <div className="text-4xl mb-3">📭</div>
-                            <h3 className="font-bold text-gray-700 mb-2">ยังไม่มีคลาสในเดือนนี้</h3>
-                            <p className="text-sm text-gray-500">รอ Admin ประกาศคลาสก่อนนะ</p>
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
-        // Schedule Tab
-        function ScheduleTab({ instructor }) {
-            const [bookings] = useState(() => {
-                return JSON.parse(localStorage.getItem('jia_bookings') || '[]');
-            });
-            const [sessions, setSessions] = useState(() => JSON.parse(localStorage.getItem('jia_sessions') || '[]'));
-            const [classes] = useState(() => JSON.parse(localStorage.getItem('jia_classes') || '[]'));
-            const [classInstructors] = useState(() => JSON.parse(localStorage.getItem('jia_class_instructors') || '[]'));
-
-            // เช็คชื่อ — toggle session done
-            const toggleAttendance = (sessionId) => {
-                const next = sessions.map(s => s.id === sessionId ? { ...s, done: !s.done, date: s.done ? '' : new Date().toISOString().slice(0,10) } : s);
-                setSessions(next);
-                localStorage.setItem('jia_sessions', JSON.stringify(next));
-                const s = next.find(x => x.id === sessionId);
-                if (window.JIA_API_URL && s) {
-                    jiaApiPost('updateRow', { sheet: 'sessions', key: sessionId, keyCol: 'id' }, { done: s.done, date: s.date })
-                        .catch(e => console.warn('Session sync failed:', e.message));
-                }
-                showToast(s?.done ? '✅ เช็คชื่อแล้ว' : '↩️ ยกเลิกเช็คชื่อ');
-            };
-            const [expandedClass, setExpandedClass] = useState(null);
-
-            // คลาสที่ผมสอน
-            const myClassIds = useMemo(() =>
-                new Set(classInstructors.filter(ci => ci.instructor === instructor).map(ci => ci.classId)),
-                [classInstructors, instructor]
-            );
-            const myClasses = useMemo(() =>
-                classes.filter(c => myClassIds.has(c.id)).sort((a, b) => a.date > b.date ? 1 : -1),
-                [classes, myClassIds]
-            );
-
-            // จับคู่ bookings กับ class (ผ่าน classId หรือ date+timeSlot+courseType)
-            const getStudentsForClass = (cls) => {
-                return bookings.filter(b =>
-                    b.classId === cls.id ||
-                    (b.startDate === cls.date && b.timeSlot === cls.timeSlot && b.courseType === cls.courseKey)
-                );
-            };
-
-            const myBookings = bookings.filter(b => b.instructor === instructor).sort((a, b) => {
-                const dateA = b.startDate || b.date;
-                const dateB = a.startDate || a.date;
-                return new Date(`${a.startDate || a.date} ${(a.timeSlot||'').split('-')[0]}`) - new Date(`${b.startDate || b.date} ${(b.timeSlot||'').split('-')[0]}`);
-            });
-
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            const todayClasses = myClasses.filter(c => {
-                const d = new Date(c.date); d.setHours(0,0,0,0);
-                return d.getTime() === today.getTime();
-            });
-
-            const upcomingClasses = myClasses.filter(c => {
-                const d = new Date(c.date); d.setHours(0,0,0,0);
-                return d.getTime() >= today.getTime();
-            });
-
-            const getPaymentBadge = (status) => {
-                if (status === 'paid') {
-                    return <span className="payment-badge bg-green-100 text-green-800">ชำระแล้ว</span>;
-                } else if (status === 'pending') {
-                    return <span className="payment-badge bg-amber-100 text-amber-800">รอตรวจสอบ</span>;
-                } else {
-                    return <span className="payment-badge bg-gray-200 text-gray-700">รอชำระ</span>;
-                }
-            };
-
-            const ClassCard = ({ cls, isToday }) => {
-                const students = getStudentsForClass(cls);
-                const isExpanded = expandedClass === cls.id;
-                const bgBase = isToday ? 'bg-white bg-opacity-10 border-white border-opacity-20' : 'border-gray-200';
-                const textColor = isToday ? 'text-white' : 'text-gray-800';
-                const subColor = isToday ? 'text-teal-100' : 'text-gray-500';
-                return (
-                    <div className={`border rounded-lg p-4 ${bgBase} ${isToday ? 'backdrop-blur-sm' : 'hover:shadow-md'} transition-all`}>
-                        <div className="flex justify-between items-start mb-2">
-                            <div>
-                                {!isToday && <p className="text-sm text-gray-500">{formatThaiDate(new Date(cls.date))}</p>}
-                                <p className={`font-bold text-lg ${isToday ? 'text-white' : 'text-teal-600'}`}>{cls.courseName || cls.courseKey}</p>
-                                <p className={`text-sm ${subColor}`}>{cls.timeSlot}</p>
-                            </div>
-                            <span className={`text-xs px-2 py-1 rounded-full font-semibold ${students.length > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                {students.length} คน
-                            </span>
-                        </div>
-                        {cls.place && <p className={`text-xs ${subColor} mb-2`}>📍 {cls.place}</p>}
-
-                        {/* กดเพื่อดูรายชื่อลูกค้า */}
-                        <button onClick={() => setExpandedClass(isExpanded ? null : cls.id)}
-                            className={`w-full text-left text-xs font-semibold mt-1 ${isToday ? 'text-teal-200' : 'text-teal-600'}`}>
-                            {isExpanded ? '▲ ซ่อนรายชื่อ' : '▼ ดูรายชื่อผู้เรียน (' + students.length + ')'}
-                        </button>
-
-                        {isExpanded && (
-                            <div className={`mt-3 space-y-2 border-t pt-3 ${isToday ? 'border-white border-opacity-20' : 'border-gray-200'}`}>
-                                {students.length === 0 ? (
-                                    <p className={`text-xs ${subColor} italic`}>ยังไม่มีผู้จองเข้าคลาสนี้</p>
-                                ) : students.map((s, i) => {
-                                    // หา sessions ของ booking นี้
-                                    const bkSessions = sessions.filter(ss => ss.bookingId === s.id);
-                                    return (
-                                    <div key={s.id || i} className={`text-sm ${isToday ? 'bg-white bg-opacity-10' : 'bg-gray-50'} rounded-lg p-3`}>
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <p className={`font-semibold ${textColor}`}>{s.name || s.studentName || '-'}</p>
-                                                {s.tel && <p className={`text-xs ${subColor}`}>📞 {s.tel}</p>}
-                                            </div>
-                                            <span className={`text-xs ${subColor}`}>{s.totalPeople || 1} คน</span>
-                                        </div>
-                                        {s.note && <p className={`text-xs ${subColor} mt-1 italic`}>📝 {s.note}</p>}
-                                        {/* เช็คชื่อแต่ละ session */}
-                                        {bkSessions.length > 0 && (
-                                            <div className="mt-2 flex flex-wrap gap-2">
-                                                {bkSessions.map(ss => (
-                                                    <button key={ss.id} onClick={() => toggleAttendance(ss.id)}
-                                                        className={`text-xs px-2 py-1 rounded-full font-medium transition-all ${
-                                                            ss.done
-                                                                ? (isToday ? 'bg-green-400 text-green-900' : 'bg-green-100 text-green-700')
-                                                                : (isToday ? 'bg-white bg-opacity-20 text-white' : 'bg-gray-200 text-gray-600')
-                                                        }`}>
-                                                        {ss.done ? '✅' : '⬜'} คนที่ {ss.sessionNo}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-                );
-            };
-
-            return (
-                <div className="space-y-6">
-                    {todayClasses.length > 0 && (
-                        <div className="bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg shadow-md p-6">
-                            <h2 className="text-2xl font-bold mb-4">📅 ตารางสอนวันนี้</h2>
-                            <div className="space-y-3">
-                                {todayClasses.map(cls => <ClassCard key={cls.id} cls={cls} isToday={true} />)}
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="bg-white rounded-lg shadow-sm p-6">
-                        <h2 className="text-2xl font-bold text-gray-800 mb-6">ตารางสอน</h2>
-
-                        {upcomingClasses.length === 0 ? (
-                            <div className="text-center py-12">
-                                <p className="text-xl text-gray-500 mb-2">ยังไม่มีตารางสอน</p>
-                                <p className="text-sm text-gray-400">กดรับคลาสในแท็บ "รับสอนคลาส"</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {upcomingClasses.map(cls => <ClassCard key={cls.id} cls={cls} isToday={false} />)}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        }
-
-        // Earnings Tab
-        function EarningsTab({ instructor }) {
-            const [classes, setClasses] = useState([]);
-            const [classInstructors, setClassInstructors] = useState([]);
-            const [bookings, setBookings] = useState([]);
-            const [currentDate, setCurrentDate] = useState(new Date());
-
-            useEffect(() => {
-                try {
-                    setClasses(JSON.parse(localStorage.getItem('jia_classes') || '[]'));
-                    setClassInstructors(JSON.parse(localStorage.getItem('jia_class_instructors') || '[]'));
-                    setBookings(JSON.parse(localStorage.getItem('jia_bookings') || '[]'));
-                } catch(e) {}
-            }, []);
-
-            const previousMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
-            const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
-
-            // Get classes I'm assigned to teach
-            const myClassIds = useMemo(() => {
-                return new Set(classInstructors.filter(ci => ci.instructor === instructor).map(ci => ci.classId));
-            }, [classInstructors, instructor]);
-
-            const myClasses = useMemo(() => classes.filter(c => myClassIds.has(c.id)), [classes, myClassIds]);
-
-            // Count students per class (from bookings)
-            const studentsPerClass = useMemo(() => {
-                const map = {};
-                bookings.forEach(b => {
-                    // Match by classId or by date+timeSlot+courseType
-                    let cid = b.classId;
-                    if (!cid) {
-                        const matched = classes.find(c => c.date === b.startDate && c.timeSlot === b.timeSlot && (c.courseKey === b.courseType || c.courseName === b.courseType));
-                        if (matched) cid = matched.id;
-                    }
-                    if (cid) map[cid] = (map[cid] || 0) + (parseInt(b.totalPeople) || 1);
-                });
-                return map;
-            }, [bookings, classes]);
-
-            // Calculate pay per class: perStudent × students, capped at max
-            const calcPay = (cls) => {
-                const perStudent = parseFloat(cls.instructorPayPerStudent) || 0;
-                const maxPay = parseFloat(cls.instructorPayMax) || 0;
-                const students = studentsPerClass[cls.id] || 0;
-                if (perStudent <= 0) return { pay: 0, students, perStudent: 0, maxPay: 0, capped: false };
-                let pay = perStudent * students;
-                const capped = maxPay > 0 && pay > maxPay;
-                if (capped) pay = maxPay;
-                return { pay, students, perStudent, maxPay, capped };
-            };
-
-            // Filter by current month
-            const monthClasses = useMemo(() => {
-                const y = currentDate.getFullYear();
-                const m = String(currentDate.getMonth() + 1).padStart(2, '0');
-                const prefix = y + '-' + m;
-                return myClasses.filter(c => (c.date || '').startsWith(prefix)).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-            }, [myClasses, currentDate]);
-
-            // Calculate totals
-            const totalEarnings = monthClasses.reduce((sum, c) => sum + calcPay(c).pay, 0);
-            const completedClasses = monthClasses.filter(c => c.status === 'completed');
-            const confirmedEarnings = completedClasses.reduce((sum, c) => sum + calcPay(c).pay, 0);
-            const pendingEarnings = totalEarnings - confirmedEarnings;
-            const totalStudents = monthClasses.reduce((sum, c) => sum + (studentsPerClass[c.id] || 0), 0);
-
-            return (
-                <div className="space-y-6">
-                    <div className="flex justify-between items-center">
-                        <h2 className="text-xl md:text-2xl font-bold text-gray-800">สรุปรายได้</h2>
-                        <div className="flex gap-1">
-                            <button onClick={previousMonth} className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors">◀</button>
-                            <span className="px-3 py-2 font-semibold text-gray-700 bg-gray-100 rounded-lg text-sm min-w-max">
-                                {getThaiMonthYear(currentDate)}
-                            </span>
-                            <button onClick={nextMonth} className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors">▶</button>
-                        </div>
-                    </div>
-
-                    {/* Summary Cards */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div className="earnings-card bg-gradient-to-br from-teal-500 to-teal-600 text-white rounded-xl shadow-md p-4">
-                            <p className="text-xs opacity-90">รายได้รวม</p>
-                            <p className="text-2xl font-bold mt-1">{totalEarnings.toLocaleString()} ฿</p>
-                        </div>
-                        <div className="earnings-card bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl shadow-md p-4">
-                            <p className="text-xs opacity-90">สอนแล้ว</p>
-                            <p className="text-2xl font-bold mt-1">{confirmedEarnings.toLocaleString()} ฿</p>
-                            <p className="text-[10px] opacity-75">{completedClasses.length} คลาส</p>
-                        </div>
-                        <div className="earnings-card bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl shadow-md p-4">
-                            <p className="text-xs opacity-90">รอสอน</p>
-                            <p className="text-2xl font-bold mt-1">{pendingEarnings.toLocaleString()} ฿</p>
-                            <p className="text-[10px] opacity-75">{monthClasses.length - completedClasses.length} คลาส</p>
-                        </div>
-                        <div className="earnings-card bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-xl shadow-md p-4">
-                            <p className="text-xs opacity-90">นักเรียนรวม</p>
-                            <p className="text-2xl font-bold mt-1">{totalStudents} คน</p>
-                            <p className="text-[10px] opacity-75">{monthClasses.length} คลาส</p>
-                        </div>
-                    </div>
-
-                    {/* Class Breakdown */}
-                    <div className="bg-white rounded-xl shadow-sm p-4 md:p-6">
-                        <h3 className="text-lg font-bold text-gray-800 mb-4">รายละเอียดคลาส</h3>
-
-                        {monthClasses.length === 0 ? (
-                            <div className="text-center py-8">
-                                <p className="text-gray-400">ไม่มีคลาสที่รับสอนในเดือนนี้</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {monthClasses.map((cls) => {
-                                    const { pay, students, perStudent, maxPay, capped } = calcPay(cls);
-                                    const isCompleted = cls.status === 'completed';
-                                    return (
-                                        <div key={cls.id} className={`card-hover p-4 rounded-xl border ${isCompleted ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <p className="font-semibold text-gray-800">{cls.courseName || cls.courseKey}</p>
-                                                    <p className="text-sm text-gray-500">{formatThaiDate(new Date(cls.date))} · {cls.timeSlot}</p>
-                                                    {cls.place && <p className="text-xs text-gray-400">📍 {cls.place}</p>}
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className={`text-lg font-bold ${isCompleted ? 'text-green-600' : 'text-blue-600'}`}>{pay.toLocaleString()} ฿</p>
-                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                        {isCompleted ? '✅ สอนแล้ว' : '⏳ รอสอน'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-x-3">
-                                                <span>👥 {students} คน</span>
-                                                {perStudent > 0 && <span>× {perStudent.toLocaleString()} บาท/คน</span>}
-                                                {capped && <span className="text-amber-600 font-medium">⚠️ ถึง max {maxPay.toLocaleString()} ฿</span>}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-
-                    {monthClasses.some(c => !c.instructorPayPerStudent || parseFloat(c.instructorPayPerStudent) === 0) && (
-                        <div className="text-center text-sm text-yellow-600 pb-4">
-                            ⚠️ บางคลาสยังไม่ได้ตั้งค่าค่าสอน — กรุณาติดต่อ Admin
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
-        // Settings Tab
-        function SettingsTab({ instructor }) {
-            const [showChangePin, setShowChangePin] = useState(false);
-            const [oldPin, setOldPin] = useState("");
-            const [newPin, setNewPin] = useState("");
-            const [confirmPin, setConfirmPin] = useState("");
-            const [message, setMessage] = useState("");
-
-            const getPINFromStorage = () => {
-                const pins = JSON.parse(localStorage.getItem("jia_instructor_pins") || '{}');
-                return pins[instructor] || "0000";
-            };
-
-            const handleChangePin = () => {
-                const correctPin = getPINFromStorage();
-                if (oldPin !== correctPin) {
-                    setMessage("รหัส PIN เดิมไม่ถูกต้อง");
-                    return;
-                }
-                if (newPin.length !== 4 || !/^\d+$/.test(newPin)) {
-                    setMessage("รหัส PIN ใหม่ต้องเป็นตัวเลข 4 หลัก");
-                    return;
-                }
-                if (newPin !== confirmPin) {
-                    setMessage("รหัส PIN ใหม่ไม่ตรงกัน");
-                    return;
-                }
-                const pins = JSON.parse(localStorage.getItem("jia_instructor_pins") || '{}');
-                pins[instructor] = newPin;
-                localStorage.setItem("jia_instructor_pins", JSON.stringify(pins));
-                setMessage("เปลี่ยนรหัส PIN สำเร็จ");
-                setOldPin("");
-                setNewPin("");
-                setConfirmPin("");
-                setTimeout(() => {
-                    setShowChangePin(false);
-                    setMessage("");
-                }, 2000);
-            };
-
-            return (
-                <div className="space-y-6">
-                    <div className="bg-white rounded-lg shadow-sm p-6">
-                        <h2 className="text-2xl font-bold text-gray-800 mb-6">ตั้งค่า</h2>
-
-                        <div className="space-y-6">
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-800 mb-4">เปลี่ยนรหัส PIN</h3>
-                                {!showChangePin ? (
-                                    <button
-                                        onClick={() => setShowChangePin(true)}
-                                        className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
-                                    >
-                                        เปลี่ยนรหัส PIN
-                                    </button>
-                                ) : (
-                                    <div className="space-y-4 max-w-md">
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                                รหัส PIN เดิม
-                                            </label>
-                                            <input
-                                                type="password"
-                                                maxLength="4"
-                                                placeholder="0000"
-                                                value={oldPin}
-                                                onChange={(e) => setOldPin(e.target.value.replace(/\D/g, ''))}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                                รหัส PIN ใหม่
-                                            </label>
-                                            <input
-                                                type="password"
-                                                maxLength="4"
-                                                placeholder="0000"
-                                                value={newPin}
-                                                onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                                ยืนยันรหัส PIN ใหม่
-                                            </label>
-                                            <input
-                                                type="password"
-                                                maxLength="4"
-                                                placeholder="0000"
-                                                value={confirmPin}
-                                                onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                            />
-                                        </div>
-                                        {message && (
-                                            <div className={`p-3 rounded-lg ${message.includes('สำเร็จ') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                                {message}
-                                            </div>
-                                        )}
-                                        <div className="flex gap-3">
-                                            <button
-                                                onClick={handleChangePin}
-                                                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
-                                            >
-                                                บันทึก
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    setShowChangePin(false);
-                                                    setMessage("");
-                                                    setOldPin("");
-                                                    setNewPin("");
-                                                    setConfirmPin("");
-                                                }}
-                                                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
-                                            >
-                                                ยกเลิก
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // Render app
-        ReactDOM.render(<AppLoader />, document.getElementById('root'));
-    </script>
+      } catch (e) {
+        setLoading(false);
+        setMsg('❌ เชื่อมต่อไม่ได้: ' + e.message);
+        setTimeout(() => setMsg(''), 5000);
+        return;
+      }
+    }
+    const newCi = {
+      id: 'ci_' + Date.now(),
+      classId: cls.id,
+      instructor,
+      assignedBy: instructor,
+      assignedAt: new Date().toISOString()
+    };
+    const nextCi = [...classInstructors, newCi];
+    setClassInstructors(nextCi);
+    localStorage.setItem('jia_class_instructors', JSON.stringify(nextCi));
+    const assigned = nextCi.filter(ci => ci.classId === cls.id).length;
+    const needed = parseInt(cls.requiredInstructors) || 1;
+    const newStatus = assigned >= needed ? 'ready' : 'waiting_instructor';
+    const nextClasses = classes.map(c => c.id === cls.id ? {
+      ...c,
+      currentInstructors: assigned,
+      status: newStatus
+    } : c);
+    setClasses(nextClasses);
+    localStorage.setItem('jia_classes', JSON.stringify(nextClasses));
+    // Backup POST เขียนไปที่ GAS
+    try {
+      formPostToGAS({
+        action: 'addClassInstructor',
+        data: JSON.stringify(newCi)
+      });
+      formPostToGAS({
+        action: 'updateClassStatus',
+        data: JSON.stringify({
+          classId: cls.id,
+          status: newStatus,
+          currentInstructors: assigned
+        })
+      });
+    } catch (e2) {
+      console.warn('Backup POST failed:', e2);
+    }
+    setLoading(false);
+    setMsg('✅ รับสอน ' + (cls.courseName || cls.courseKey) + ' สำเร็จ!');
+    setTimeout(() => setMsg(''), 3000);
+  };
+  const previousMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+  const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+
+  // คลาสที่ admin สร้างในเดือนนี้
+  const monthStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+  const monthClasses = useMemo(() => {
+    return classes.filter(cls => (cls.date || '').startsWith(monthStr)).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  }, [classes, monthStr]);
+
+  // จัดกลุ่มคลาสตามวัน
+  const classesByDay = useMemo(() => {
+    const map = {};
+    monthClasses.forEach(cls => {
+      const day = parseInt((cls.date || '').split('-')[2]);
+      if (!map[day]) map[day] = [];
+      map[day].push(cls);
+    });
+    return map;
+  }, [monthClasses]);
+
+  // คลาสที่ฉันรับสอนแล้ว
+  const myClassIds = useMemo(() => {
+    return new Set(classInstructors.filter(ci => ci.instructor === instructor).map(ci => ci.classId));
+  }, [classInstructors, instructor]);
+
+  // Calendar grid
+  const daysInMonth = getDaysInMonth(currentDate);
+  const firstDay = getFirstDayOfMonth(currentDate);
+  const days = [];
+  for (let i = 0; i < firstDay; i++) days.push(null);
+  for (let i = 1; i <= daysInMonth; i++) days.push(i);
+
+  // สรุปเดือนนี้
+  const totalClasses = monthClasses.length;
+  const myCount = monthClasses.filter(c => myClassIds.has(c.id)).length;
+  const waitingCount = monthClasses.filter(c => c.status === 'waiting_instructor').length;
+
+  // คลาสของวันที่เลือก
+  const selectedDateStr = selectedDay ? `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}` : '';
+  const selectedDayClasses = selectedDay ? classesByDay[selectedDay] || [] : [];
+  const fmt = d => d ? new Date(d).toLocaleDateString('th-TH', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: '2-digit'
+  }) : '-';
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, msg && /*#__PURE__*/React.createElement("div", {
+    className: `px-4 py-2 rounded-lg text-sm font-semibold ${msg.startsWith('✅') ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`
+  }, msg), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-lg shadow-sm p-4 md:p-6"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center mb-3"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-bold text-gray-800"
+  }, "📅 ตารางคลาส"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: previousMonth,
+    className: "px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors text-sm"
+  }, "◀"), /*#__PURE__*/React.createElement("span", {
+    className: "px-3 py-1 font-semibold text-gray-700 bg-gray-50 rounded min-w-max text-sm"
+  }, getThaiMonthYear(currentDate)), /*#__PURE__*/React.createElement("button", {
+    onClick: nextMonth,
+    className: "px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors text-sm"
+  }, "▶"))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-3 gap-2 mb-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-gray-50 rounded-lg p-2 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-bold text-gray-800"
+  }, totalClasses), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-gray-500"
+  }, "คลาสทั้งหมด")), /*#__PURE__*/React.createElement("div", {
+    className: "bg-teal-50 rounded-lg p-2 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-bold text-teal-700"
+  }, myCount), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-teal-600"
+  }, "ฉันรับสอน")), /*#__PURE__*/React.createElement("div", {
+    className: "bg-yellow-50 rounded-lg p-2 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-bold text-yellow-700"
+  }, waitingCount), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-yellow-600"
+  }, "รอผู้สอน"))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-7 gap-1 mb-1"
+  }, [0, 1, 2, 3, 4, 5, 6].map(dayIndex => /*#__PURE__*/React.createElement("div", {
+    key: dayIndex,
+    className: "text-center font-bold text-gray-500 text-[10px] py-1"
+  }, getThaiDayName(dayIndex)))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-7 gap-1"
+  }, days.map((day, index) => {
+    const dayClasses = day ? classesByDay[day] || [] : [];
+    const hasClasses = dayClasses.length > 0;
+    const hasMyClass = dayClasses.some(c => myClassIds.has(c.id));
+    const hasWaiting = dayClasses.some(c => c.status === 'waiting_instructor' && !myClassIds.has(c.id));
+    const todayDate = day ? new Date(currentDate.getFullYear(), currentDate.getMonth(), day) : null;
+    const isTodayCell = todayDate && isToday(todayDate);
+    const isSelected = day === selectedDay;
+    return /*#__PURE__*/React.createElement("div", {
+      key: index,
+      className: "min-h-[44px]"
+    }, day ? /*#__PURE__*/React.createElement("button", {
+      onClick: () => setSelectedDay(isSelected ? null : day),
+      className: `w-full rounded-lg p-1 h-full text-center border-2 transition-all ${isSelected ? 'border-teal-600 bg-teal-100 ring-2 ring-teal-300' : isTodayCell ? 'border-teal-400 bg-teal-50' : hasWaiting ? 'border-yellow-300 bg-yellow-50' : hasMyClass ? 'border-teal-200 bg-teal-50' : hasClasses ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50'}`
+    }, /*#__PURE__*/React.createElement("div", {
+      className: `text-sm font-bold ${isSelected ? 'text-teal-700' : isTodayCell ? 'text-teal-600' : hasClasses ? 'text-gray-700' : 'text-gray-400'}`
+    }, day), hasClasses && /*#__PURE__*/React.createElement("div", {
+      className: "flex justify-center gap-0.5 mt-0.5 flex-wrap"
+    }, dayClasses.map(cls => /*#__PURE__*/React.createElement("div", {
+      key: cls.id,
+      className: `w-2 h-2 rounded-full ${myClassIds.has(cls.id) ? 'bg-teal-500' : cls.status === 'waiting_instructor' ? 'bg-yellow-400' : 'bg-gray-300'}`
+    })))) : null);
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-center gap-4 mt-3 text-[10px] text-gray-400"
+  }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+    className: "inline-block w-2 h-2 bg-teal-500 rounded-full mr-1"
+  }), "รับสอนแล้ว"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+    className: "inline-block w-2 h-2 bg-yellow-400 rounded-full mr-1"
+  }), "รอผู้สอน"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+    className: "inline-block w-2 h-2 bg-gray-300 rounded-full mr-1"
+  }), "ครบแล้ว"))), selectedDay && /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-lg shadow-sm p-4 md:p-6"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-bold text-gray-800 mb-1"
+  }, "📋 ", fmt(selectedDateStr)), selectedDayClasses.length === 0 ? /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-400 py-4 text-center"
+  }, "ไม่มีคลาสในวันนี้") : /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3 mt-3"
+  }, selectedDayClasses.map(cls => {
+    const isMine = myClassIds.has(cls.id);
+    const assigned = classInstructors.filter(ci => ci.classId === cls.id).length;
+    const needed = parseInt(cls.requiredInstructors) || 1;
+    const isFull = assigned >= needed;
+    const canAccept = !isMine && cls.status === 'waiting_instructor' && !isFull;
+    return /*#__PURE__*/React.createElement("div", {
+      key: cls.id,
+      className: `rounded-xl p-4 border-l-4 ${isMine ? 'bg-teal-50 border-teal-500' : canAccept ? 'bg-yellow-50 border-yellow-400' : 'bg-gray-50 border-gray-300'}`
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex justify-between items-start gap-3"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "font-bold text-gray-800"
+    }, cls.courseName || cls.courseKey), /*#__PURE__*/React.createElement("div", {
+      className: "text-sm text-gray-600 mt-1"
+    }, "⏰ ", cls.timeSlot), /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-wrap gap-1.5 mt-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full"
+    }, "ผู้สอน ", assigned, "/", needed), cls.maxStudents && /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full"
+    }, cls.maxStudents, " ที่นั่ง"), cls.place && /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full"
+    }, "📍 ", cls.place))), /*#__PURE__*/React.createElement("div", {
+      className: "flex-shrink-0"
+    }, isMine ? /*#__PURE__*/React.createElement("span", {
+      className: "bg-teal-600 text-white px-3 py-2 rounded-lg text-sm font-semibold"
+    }, "✅ รับแล้ว") : canAccept ? /*#__PURE__*/React.createElement("button", {
+      onClick: () => acceptClass(cls),
+      disabled: loading,
+      className: "bg-yellow-500 hover:bg-yellow-600 active:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
+    }, loading ? '...' : '✋ รับสอน') : /*#__PURE__*/React.createElement("span", {
+      className: "bg-gray-200 text-gray-500 px-3 py-2 rounded-lg text-sm font-semibold"
+    }, "ครบแล้ว"))));
+  }))), !selectedDay && waitingCount > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-lg shadow-sm p-4 md:p-6"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-bold text-gray-800 mb-3"
+  }, "🟡 คลาสที่รอผู้สอน"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, monthClasses.filter(c => c.status === 'waiting_instructor' && !myClassIds.has(c.id)).map(cls => {
+    const assigned = classInstructors.filter(ci => ci.classId === cls.id).length;
+    const needed = parseInt(cls.requiredInstructors) || 1;
+    return /*#__PURE__*/React.createElement("div", {
+      key: cls.id,
+      className: "bg-yellow-50 border border-yellow-200 rounded-xl p-3 flex justify-between items-center"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      className: "font-bold text-gray-800 text-sm"
+    }, cls.courseName || cls.courseKey), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs text-gray-600"
+    }, fmt(cls.date), " | ", cls.timeSlot), /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] text-gray-500 mt-0.5"
+    }, "ผู้สอน ", assigned, "/", needed)), /*#__PURE__*/React.createElement("button", {
+      onClick: () => acceptClass(cls),
+      disabled: loading,
+      className: "bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 flex-shrink-0"
+    }, loading ? '...' : '✋ รับสอน'));
+  }))), totalClasses === 0 && /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-lg shadow-sm p-8 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-4xl mb-3"
+  }, "📭"), /*#__PURE__*/React.createElement("h3", {
+    className: "font-bold text-gray-700 mb-2"
+  }, "ยังไม่มีคลาสในเดือนนี้"), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-500"
+  }, "รอ Admin ประกาศคลาสก่อนนะ")));
+}
+
+// Schedule Tab
+function ScheduleTab({
+  instructor
+}) {
+  const [bookings] = useState(() => {
+    return JSON.parse(localStorage.getItem('jia_bookings') || '[]');
+  });
+  const [sessions, setSessions] = useState(() => JSON.parse(localStorage.getItem('jia_sessions') || '[]'));
+  const [classes] = useState(() => JSON.parse(localStorage.getItem('jia_classes') || '[]'));
+  const [classInstructors] = useState(() => JSON.parse(localStorage.getItem('jia_class_instructors') || '[]'));
+
+  // เช็คชื่อ — toggle session done
+  const toggleAttendance = sessionId => {
+    const next = sessions.map(s => s.id === sessionId ? {
+      ...s,
+      done: !s.done,
+      date: s.done ? '' : new Date().toISOString().slice(0, 10)
+    } : s);
+    setSessions(next);
+    localStorage.setItem('jia_sessions', JSON.stringify(next));
+    const s = next.find(x => x.id === sessionId);
+    if (window.JIA_API_URL && s) {
+      jiaApiPost('updateRow', {
+        sheet: 'sessions',
+        key: sessionId,
+        keyCol: 'id'
+      }, {
+        done: s.done,
+        date: s.date
+      }).catch(e => console.warn('Session sync failed:', e.message));
+    }
+    showToast(s?.done ? '✅ เช็คชื่อแล้ว' : '↩️ ยกเลิกเช็คชื่อ');
+  };
+  const [expandedClass, setExpandedClass] = useState(null);
+
+  // คลาสที่ผมสอน
+  const myClassIds = useMemo(() => new Set(classInstructors.filter(ci => ci.instructor === instructor).map(ci => ci.classId)), [classInstructors, instructor]);
+  const myClasses = useMemo(() => classes.filter(c => myClassIds.has(c.id)).sort((a, b) => a.date > b.date ? 1 : -1), [classes, myClassIds]);
+
+  // จับคู่ bookings กับ class (ผ่าน classId หรือ date+timeSlot+courseType)
+  const getStudentsForClass = cls => {
+    return bookings.filter(b => b.classId === cls.id || b.startDate === cls.date && b.timeSlot === cls.timeSlot && b.courseType === cls.courseKey);
+  };
+  const myBookings = bookings.filter(b => b.instructor === instructor).sort((a, b) => {
+    const dateA = b.startDate || b.date;
+    const dateB = a.startDate || a.date;
+    return new Date(`${a.startDate || a.date} ${(a.timeSlot || '').split('-')[0]}`) - new Date(`${b.startDate || b.date} ${(b.timeSlot || '').split('-')[0]}`);
+  });
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayClasses = myClasses.filter(c => {
+    const d = new Date(c.date);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() === today.getTime();
+  });
+  const upcomingClasses = myClasses.filter(c => {
+    const d = new Date(c.date);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() >= today.getTime();
+  });
+  const getPaymentBadge = status => {
+    if (status === 'paid') {
+      return /*#__PURE__*/React.createElement("span", {
+        className: "payment-badge bg-green-100 text-green-800"
+      }, "ชำระแล้ว");
+    } else if (status === 'pending') {
+      return /*#__PURE__*/React.createElement("span", {
+        className: "payment-badge bg-amber-100 text-amber-800"
+      }, "รอตรวจสอบ");
+    } else {
+      return /*#__PURE__*/React.createElement("span", {
+        className: "payment-badge bg-gray-200 text-gray-700"
+      }, "รอชำระ");
+    }
+  };
+  const ClassCard = ({
+    cls,
+    isToday
+  }) => {
+    const students = getStudentsForClass(cls);
+    const isExpanded = expandedClass === cls.id;
+    const bgBase = isToday ? 'bg-white bg-opacity-10 border-white border-opacity-20' : 'border-gray-200';
+    const textColor = isToday ? 'text-white' : 'text-gray-800';
+    const subColor = isToday ? 'text-teal-100' : 'text-gray-500';
+    return /*#__PURE__*/React.createElement("div", {
+      className: `border rounded-lg p-4 ${bgBase} ${isToday ? 'backdrop-blur-sm' : 'hover:shadow-md'} transition-all`
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex justify-between items-start mb-2"
+    }, /*#__PURE__*/React.createElement("div", null, !isToday && /*#__PURE__*/React.createElement("p", {
+      className: "text-sm text-gray-500"
+    }, formatThaiDate(new Date(cls.date))), /*#__PURE__*/React.createElement("p", {
+      className: `font-bold text-lg ${isToday ? 'text-white' : 'text-teal-600'}`
+    }, cls.courseName || cls.courseKey), /*#__PURE__*/React.createElement("p", {
+      className: `text-sm ${subColor}`
+    }, cls.timeSlot)), /*#__PURE__*/React.createElement("span", {
+      className: `text-xs px-2 py-1 rounded-full font-semibold ${students.length > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`
+    }, students.length, " คน")), cls.place && /*#__PURE__*/React.createElement("p", {
+      className: `text-xs ${subColor} mb-2`
+    }, "📍 ", cls.place), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setExpandedClass(isExpanded ? null : cls.id),
+      className: `w-full text-left text-xs font-semibold mt-1 ${isToday ? 'text-teal-200' : 'text-teal-600'}`
+    }, isExpanded ? '▲ ซ่อนรายชื่อ' : '▼ ดูรายชื่อผู้เรียน (' + students.length + ')'), isExpanded && /*#__PURE__*/React.createElement("div", {
+      className: `mt-3 space-y-2 border-t pt-3 ${isToday ? 'border-white border-opacity-20' : 'border-gray-200'}`
+    }, students.length === 0 ? /*#__PURE__*/React.createElement("p", {
+      className: `text-xs ${subColor} italic`
+    }, "ยังไม่มีผู้จองเข้าคลาสนี้") : students.map((s, i) => {
+      // หา sessions ของ booking นี้
+      const bkSessions = sessions.filter(ss => ss.bookingId === s.id);
+      return /*#__PURE__*/React.createElement("div", {
+        key: s.id || i,
+        className: `text-sm ${isToday ? 'bg-white bg-opacity-10' : 'bg-gray-50'} rounded-lg p-3`
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "flex justify-between items-start"
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+        className: `font-semibold ${textColor}`
+      }, s.name || s.studentName || '-'), s.tel && /*#__PURE__*/React.createElement("p", {
+        className: `text-xs ${subColor}`
+      }, "📞 ", s.tel)), /*#__PURE__*/React.createElement("span", {
+        className: `text-xs ${subColor}`
+      }, s.totalPeople || 1, " คน")), s.note && /*#__PURE__*/React.createElement("p", {
+        className: `text-xs ${subColor} mt-1 italic`
+      }, "📝 ", s.note), bkSessions.length > 0 && /*#__PURE__*/React.createElement("div", {
+        className: "mt-2 flex flex-wrap gap-2"
+      }, bkSessions.map(ss => /*#__PURE__*/React.createElement("button", {
+        key: ss.id,
+        onClick: () => toggleAttendance(ss.id),
+        className: `text-xs px-2 py-1 rounded-full font-medium transition-all ${ss.done ? isToday ? 'bg-green-400 text-green-900' : 'bg-green-100 text-green-700' : isToday ? 'bg-white bg-opacity-20 text-white' : 'bg-gray-200 text-gray-600'}`
+      }, ss.done ? '✅' : '⬜', " คนที่ ", ss.sessionNo))));
+    })));
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-6"
+  }, todayClasses.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg shadow-md p-6"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-2xl font-bold mb-4"
+  }, "📅 ตารางสอนวันนี้"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3"
+  }, todayClasses.map(cls => /*#__PURE__*/React.createElement(ClassCard, {
+    key: cls.id,
+    cls: cls,
+    isToday: true
+  })))), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-lg shadow-sm p-6"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-2xl font-bold text-gray-800 mb-6"
+  }, "ตารางสอน"), upcomingClasses.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "text-center py-12"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-xl text-gray-500 mb-2"
+  }, "ยังไม่มีตารางสอน"), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-400"
+  }, "กดรับคลาสในแท็บ \"รับสอนคลาส\"")) : /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, upcomingClasses.map(cls => /*#__PURE__*/React.createElement(ClassCard, {
+    key: cls.id,
+    cls: cls,
+    isToday: false
+  })))));
+}
+
+// Earnings Tab
+function EarningsTab({
+  instructor
+}) {
+  const [classes, setClasses] = useState([]);
+  const [classInstructors, setClassInstructors] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  useEffect(() => {
+    try {
+      setClasses(JSON.parse(localStorage.getItem('jia_classes') || '[]'));
+      setClassInstructors(JSON.parse(localStorage.getItem('jia_class_instructors') || '[]'));
+      setBookings(JSON.parse(localStorage.getItem('jia_bookings') || '[]'));
+    } catch (e) {}
+  }, []);
+  const previousMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+  const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+
+  // Get classes I'm assigned to teach
+  const myClassIds = useMemo(() => {
+    return new Set(classInstructors.filter(ci => ci.instructor === instructor).map(ci => ci.classId));
+  }, [classInstructors, instructor]);
+  const myClasses = useMemo(() => classes.filter(c => myClassIds.has(c.id)), [classes, myClassIds]);
+
+  // Count students per class (from bookings)
+  const studentsPerClass = useMemo(() => {
+    const map = {};
+    bookings.forEach(b => {
+      // Match by classId or by date+timeSlot+courseType
+      let cid = b.classId;
+      if (!cid) {
+        const matched = classes.find(c => c.date === b.startDate && c.timeSlot === b.timeSlot && (c.courseKey === b.courseType || c.courseName === b.courseType));
+        if (matched) cid = matched.id;
+      }
+      if (cid) map[cid] = (map[cid] || 0) + (parseInt(b.totalPeople) || 1);
+    });
+    return map;
+  }, [bookings, classes]);
+
+  // Calculate pay per class: perStudent × students, capped at max
+  const calcPay = cls => {
+    const perStudent = parseFloat(cls.instructorPayPerStudent) || 0;
+    const maxPay = parseFloat(cls.instructorPayMax) || 0;
+    const students = studentsPerClass[cls.id] || 0;
+    if (perStudent <= 0) return {
+      pay: 0,
+      students,
+      perStudent: 0,
+      maxPay: 0,
+      capped: false
+    };
+    let pay = perStudent * students;
+    const capped = maxPay > 0 && pay > maxPay;
+    if (capped) pay = maxPay;
+    return {
+      pay,
+      students,
+      perStudent,
+      maxPay,
+      capped
+    };
+  };
+
+  // Filter by current month
+  const monthClasses = useMemo(() => {
+    const y = currentDate.getFullYear();
+    const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const prefix = y + '-' + m;
+    return myClasses.filter(c => (c.date || '').startsWith(prefix)).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  }, [myClasses, currentDate]);
+
+  // Calculate totals
+  const totalEarnings = monthClasses.reduce((sum, c) => sum + calcPay(c).pay, 0);
+  const completedClasses = monthClasses.filter(c => c.status === 'completed');
+  const confirmedEarnings = completedClasses.reduce((sum, c) => sum + calcPay(c).pay, 0);
+  const pendingEarnings = totalEarnings - confirmedEarnings;
+  const totalStudents = monthClasses.reduce((sum, c) => sum + (studentsPerClass[c.id] || 0), 0);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-6"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-xl md:text-2xl font-bold text-gray-800"
+  }, "สรุปรายได้"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: previousMonth,
+    className: "w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors"
+  }, "◀"), /*#__PURE__*/React.createElement("span", {
+    className: "px-3 py-2 font-semibold text-gray-700 bg-gray-100 rounded-lg text-sm min-w-max"
+  }, getThaiMonthYear(currentDate)), /*#__PURE__*/React.createElement("button", {
+    onClick: nextMonth,
+    className: "w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors"
+  }, "▶"))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 md:grid-cols-4 gap-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "earnings-card bg-gradient-to-br from-teal-500 to-teal-600 text-white rounded-xl shadow-md p-4"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-xs opacity-90"
+  }, "รายได้รวม"), /*#__PURE__*/React.createElement("p", {
+    className: "text-2xl font-bold mt-1"
+  }, totalEarnings.toLocaleString(), " ฿")), /*#__PURE__*/React.createElement("div", {
+    className: "earnings-card bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl shadow-md p-4"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-xs opacity-90"
+  }, "สอนแล้ว"), /*#__PURE__*/React.createElement("p", {
+    className: "text-2xl font-bold mt-1"
+  }, confirmedEarnings.toLocaleString(), " ฿"), /*#__PURE__*/React.createElement("p", {
+    className: "text-[10px] opacity-75"
+  }, completedClasses.length, " คลาส")), /*#__PURE__*/React.createElement("div", {
+    className: "earnings-card bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl shadow-md p-4"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-xs opacity-90"
+  }, "รอสอน"), /*#__PURE__*/React.createElement("p", {
+    className: "text-2xl font-bold mt-1"
+  }, pendingEarnings.toLocaleString(), " ฿"), /*#__PURE__*/React.createElement("p", {
+    className: "text-[10px] opacity-75"
+  }, monthClasses.length - completedClasses.length, " คลาส")), /*#__PURE__*/React.createElement("div", {
+    className: "earnings-card bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-xl shadow-md p-4"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-xs opacity-90"
+  }, "นักเรียนรวม"), /*#__PURE__*/React.createElement("p", {
+    className: "text-2xl font-bold mt-1"
+  }, totalStudents, " คน"), /*#__PURE__*/React.createElement("p", {
+    className: "text-[10px] opacity-75"
+  }, monthClasses.length, " คลาส"))), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl shadow-sm p-4 md:p-6"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "text-lg font-bold text-gray-800 mb-4"
+  }, "รายละเอียดคลาส"), monthClasses.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "text-center py-8"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-gray-400"
+  }, "ไม่มีคลาสที่รับสอนในเดือนนี้")) : /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3"
+  }, monthClasses.map(cls => {
+    const {
+      pay,
+      students,
+      perStudent,
+      maxPay,
+      capped
+    } = calcPay(cls);
+    const isCompleted = cls.status === 'completed';
+    return /*#__PURE__*/React.createElement("div", {
+      key: cls.id,
+      className: `card-hover p-4 rounded-xl border ${isCompleted ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex justify-between items-start"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+      className: "font-semibold text-gray-800"
+    }, cls.courseName || cls.courseKey), /*#__PURE__*/React.createElement("p", {
+      className: "text-sm text-gray-500"
+    }, formatThaiDate(new Date(cls.date)), " · ", cls.timeSlot), cls.place && /*#__PURE__*/React.createElement("p", {
+      className: "text-xs text-gray-400"
+    }, "📍 ", cls.place)), /*#__PURE__*/React.createElement("div", {
+      className: "text-right"
+    }, /*#__PURE__*/React.createElement("p", {
+      className: `text-lg font-bold ${isCompleted ? 'text-green-600' : 'text-blue-600'}`
+    }, pay.toLocaleString(), " ฿"), /*#__PURE__*/React.createElement("span", {
+      className: `text-[10px] px-2 py-0.5 rounded-full ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`
+    }, isCompleted ? '✅ สอนแล้ว' : '⏳ รอสอน'))), /*#__PURE__*/React.createElement("div", {
+      className: "mt-2 text-xs text-gray-500 flex flex-wrap gap-x-3"
+    }, /*#__PURE__*/React.createElement("span", null, "👥 ", students, " คน"), perStudent > 0 && /*#__PURE__*/React.createElement("span", null, "× ", perStudent.toLocaleString(), " บาท/คน"), capped && /*#__PURE__*/React.createElement("span", {
+      className: "text-amber-600 font-medium"
+    }, "⚠️ ถึง max ", maxPay.toLocaleString(), " ฿")));
+  }))), monthClasses.some(c => !c.instructorPayPerStudent || parseFloat(c.instructorPayPerStudent) === 0) && /*#__PURE__*/React.createElement("div", {
+    className: "text-center text-sm text-yellow-600 pb-4"
+  }, "⚠️ บางคลาสยังไม่ได้ตั้งค่าค่าสอน — กรุณาติดต่อ Admin"));
+}
+
+// Settings Tab
+function SettingsTab({
+  instructor
+}) {
+  const [showChangePin, setShowChangePin] = useState(false);
+  const [oldPin, setOldPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [message, setMessage] = useState("");
+  const getPINFromStorage = () => {
+    const pins = JSON.parse(localStorage.getItem("jia_instructor_pins") || '{}');
+    return pins[instructor] || "0000";
+  };
+  const handleChangePin = () => {
+    const correctPin = getPINFromStorage();
+    if (oldPin !== correctPin) {
+      setMessage("รหัส PIN เดิมไม่ถูกต้อง");
+      return;
+    }
+    if (newPin.length !== 4 || !/^\d+$/.test(newPin)) {
+      setMessage("รหัส PIN ใหม่ต้องเป็นตัวเลข 4 หลัก");
+      return;
+    }
+    if (newPin !== confirmPin) {
+      setMessage("รหัส PIN ใหม่ไม่ตรงกัน");
+      return;
+    }
+    const pins = JSON.parse(localStorage.getItem("jia_instructor_pins") || '{}');
+    pins[instructor] = newPin;
+    localStorage.setItem("jia_instructor_pins", JSON.stringify(pins));
+    setMessage("เปลี่ยนรหัส PIN สำเร็จ");
+    setOldPin("");
+    setNewPin("");
+    setConfirmPin("");
+    setTimeout(() => {
+      setShowChangePin(false);
+      setMessage("");
+    }, 2000);
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-6"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-lg shadow-sm p-6"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-2xl font-bold text-gray-800 mb-6"
+  }, "ตั้งค่า"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-6"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    className: "text-lg font-bold text-gray-800 mb-4"
+  }, "เปลี่ยนรหัส PIN"), !showChangePin ? /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowChangePin(true),
+    className: "px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+  }, "เปลี่ยนรหัส PIN") : /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4 max-w-md"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-sm font-semibold text-gray-700 mb-2"
+  }, "รหัส PIN เดิม"), /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    maxLength: "4",
+    placeholder: "0000",
+    value: oldPin,
+    onChange: e => setOldPin(e.target.value.replace(/\D/g, '')),
+    className: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-sm font-semibold text-gray-700 mb-2"
+  }, "รหัส PIN ใหม่"), /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    maxLength: "4",
+    placeholder: "0000",
+    value: newPin,
+    onChange: e => setNewPin(e.target.value.replace(/\D/g, '')),
+    className: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-sm font-semibold text-gray-700 mb-2"
+  }, "ยืนยันรหัส PIN ใหม่"), /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    maxLength: "4",
+    placeholder: "0000",
+    value: confirmPin,
+    onChange: e => setConfirmPin(e.target.value.replace(/\D/g, '')),
+    className: "w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+  })), message && /*#__PURE__*/React.createElement("div", {
+    className: `p-3 rounded-lg ${message.includes('สำเร็จ') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`
+  }, message), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-3"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: handleChangePin,
+    className: "px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+  }, "บันทึก"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setShowChangePin(false);
+      setMessage("");
+      setOldPin("");
+      setNewPin("");
+      setConfirmPin("");
+    },
+    className: "px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+  }, "ยกเลิก")))))));
+}
+
+// Render app
+ReactDOM.render(/*#__PURE__*/React.createElement(AppLoader, null), document.getElementById('root'));
+</script>
     <script>
     // ── Service Worker + Offline + Auto-refresh ──
     if ('serviceWorker' in navigator) {

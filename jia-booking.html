@@ -7,7 +7,6 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         :root {
             --jia-red: #C8102E;
@@ -776,1343 +775,1270 @@
     }
     </script>
 
-    <script type="text/babel">
-        const { useState, useEffect } = React;
+    <script>const {
+  useState,
+  useEffect
+} = React;
 
-        // Utility functions
-        const uid = () => '_' + Math.random().toString(36).substr(2, 9);
+// Utility functions
+const uid = () => '_' + Math.random().toString(36).substr(2, 9);
+const getDaysInMonth = date => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+const getFirstDayOfMonth = date => new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+const formatDate = date => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+const thaiDateString = date => {
+  const options = {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  };
+  return new Date(date).toLocaleDateString('th-TH', options);
+};
+const thaiMonthYear = date => {
+  const options = {
+    month: 'long',
+    year: 'numeric'
+  };
+  return new Date(date).toLocaleDateString('th-TH', options);
+};
+const TIME_SLOTS = ['11:00-13:00', '14:00-16:00', '17:00-19:00'];
 
-        const getDaysInMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-        const getFirstDayOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+// Default fallback course if no courses available in localStorage
+const DEFAULT_COURSES = [{
+  key: 'CPR',
+  label: 'CPR',
+  description: 'สอนปฐมพยาบาลเบื้องต้น',
+  onlineBooking: true,
+  hasPackages: true,
+  flexPrice: 600,
+  fixedPrice: 500
+}];
 
-        const formatDate = (date) => {
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-        };
+// Function to get courses from localStorage or fallback
+const getCourses = () => {
+  try {
+    const coursesData = localStorage.getItem('jia_courses');
+    if (coursesData) {
+      const courses = JSON.parse(coursesData).filter(c => c.onlineBooking === true);
+      if (courses.length > 0) {
+        return courses;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to parse courses from localStorage', e);
+  }
+  return DEFAULT_COURSES;
+};
 
-        const thaiDateString = (date) => {
-            const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
-            return new Date(date).toLocaleDateString('th-TH', options);
-        };
+// PDPA Modal Component
+function PDPAConsent({
+  onConsent,
+  onCancel
+}) {
+  const [readPolicy, setReadPolicy] = useState(false);
+  const [agreeToUse, setAgreeToUse] = useState(false);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "pdpa-modal"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pdpa-content"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pdpa-header"
+  }, "นโยบายความเป็นส่วนตัว"), /*#__PURE__*/React.createElement("div", {
+    className: "pdpa-subheader"
+  }, "บริษัท เจี๋ยรักษา จำกัด"), /*#__PURE__*/React.createElement("div", {
+    className: "pdpa-section"
+  }, /*#__PURE__*/React.createElement("h3", null, "ข้อมูลที่เราเก็บรวบรวม:"), /*#__PURE__*/React.createElement("ul", null, /*#__PURE__*/React.createElement("li", null, "ชื่อ-นามสกุล — เพื่อระบุตัวตนผู้เรียน"), /*#__PURE__*/React.createElement("li", null, "เบอร์โทรศัพท์ — เพื่อติดต่อยืนยันการจอง"), /*#__PURE__*/React.createElement("li", null, "อีเมล (ถ้ามี) — เพื่อส่งใบยืนยันการจอง"), /*#__PURE__*/React.createElement("li", null, "หลักฐานการชำระเงิน (สลิป) — เพื่อตรวจสอบการชำระเงิน"))), /*#__PURE__*/React.createElement("div", {
+    className: "pdpa-section"
+  }, /*#__PURE__*/React.createElement("h3", null, "วัตถุประสงค์:"), /*#__PURE__*/React.createElement("p", null, "เราเก็บข้อมูลของท่านเพื่อการจัดการจองคลาสเรียนและการชำระเงินเท่านั้น จะไม่นำไปใช้เพื่อวัตถุประสงค์อื่น และจะไม่เปิดเผยต่อบุคคลที่สาม")), /*#__PURE__*/React.createElement("div", {
+    className: "pdpa-section"
+  }, /*#__PURE__*/React.createElement("h3", null, "ระยะเวลาเก็บรักษา:"), /*#__PURE__*/React.createElement("p", null, "เราจะเก็บรักษาข้อมูลของท่านไม่เกิน 1 ปี หลังจากวันที่เรียนเสร็จ")), /*#__PURE__*/React.createElement("div", {
+    className: "pdpa-section"
+  }, /*#__PURE__*/React.createElement("h3", null, "สิทธิ์ของท่าน:"), /*#__PURE__*/React.createElement("p", null, "ท่านมีสิทธิ์ในการเข้าถึง แก้ไข ลบ หรือเพิกถอนความยินยอมได้ตลอดเวลา โดยติดต่อ: ", /*#__PURE__*/React.createElement("a", {
+    href: "https://line.me/R/ti/p/@jiacpr",
+    target: "_blank",
+    className: "pdpa-link",
+    style: {
+      color: '#06C755'
+    }
+  }, "LINE: @jiacpr"))), /*#__PURE__*/React.createElement("div", {
+    className: "pdpa-section"
+  }, /*#__PURE__*/React.createElement("h3", null, "ฐานกฎหมาย:"), /*#__PURE__*/React.createElement("p", null, "ความยินยอม (Consent) ตาม พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562")), /*#__PURE__*/React.createElement("div", {
+    className: "pdpa-checkboxes"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pdpa-checkbox"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    id: "readPolicy",
+    checked: readPolicy,
+    onChange: e => setReadPolicy(e.target.checked)
+  }), /*#__PURE__*/React.createElement("label", {
+    htmlFor: "readPolicy"
+  }, "☑ ข้าพเจ้าได้อ่านและเข้าใจนโยบายความเป็นส่วนตัวแล้ว")), /*#__PURE__*/React.createElement("div", {
+    className: "pdpa-checkbox"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    id: "agreeToUse",
+    checked: agreeToUse,
+    onChange: e => setAgreeToUse(e.target.checked)
+  }), /*#__PURE__*/React.createElement("label", {
+    htmlFor: "agreeToUse"
+  }, "☑ ข้าพเจ้ายินยอมให้เก็บรวบรวม ใช้ และเปิดเผยข้อมูลส่วนบุคคลตามที่ระบุข้างต้น")), /*#__PURE__*/React.createElement("div", {
+    className: "checkbox-status"
+  }, readPolicy && agreeToUse ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: '#28a745'
+    }
+  }, "✓ พร้อมดำเนินการต่อ") : /*#__PURE__*/React.createElement("span", null, "กรุณาติ๊กถูกสองกล่องข้างต้น"))), /*#__PURE__*/React.createElement("div", {
+    className: "pdpa-button-group"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "pdpa-button secondary",
+    onClick: onCancel
+  }, "ยกเลิก"), /*#__PURE__*/React.createElement("button", {
+    className: "pdpa-button primary",
+    onClick: () => onConsent(),
+    disabled: !readPolicy || !agreeToUse
+  }, "ดำเนินการต่อ"))));
+}
 
-        const thaiMonthYear = (date) => {
-            const options = { month: 'long', year: 'numeric' };
-            return new Date(date).toLocaleDateString('th-TH', options);
-        };
+// Wrapper ที่รอ API โหลดเสร็จก่อน mount แอปจริง
+function AppLoader() {
+  const [ready, setReady] = useState(!window.JIA_API_URL);
+  useEffect(() => {
+    if (window.JIA_DATA_READY) {
+      window.JIA_DATA_READY.then(() => setReady(true));
+    } else {
+      setReady(true);
+    }
+  }, []);
+  if (!ready) return /*#__PURE__*/React.createElement("div", {
+    className: "min-h-screen flex items-center justify-center hero-gradient"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-center text-white"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-5xl mb-4"
+  }, "🏥"), /*#__PURE__*/React.createElement("h1", {
+    className: "text-3xl font-bold mb-2"
+  }, "JIA TRAINER CENTER"), /*#__PURE__*/React.createElement("p", {
+    className: "text-red-200 mb-6"
+  }, "CPR / AED / BLS / ACLS Training"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 32,
+      height: 32,
+      border: '3px solid rgba(255,255,255,0.3)',
+      borderTop: '3px solid white',
+      borderRadius: '50%',
+      animation: 'spin 0.8s linear infinite',
+      margin: '0 auto'
+    }
+  }), /*#__PURE__*/React.createElement("p", {
+    className: "text-red-200 text-sm mt-4"
+  }, "กำลังโหลดข้อมูล...")));
+  return /*#__PURE__*/React.createElement(BookingApp, null);
+}
+function BookingApp() {
+  const [pdpaConsented, setPdpaConsented] = useState(() => {
+    return sessionStorage.getItem('jia_pdpa_consented') === 'true';
+  });
+  const [step, setStep] = useState(1);
+  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [additionalDates, setAdditionalDates] = useState([]);
+  const [selectedTime, setSelectedTime] = useState(null);
+  const [selectedPackage, setSelectedPackage] = useState(null);
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [promoCode, setPromoCode] = useState('');
+  const [promoFeedback, setPromoFeedback] = useState('');
+  const [promoValid, setPromoValid] = useState(false);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [bookingRef, setBookingRef] = useState('');
+  const [instructorAvailability, setInstructorAvailability] = useState({});
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [paymentSlip, setPaymentSlip] = useState(null);
+  const [paymentSlipPreview, setPaymentSlipPreview] = useState(null);
+  const [showPrivacyNotice, setShowPrivacyNotice] = useState(false);
+  const [availableCourses, setAvailableCourses] = useState([]);
+  const [paymentSettings, setPaymentSettings] = useState({});
+  // v2: classes
+  const [classes, setClasses] = useState([]);
+  const [useClassMode, setUseClassMode] = useState(false); // true = ใช้ class system ใหม่
 
-        const TIME_SLOTS = ['11:00-13:00', '14:00-16:00', '17:00-19:00'];
-
-        // Default fallback course if no courses available in localStorage
-        const DEFAULT_COURSES = [
-            {
-                key: 'CPR',
-                label: 'CPR',
-                description: 'สอนปฐมพยาบาลเบื้องต้น',
-                onlineBooking: true,
-                hasPackages: true,
-                flexPrice: 600,
-                fixedPrice: 500
-            }
-        ];
-
-        // Function to get courses from localStorage or fallback
-        const getCourses = () => {
-            try {
-                const coursesData = localStorage.getItem('jia_courses');
-                if (coursesData) {
-                    const courses = JSON.parse(coursesData).filter(c => c.onlineBooking === true);
-                    if (courses.length > 0) {
-                        return courses;
-                    }
-                }
-            } catch (e) {
-                console.error('Failed to parse courses from localStorage', e);
-            }
-            return DEFAULT_COURSES;
-        };
-
-        // PDPA Modal Component
-        function PDPAConsent({ onConsent, onCancel }) {
-            const [readPolicy, setReadPolicy] = useState(false);
-            const [agreeToUse, setAgreeToUse] = useState(false);
-
-            return (
-                <div className="pdpa-modal">
-                    <div className="pdpa-content">
-                        <div className="pdpa-header">นโยบายความเป็นส่วนตัว</div>
-                        <div className="pdpa-subheader">บริษัท เจี๋ยรักษา จำกัด</div>
-
-                        <div className="pdpa-section">
-                            <h3>ข้อมูลที่เราเก็บรวบรวม:</h3>
-                            <ul>
-                                <li>ชื่อ-นามสกุล — เพื่อระบุตัวตนผู้เรียน</li>
-                                <li>เบอร์โทรศัพท์ — เพื่อติดต่อยืนยันการจอง</li>
-                                <li>อีเมล (ถ้ามี) — เพื่อส่งใบยืนยันการจอง</li>
-                                <li>หลักฐานการชำระเงิน (สลิป) — เพื่อตรวจสอบการชำระเงิน</li>
-                            </ul>
-                        </div>
-
-                        <div className="pdpa-section">
-                            <h3>วัตถุประสงค์:</h3>
-                            <p>เราเก็บข้อมูลของท่านเพื่อการจัดการจองคลาสเรียนและการชำระเงินเท่านั้น จะไม่นำไปใช้เพื่อวัตถุประสงค์อื่น และจะไม่เปิดเผยต่อบุคคลที่สาม</p>
-                        </div>
-
-                        <div className="pdpa-section">
-                            <h3>ระยะเวลาเก็บรักษา:</h3>
-                            <p>เราจะเก็บรักษาข้อมูลของท่านไม่เกิน 1 ปี หลังจากวันที่เรียนเสร็จ</p>
-                        </div>
-
-                        <div className="pdpa-section">
-                            <h3>สิทธิ์ของท่าน:</h3>
-                            <p>ท่านมีสิทธิ์ในการเข้าถึง แก้ไข ลบ หรือเพิกถอนความยินยอมได้ตลอดเวลา โดยติดต่อ: <a href="https://line.me/R/ti/p/@jiacpr" target="_blank" className="pdpa-link" style={{color:'#06C755'}}>LINE: @jiacpr</a></p>
-                        </div>
-
-                        <div className="pdpa-section">
-                            <h3>ฐานกฎหมาย:</h3>
-                            <p>ความยินยอม (Consent) ตาม พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562</p>
-                        </div>
-
-                        <div className="pdpa-checkboxes">
-                            <div className="pdpa-checkbox">
-                                <input
-                                    type="checkbox"
-                                    id="readPolicy"
-                                    checked={readPolicy}
-                                    onChange={(e) => setReadPolicy(e.target.checked)}
-                                />
-                                <label htmlFor="readPolicy">
-                                    ☑ ข้าพเจ้าได้อ่านและเข้าใจนโยบายความเป็นส่วนตัวแล้ว
-                                </label>
-                            </div>
-
-                            <div className="pdpa-checkbox">
-                                <input
-                                    type="checkbox"
-                                    id="agreeToUse"
-                                    checked={agreeToUse}
-                                    onChange={(e) => setAgreeToUse(e.target.checked)}
-                                />
-                                <label htmlFor="agreeToUse">
-                                    ☑ ข้าพเจ้ายินยอมให้เก็บรวบรวม ใช้ และเปิดเผยข้อมูลส่วนบุคคลตามที่ระบุข้างต้น
-                                </label>
-                            </div>
-
-                            <div className="checkbox-status">
-                                {readPolicy && agreeToUse ? (
-                                    <span style={{ color: '#28a745' }}>✓ พร้อมดำเนินการต่อ</span>
-                                ) : (
-                                    <span>กรุณาติ๊กถูกสองกล่องข้างต้น</span>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="pdpa-button-group">
-                            <button className="pdpa-button secondary" onClick={onCancel}>
-                                ยกเลิก
-                            </button>
-                            <button
-                                className="pdpa-button primary"
-                                onClick={() => onConsent()}
-                                disabled={!readPolicy || !agreeToUse}
-                            >
-                                ดำเนินการต่อ
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // Wrapper ที่รอ API โหลดเสร็จก่อน mount แอปจริง
-        function AppLoader() {
-            const [ready, setReady] = useState(!window.JIA_API_URL);
-            useEffect(() => {
-                if (window.JIA_DATA_READY) {
-                    window.JIA_DATA_READY.then(() => setReady(true));
-                } else { setReady(true); }
-            }, []);
-            if (!ready) return (
-                <div className="min-h-screen flex items-center justify-center hero-gradient">
-                    <div className="text-center text-white">
-                        <div className="text-5xl mb-4">🏥</div>
-                        <h1 className="text-3xl font-bold mb-2">JIA TRAINER CENTER</h1>
-                        <p className="text-red-200 mb-6">CPR / AED / BLS / ACLS Training</p>
-                        <div style={{width:32,height:32,border:'3px solid rgba(255,255,255,0.3)',borderTop:'3px solid white',borderRadius:'50%',animation:'spin 0.8s linear infinite',margin:'0 auto'}}></div>
-                        <p className="text-red-200 text-sm mt-4">กำลังโหลดข้อมูล...</p>
-                    </div>
-                </div>
-            );
-            return <BookingApp />;
-        }
-
-        function BookingApp() {
-            const [pdpaConsented, setPdpaConsented] = useState(() => {
-                return sessionStorage.getItem('jia_pdpa_consented') === 'true';
+  useEffect(() => {
+    const loadFromStorage = () => {
+      // Load instructor availability
+      try {
+        const availData = localStorage.getItem('jia_instructor_avail');
+        if (availData) {
+          const raw = JSON.parse(availData);
+          if (Array.isArray(raw)) {
+            const map = {};
+            raw.forEach(a => {
+              if (!a.date || !a.timeSlot) return;
+              if (!map[a.date]) map[a.date] = [];
+              if (!map[a.date].includes(a.timeSlot)) map[a.date].push(a.timeSlot);
             });
-            const [step, setStep] = useState(1);
-            const [selectedCourse, setSelectedCourse] = useState(null);
-            const [selectedDate, setSelectedDate] = useState(null);
-            const [additionalDates, setAdditionalDates] = useState([]);
-            const [selectedTime, setSelectedTime] = useState(null);
-            const [selectedPackage, setSelectedPackage] = useState(null);
-            const [customerName, setCustomerName] = useState('');
-            const [customerPhone, setCustomerPhone] = useState('');
-            const [customerEmail, setCustomerEmail] = useState('');
-            const [promoCode, setPromoCode] = useState('');
-            const [promoFeedback, setPromoFeedback] = useState('');
-            const [promoValid, setPromoValid] = useState(false);
-            const [discountAmount, setDiscountAmount] = useState(0);
-            const [bookingRef, setBookingRef] = useState('');
-            const [instructorAvailability, setInstructorAvailability] = useState({});
-            const [currentMonth, setCurrentMonth] = useState(new Date());
-            const [paymentSlip, setPaymentSlip] = useState(null);
-            const [paymentSlipPreview, setPaymentSlipPreview] = useState(null);
-            const [showPrivacyNotice, setShowPrivacyNotice] = useState(false);
-            const [availableCourses, setAvailableCourses] = useState([]);
-            const [paymentSettings, setPaymentSettings] = useState({});
-            // v2: classes
-            const [classes, setClasses] = useState([]);
-            const [useClassMode, setUseClassMode] = useState(false); // true = ใช้ class system ใหม่
-
-            useEffect(() => {
-                const loadFromStorage = () => {
-                    // Load instructor availability
-                    try {
-                        const availData = localStorage.getItem('jia_instructor_avail');
-                        if (availData) {
-                            const raw = JSON.parse(availData);
-                            if (Array.isArray(raw)) {
-                                const map = {};
-                                raw.forEach(a => {
-                                    if (!a.date || !a.timeSlot) return;
-                                    if (!map[a.date]) map[a.date] = [];
-                                    if (!map[a.date].includes(a.timeSlot)) map[a.date].push(a.timeSlot);
-                                });
-                                setInstructorAvailability(map);
-                            } else {
-                                setInstructorAvailability(raw);
-                            }
-                        }
-                    } catch (e) {}
-
-                    // Load payment settings
-                    try {
-                        const ps = localStorage.getItem('jia_payment_settings');
-                        if (ps) setPaymentSettings(JSON.parse(ps));
-                    } catch(e) {}
-
-                    // v2: Load classes
-                    try {
-                        const cls = JSON.parse(localStorage.getItem('jia_classes') || '[]');
-                        if (cls.length > 0) {
-                            setClasses(cls);
-                            setUseClassMode(true);
-                            console.log('📋 Class mode ON —', cls.filter(c => c.status === 'ready').length, 'ready classes');
-                        }
-                    } catch(e) {}
-
-                    // Load available courses
-                    const courses = getCourses();
-                    setAvailableCourses(courses);
-
-                    // Auto-select course if only one is available
-                    if (courses.length === 1) {
-                        setSelectedCourse(courses[0]);
-                        setStep(2);
-                    }
-                };
-
-                // โหลดจาก localStorage ทันที (ข้อมูล cache)
-                loadFromStorage();
-
-                // รอ API fetch เสร็จ แล้ว reload ใหม่ (แก้ race condition)
-                if (window.JIA_DATA_READY && typeof window.JIA_DATA_READY.then === 'function') {
-                    window.JIA_DATA_READY.then(() => {
-                        console.log('✅ JIA_DATA_READY resolved — reloading data from localStorage');
-                        loadFromStorage();
-                    }).catch(() => {});
-                }
-
-                // Read promo code from URL parameter (?code=SALE-XXXXXX)
-                const urlParams = new URLSearchParams(window.location.search);
-                const urlCode = urlParams.get('code');
-                if (urlCode) {
-                    setPromoCode(urlCode.toUpperCase());
-                    setTimeout(() => {
-                        validatePromoCode(urlCode.toUpperCase());
-                    }, 100);
-                }
-            }, []);
-
-            const handlePDPAConsent = () => {
-                sessionStorage.setItem('jia_pdpa_consented', 'true');
-                setPdpaConsented(true);
-            };
-
-            // v2: ดึง ready classes สำหรับคอร์สที่เลือก
-            const getReadyClassesForCourse = (courseKey) => {
-                if (!useClassMode) return [];
-                return classes.filter(c => c.status === 'ready' && c.courseKey === courseKey);
-            };
-
-            // คืน ready classes ทุกคอร์สสำหรับวันนั้น
-            const getReadyClassesForDate = (dateStr) => {
-                if (!useClassMode) return [];
-                return classes.filter(c => c.status === 'ready' && c.date === dateStr);
-            };
-
-            const isDateAvailable = (dateStr) => {
-                if (useClassMode) {
-                    // v2: แสดงวันที่มี ready class จากคอร์สใดก็ได้
-                    if (getReadyClassesForDate(dateStr).length > 0) return true;
-                    // fallback ถ้าไม่มี ready class เลย → ใช้ instructor availability
-                }
-                return instructorAvailability[dateStr] && instructorAvailability[dateStr].length > 0;
-            };
-
-            // ตรวจว่ามีวันใดๆ ที่จองได้ในเดือนปัจจุบัน+เดือนหน้า
-            const hasAvailableDatesInView = (() => {
-                const checkMonth = (month) => {
-                    const days = getDaysInMonth(month);
-                    for (let d = 1; d <= days; d++) {
-                        if (isDateAvailable(formatDate(new Date(month.getFullYear(), month.getMonth(), d)))) return true;
-                    }
-                    return false;
-                };
-                const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
-                return checkMonth(currentMonth) || checkMonth(nextMonth);
-            })();
-
-            const getAvailableTimeSlotsForDate = (dateStr) => {
-                if (useClassMode) {
-                    const readyClasses = getReadyClassesForDate(dateStr);
-                    if (readyClasses.length > 0) {
-                        // ถ้าเลือกคอร์สแล้ว → กรองเฉพาะคอร์สนั้น
-                        const filtered = selectedCourse
-                            ? readyClasses.filter(c => c.courseKey === selectedCourse.key)
-                            : readyClasses;
-                        return [...new Set((filtered.length > 0 ? filtered : readyClasses).map(c => c.timeSlot))];
-                    }
-                }
-                const slots = instructorAvailability[dateStr];
-                if (!slots) return [];
-                const courseSlots = selectedCourse?.timeSlots || TIME_SLOTS;
-                return courseSlots.filter(slot => slots.includes(slot));
-            };
-
-            // ─── ตรวจสอบโค้ดส่วนลด (ทั้ง JIA- และ SALE-) ───
-            const validatePromoCode = (code) => {
-                if (!code) return;
-                const promoData = localStorage.getItem('jia_promo_codes');
-                if (promoData) {
-                    try {
-                        const promoCodes = JSON.parse(promoData);
-                        if (promoCodes[code]) {
-                            const codeData = promoCodes[code];
-                            if (!codeData.used) {
-                                const label = code.startsWith('JIA-') ? 'คูปองคอร์สออนไลน์' : 'โค้ดส่วนลด';
-                                const unit = codeData.discountUnit || 'baht';
-                                let discAmt = Number(codeData.discount) || 0;
-                                let discLabel = '';
-                                if (unit === 'free' || discAmt >= 100 && unit === 'percent') {
-                                    discLabel = '🎁 ฟรี!';
-                                    // จะคำนวณ discount จริงตอน submit
-                                    discAmt = 999999; // flag ว่าฟรี
-                                } else if (unit === 'percent') {
-                                    discLabel = 'ลด ' + discAmt + '%';
-                                } else {
-                                    discLabel = 'ลด ฿' + discAmt;
-                                }
-                                setPromoValid(true);
-                                setPromoFeedback(`${label} ${discLabel} ✓`);
-                                setDiscountAmount(discAmt);
-                            } else {
-                                setPromoValid(false);
-                                setPromoFeedback('โค้ดนี้ถูกใช้แล้ว ✗');
-                            }
-                            return;
-                        }
-                    } catch (e) {}
-                }
-                setPromoValid(false);
-                setPromoFeedback('โค้ดไม่ถูกต้อง ✗');
-            };
-
-            const handlePromoCodeChange = (code) => {
-                setPromoCode(code.toUpperCase());
-                setDiscountAmount(0);
-                setPromoValid(false);
-                setPromoFeedback('');
-
-                if (!code) return;
-
-                if (code.startsWith('JIA-') || code.startsWith('SALE-')) {
-                    validatePromoCode(code);
-                } else {
-                    setPromoValid(false);
-                    setPromoFeedback('โค้ดไม่ถูกต้อง ✗');
-                }
-            };
-
-            const handlePaymentSlipUpload = (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                        setPaymentSlip(reader.result);
-                        setPaymentSlipPreview(reader.result);
-                    };
-                    reader.readAsDataURL(file);
-                }
-            };
-
-            const handleNextStep = () => {
-                if (step === 1 && !selectedCourse) {
-                    alert('กรุณาเลือกคลาส');
-                    return;
-                }
-                if (step === 2 && (!selectedDate || !selectedTime)) {
-                    alert('กรุณาเลือกวันและเวลา');
-                    return;
-                }
-                // Step 3 is conditional: only if course has packages
-                const courseHasPackages = selectedCourse && selectedCourse.hasPackages;
-                if (step === 3 && courseHasPackages && !selectedPackage) {
-                    alert('กรุณาเลือกแพ็กเกจ');
-                    return;
-                }
-                // Adjust step progression based on course packages
-                if (step === 3 && !courseHasPackages) {
-                    // Skip step 3 entirely, go to step 4 (customer info)
-                    setStep(4);
-                    return;
-                }
-                if (step === 4 && (!customerName || !customerPhone)) {
-                    alert('กรุณากรอกชื่อและเบอร์โทรศัพท์');
-                    return;
-                }
-                if (step === 5 && !paymentSlip) {
-                    alert('กรุณาอัพโหลดหลักฐานการชำระเงิน');
-                    return;
-                }
-                setStep(step + 1);
-            };
-
-            const handlePrevStep = () => {
-                if (step > 1) {
-                    // Handle step 3 special case when skipped
-                    if (step === 4 && selectedCourse && !selectedCourse.hasPackages) {
-                        setStep(2);
-                    } else {
-                        setStep(step - 1);
-                    }
-                }
-            };
-
-            const calculateFinalPrice = () => {
-                if (!selectedCourse) return 0;
-
-                let basePrice = 0;
-                if (selectedCourse.hasPackages) {
-                    basePrice = selectedPackage === 'flex' ? selectedCourse.flexPrice : selectedCourse.fixedPrice;
-                } else {
-                    basePrice = selectedCourse.price || 0;
-                }
-
-                return basePrice - discountAmount;
-            };
-
-            const finalPrice = calculateFinalPrice();
-
-            const handleSubmitBooking = async () => {
-                try {
-                    const customerId = uid();
-                    const bookingId = uid();
-
-                    // อัพโหลดสลิปไป Google Drive (ถ้ามี API)
-                    let slipData = paymentSlip;
-                    if (window.JIA_API_URL && paymentSlip) {
-                        try {
-                            slipData = await uploadSlipToAPI(paymentSlip, bookingId);
-                        } catch(e) { console.error('Slip upload error:', e); }
-                    }
-                    const sessionId = uid();
-                    const today = formatDate(new Date());
-
-                    const customer = {
-                        id: customerId,
-                        name: customerName,
-                        tel: customerPhone,
-                        email: customerEmail || '',
-                        createdAt: today,
-                        source: 'online'
-                    };
-
-                    let packageName = 'standard';
-                    if (selectedCourse.hasPackages) {
-                        packageName = selectedPackage;
-                    }
-
-                    // Collect all dates for multi-day courses
-                    const allDates = [selectedDate, ...additionalDates.filter(d => d)];
-                    const totalDays = selectedCourse?.totalDays || 1;
-
-                    const booking = {
-                        id: bookingId,
-                        customerId,
-                        name: customerName,
-                        tel: customerPhone,
-                        courseType: selectedCourse.key,
-                        courseName: selectedCourse.label,
-                        classId: (useClassMode && selectedCourse && selectedDate && selectedTime) ?
-                            (classes.find(c => c.status === 'ready' && c.courseKey === selectedCourse.key && c.date === selectedDate && c.timeSlot === selectedTime)?.id || '') : '',
-                        channel: promoCode.startsWith('SALE-') ? 'ผ่านเซลล์' : promoCode.startsWith('JIA-') ? 'คอร์สออนไลน์' : 'ซื้อเอง (เว็บ)',
-                        package: packageName,
-                        totalPeople: 1,
-                        finalPrice: finalPrice,
-                        discountCode: promoCode || '',
-                        discountAmount,
-                        paymentMode: 'โอนเงิน',
-                        paymentSlip: slipData,
-                        paymentStatus: 'รอตรวจสอบ',
-                        startDate: selectedDate,
-                        timeSlot: selectedTime,
-                        totalDays: totalDays,
-                        additionalDates: totalDays > 1 ? additionalDates.filter(d => d) : [],
-                        salesStaff: promoCode.startsWith('SALE-') ? promoCode : 'Online',
-                        instructor: '',
-                        note: totalDays > 1 ? `จองผ่านเว็บ (${totalDays} วัน)` : 'จองผ่านเว็บ',
-                        pdpaConsent: true,
-                        pdpaConsentDate: new Date().toISOString(),
-                        createdAt: today
-                    };
-
-                    // Create sessions — one per day for multi-day courses
-                    const sessions = allDates.map((date, idx) => ({
-                        id: idx === 0 ? sessionId : uid(),
-                        bookingId,
-                        customerId,
-                        sessionNo: idx + 1,
-                        done: false,
-                        date: date,
-                        sessionTime: selectedTime,
-                        place: 'Online',
-                        createdAt: today
-                    }));
-
-                    // Save to localStorage + sync ตรงไป Supabase ทีละ row
-                    const existingCustomers = JSON.parse(localStorage.getItem('jia_customers') || '[]');
-                    existingCustomers.push(customer);
-                    localStorage.setItem('jia_customers', JSON.stringify(existingCustomers));
-
-                    const existingBookings = JSON.parse(localStorage.getItem('jia_bookings') || '[]');
-                    existingBookings.push(booking);
-                    localStorage.setItem('jia_bookings', JSON.stringify(existingBookings));
-
-                    const existingSessions = JSON.parse(localStorage.getItem('jia_sessions') || '[]');
-                    sessions.forEach(s => existingSessions.push(s));
-                    localStorage.setItem('jia_sessions', JSON.stringify(existingSessions));
-
-                    // Sync to Supabase — รอทั้งหมด เพื่อยืนยันว่าบันทึกสำเร็จ
-                    try {
-                        await Promise.all([
-                            jiaApiPost('saveRow', { sheet: 'customers' }, customer),
-                            jiaApiPost('saveRow', { sheet: 'bookings' }, booking),
-                            ...sessions.map(s => jiaApiPost('saveRow', { sheet: 'sessions' }, s))
-                        ]);
-                        console.log('✅ Booking synced to Supabase:', bookingId);
-                    } catch(syncErr) {
-                        console.error('❌ Supabase sync failed:', syncErr);
-                        // ยังดำเนินการจองต่อได้ — ข้อมูลอยู่ใน localStorage แล้ว
-                    }
-
-                    // Mark promo code as used (ทั้ง SALE- และ JIA-)
-                    if (promoCode.startsWith('SALE-') || promoCode.startsWith('JIA-')) {
-                        const promoData = localStorage.getItem('jia_promo_codes');
-                        if (promoData) {
-                            try {
-                                const promoCodes = JSON.parse(promoData);
-                                if (promoCodes[promoCode]) {
-                                    promoCodes[promoCode].used = true;
-                                    promoCodes[promoCode].usedBy = customerName;
-                                    promoCodes[promoCode].usedAt = new Date().toISOString();
-                                    localStorage.setItem('jia_promo_codes', JSON.stringify(promoCodes));
-                                }
-                            } catch (e) {}
-                        }
-                    }
-
-                    // แจ้งเตือนการจองใหม่ทางอีเมล
-                    jiaApiPost('notifyBooking', {}, booking).catch(err => console.warn('⚠️ Notify failed:', err));
-
-                    setBookingRef(bookingId);
-                    setStep(selectedCourse?.hasPackages ? 6 : 5);
-                } catch (error) {
-                    console.error('Booking error:', error);
-                    alert('เกิดข้อผิดพลาดในการจอง: ' + error.message);
-                }
-            };
-
-            const handleNewBooking = () => {
-                setSelectedCourse(null);
-                setSelectedDate(null);
-                setSelectedTime(null);
-                setAdditionalDates([]);
-                setSelectedPackage(null);
-                setCustomerName('');
-                setCustomerPhone('');
-                setCustomerEmail('');
-                setPromoCode('');
-                setPromoFeedback('');
-                setPromoValid(false);
-                setDiscountAmount(0);
-                setPaymentSlip(null);
-                setPaymentSlipPreview(null);
-                setShowPrivacyNotice(false);
-                setStep(1);
-            };
-
-            const renderCalendar = (month) => {
-                const daysInMonth = getDaysInMonth(month);
-                const firstDay = getFirstDayOfMonth(month);
-                const days = [];
-
-                // Previous month days
-                const prevMonthDays = getDaysInMonth(new Date(month.getFullYear(), month.getMonth() - 1));
-                for (let i = firstDay - 1; i >= 0; i--) {
-                    days.push(
-                        <div key={`prev-${i}`} className="calendar-day other-month">
-                            {prevMonthDays - i}
-                        </div>
-                    );
-                }
-
-                // Current month days
-                for (let day = 1; day <= daysInMonth; day++) {
-                    const dateStr = formatDate(new Date(month.getFullYear(), month.getMonth(), day));
-                    const isAvailable = isDateAvailable(dateStr);
-                    const isSelected = selectedDate === dateStr;
-                    const dayClasses = useClassMode ? getReadyClassesForDate(dateStr) : [];
-
-                    days.push(
-                        <div
-                            key={`current-${day}`}
-                            className={`calendar-day ${isAvailable ? 'available' : 'unavailable'} ${
-                                isSelected ? 'selected' : ''
-                            }`}
-                            style={isAvailable && !isSelected ? {borderColor:'#C8102E'} : {}}
-                            onClick={() => {
-                                if (!isAvailable) return;
-                                setSelectedDate(dateStr);
-                                // auto-set course จาก class ถ้ามีเพียงคอร์สเดียว
-                                if (useClassMode && dayClasses.length > 0) {
-                                    const keys = [...new Set(dayClasses.map(c => c.courseKey))];
-                                    if (keys.length === 1) {
-                                        const course = availableCourses.find(c => c.key === keys[0]);
-                                        if (course) setSelectedCourse(course);
-                                    }
-                                }
-                            }}
-                        >
-                            <div>{day}</div>
-                            {isAvailable && dayClasses.length > 0 && (
-                                <div style={{fontSize:'9px', lineHeight:'1.2', marginTop:'2px', color: isSelected ? 'white' : '#C8102E', fontWeight:'600'}}>
-                                    {[...new Set(dayClasses.map(c => c.courseName || c.courseKey))].slice(0,2).map((name, i) => (
-                                        <div key={i} style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{name}</div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    );
-                }
-
-                // Next month days
-                const remainingDays = 42 - days.length;
-                for (let day = 1; day <= remainingDays; day++) {
-                    days.push(
-                        <div key={`next-${day}`} className="calendar-day other-month">
-                            {day}
-                        </div>
-                    );
-                }
-
-                return days;
-            };
-
-            // Determine which step to show and progress indicator
-            const getProgressSteps = () => {
-                const steps = [
-                    { num: 1, label: 'เลือกคลาส' },
-                    { num: 2, label: 'เลือกวันเรียน' }
-                ];
-
-                if (selectedCourse && selectedCourse.hasPackages) {
-                    steps.push({ num: 3, label: 'เลือกแพ็กเกจ' });
-                    steps.push({ num: 4, label: 'กรอกข้อมูล' });
-                    steps.push({ num: 5, label: 'ชำระเงิน' });
-                    steps.push({ num: 6, label: 'จองสำเร็จ' });
-                } else {
-                    steps.push({ num: 3, label: 'กรอกข้อมูล' });
-                    steps.push({ num: 4, label: 'ชำระเงิน' });
-                    steps.push({ num: 5, label: 'จองสำเร็จ' });
-                }
-
-                return steps;
-            };
-
-            const progressSteps = getProgressSteps();
-
-            if (!pdpaConsented) {
-                return <PDPAConsent onConsent={handlePDPAConsent} onCancel={() => window.close()} />;
-            }
-
-            return (
-                <div className="min-h-screen" style={{background:'var(--jia-cream)'}}>
-                    <header className="hero-gradient text-white sticky top-0 z-100 shadow-lg">
-                        <div className="max-w-4xl mx-auto px-4 py-5">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h1 className="text-2xl font-bold">จองคลาสเรียน</h1>
-                                    <p className="text-red-200 text-sm">JIA TRAINER CENTER — CPR/AED Training</p>
-                                </div>
-                                <div className="text-3xl">🏥</div>
-                            </div>
-                        </div>
-                    </header>
-                    {/* Trust Badges */}
-                    <div className="trust-badges bg-white shadow-sm border-b">
-                        <span className="trust-badge">✅ ใบรับรองมาตรฐาน</span>
-                        <span className="trust-badge">👨‍⚕️ ผู้สอนมืออาชีพ</span>
-                        <span className="trust-badge">🔒 ข้อมูลปลอดภัย</span>
-                    </div>
-
-                    <main className="max-w-4xl mx-auto px-4 py-12">
-                        {/* Progress Indicator */}
-                        <div className="progress-indicator mb-12">
-                            {progressSteps.map((s) => (
-                                <div key={s.num} className="progress-step">
-                                    <div
-                                        className={`progress-number ${s.num === step ? 'active' : s.num < step ? 'completed' : ''}`}
-                                    >
-                                        {s.num < step ? '✓' : s.num}
-                                    </div>
-                                    <div className={`progress-label ${s.num === step ? 'active' : ''}`}>{s.label}</div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Step 1: Course Selection */}
-                        {step === 1 && (
-                            <div className="fade-in">
-                                <h2 className="text-3xl font-bold jia-red mb-8">เลือกคลาส</h2>
-
-                                {availableCourses.length === 0 ? (
-                                    <div className="bg-white rounded-2xl p-8 card-shadow text-center">
-                                        <p className="text-lg text-gray-600">ไม่มีคลาสเปิดจองในขณะนี้</p>
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                                        {availableCourses.map((course) => {
-                                            const enrolled = Math.floor(Math.random() * 15) + 1;
-                                            const max = 20;
-                                            const priceInfo = course.hasPackages
-                                                ? `Flex ฿${course.flexPrice} / Fixed ฿${course.fixedPrice}`
-                                                : `฿${course.price}`;
-
-                                            return (
-                                                <div
-                                                    key={course.key}
-                                                    className={`course-card ${selectedCourse?.key === course.key ? 'selected' : ''}`}
-                                                    onClick={() => { setSelectedCourse(course); setAdditionalDates([]); setSelectedDate(null); setSelectedTime(null); }}
-                                                >
-                                                    <h3 className="text-2xl font-bold jia-red mb-2">{course.label}</h3>
-                                                    {course.description && (
-                                                        <p className="text-gray-600 text-sm mb-4">{course.description}</p>
-                                                    )}
-                                                    <p className="text-2xl font-bold jia-red mb-4">{priceInfo}</p>
-                                                    {(course.totalDays || 1) > 1 && (
-                                                        <p className="text-sm text-amber-600 font-medium mb-2">
-                                                            📚 {course.totalDays} วัน × {course.durationHours || 2} ชม.
-                                                        </p>
-                                                    )}
-                                                    <p className="text-sm text-gray-600">
-                                                        ที่นั่ง: {enrolled}/{max}
-                                                    </p>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-
-                                {availableCourses.length > 0 && (
-                                    <div className="flex gap-4 justify-end">
-                                        <button onClick={handleNextStep} className="btn-primary">
-                                            ถัดไป →
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Step 2: Date & Time Selection */}
-                        {step === 2 && (
-                            <div className="fade-in">
-                                <h2 className="text-3xl font-bold jia-red mb-8">เลือกวันเรียน</h2>
-
-                                {/* Current Month */}
-                                <div className="bg-white rounded-2xl p-6 card-shadow mb-8">
-                                    <h3 className="text-xl font-bold mb-6">{thaiMonthYear(currentMonth)}</h3>
-                                    <div className="grid grid-cols-7 gap-2 mb-6">
-                                        {['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].map((day, i) => (
-                                            <div key={i} className="text-center font-bold text-gray-600 py-2 text-sm">
-                                                {day}
-                                            </div>
-                                        ))}
-                                        {renderCalendar(currentMonth)}
-                                    </div>
-                                </div>
-
-                                {/* Next Month */}
-                                <div className="bg-white rounded-2xl p-6 card-shadow mb-8">
-                                    <h3 className="text-xl font-bold mb-6">
-                                        {thaiMonthYear(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-                                    </h3>
-                                    <div className="grid grid-cols-7 gap-2">
-                                        {['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].map((day, i) => (
-                                            <div key={i} className="text-center font-bold text-gray-600 py-2 text-sm">
-                                                {day}
-                                            </div>
-                                        ))}
-                                        {renderCalendar(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-                                    </div>
-                                </div>
-
-                                {/* No dates available — contact banner */}
-                                {!hasAvailableDatesInView && (
-                                    <div className="bg-white rounded-2xl p-6 card-shadow mb-8 text-center" style={{border:'2px solid #C8102E'}}>
-                                        <p className="text-lg font-bold jia-red mb-2">ขณะนี้ยังไม่มีวันเรียนที่เปิดรับจอง</p>
-                                        <p className="text-gray-600 mb-4">ติดต่อเราเพื่อจองโดยตรง ทีมงานยินดีช่วยเหลือ</p>
-                                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                                            <a href="https://line.me/R/ti/p/@jiacpr" target="_blank"
-                                                className="btn-primary inline-flex items-center justify-center gap-2"
-                                                style={{background:'#06C755', textDecoration:'none', padding:'12px 24px', borderRadius:'8px', color:'white', fontWeight:'bold'}}>
-                                                LINE @jiacpr
-                                            </a>
-                                            <a href="tel:0885588078"
-                                                className="inline-flex items-center justify-center gap-2"
-                                                style={{background:'#C8102E', textDecoration:'none', padding:'12px 24px', borderRadius:'8px', color:'white', fontWeight:'bold'}}>
-                                                โทร 088-558-8078
-                                            </a>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Time Slot Selection */}
-                                {selectedDate && (
-                                    <div className="bg-white rounded-2xl p-6 card-shadow mb-8 fade-in">
-                                        <h3 className="text-xl font-bold jia-red mb-2">เลือกเวลา: {thaiDateString(new Date(selectedDate))}</h3>
-                                        {selectedCourse?.durationHours && (
-                                            <p className="text-sm text-gray-500 mb-4">ระยะเวลาเรียน: {selectedCourse.durationHours} ชั่วโมง</p>
-                                        )}
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            {(selectedCourse?.timeSlots || TIME_SLOTS).map((slot) => {
-                                                const isAvailable = getAvailableTimeSlotsForDate(selectedDate).includes(slot);
-                                                return (
-                                                    <div
-                                                        key={slot}
-                                                        className={`time-slot ${!isAvailable ? 'opacity-50 cursor-not-allowed' : ''} ${
-                                                            selectedTime === slot ? 'selected' : ''
-                                                        }`}
-                                                        onClick={() => isAvailable && setSelectedTime(slot)}
-                                                    >
-                                                        {slot}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Multi-day: เลือกวันเรียนเพิ่ม */}
-                                {selectedDate && selectedTime && (selectedCourse?.totalDays || 1) > 1 && (
-                                    <div className="bg-white rounded-2xl p-6 card-shadow mb-8 fade-in">
-                                        <h3 className="text-xl font-bold jia-red mb-2">
-                                            คอร์สนี้เรียน {selectedCourse.totalDays} วัน — เลือกวันเรียนที่เหลือ
-                                        </h3>
-                                        <p className="text-sm text-gray-500 mb-4">
-                                            วันที่ 1: {thaiDateString(new Date(selectedDate))} ({selectedTime})
-                                            {selectedCourse.durationHours && ` • ${selectedCourse.durationHours} ชม./วัน`}
-                                        </p>
-
-                                        {Array.from({length: (selectedCourse.totalDays || 1) - 1}, (_, i) => {
-                                            const dayNum = i + 2;
-                                            const currentVal = additionalDates[i] || "";
-                                            return (
-                                                <div key={i} className="mb-3">
-                                                    <label className="text-sm font-medium text-gray-700 block mb-1">
-                                                        วันที่ {dayNum}
-                                                    </label>
-                                                    <div className="flex gap-2 items-center">
-                                                        <input type="date" value={currentVal}
-                                                            min={selectedDate}
-                                                            onChange={(e) => {
-                                                                const newDates = [...additionalDates];
-                                                                newDates[i] = e.target.value;
-                                                                setAdditionalDates(newDates);
-                                                            }}
-                                                            className="flex-1 border-2 border-gray-200 rounded-xl px-4 py-3 text-lg focus:border-red-400 focus:outline-none" />
-                                                        {currentVal && (
-                                                            <span className="text-sm text-green-600 font-medium">
-                                                                ✓ {thaiDateString(new Date(currentVal))}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-
-                                        <p className="text-xs text-gray-400 mt-2">
-                                            เวลาเรียนทุกวัน: {selectedTime}
-                                        </p>
-                                    </div>
-                                )}
-
-                                {/* Navigation Buttons */}
-                                <div className="flex gap-4 justify-between">
-                                    <button onClick={handlePrevStep} className="btn-secondary">
-                                        ← ย้อนกลับ
-                                    </button>
-                                    <button onClick={handleNextStep} className="btn-primary"
-                                        disabled={
-                                            !selectedDate || !selectedTime ||
-                                            ((selectedCourse?.totalDays || 1) > 1 && additionalDates.filter(d => d).length < (selectedCourse.totalDays - 1))
-                                        }>
-                                        ถัดไป →
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Step 3: Package Selection (only if course has packages) */}
-                        {step === 3 && selectedCourse?.hasPackages && (
-                            <div className="fade-in">
-                                <h2 className="text-3xl font-bold jia-red mb-8">เลือกแพ็กเกจ</h2>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                                    <div
-                                        className={`package-card ${selectedPackage === 'flex' ? 'selected' : ''}`}
-                                        onClick={() => setSelectedPackage('flex')}
-                                    >
-                                        <div className="badge">ฉันแนะนำ</div>
-                                        <h3 className="text-2xl font-bold jia-red mb-2">Flexible</h3>
-                                        <p className="text-4xl font-bold jia-red mb-4">฿{selectedCourse.flexPrice}</p>
-                                        <p className="text-gray-600 text-lg">เลื่อนวันเรียนได้ไม่จำกัด</p>
-                                    </div>
-
-                                    <div
-                                        className={`package-card ${selectedPackage === 'fixed' ? 'selected' : ''}`}
-                                        onClick={() => setSelectedPackage('fixed')}
-                                    >
-                                        <div className="badge budget">ประหยัด</div>
-                                        <h3 className="text-2xl font-bold jia-red mb-2">Fixed</h3>
-                                        <p className="text-4xl font-bold jia-red mb-4">฿{selectedCourse.fixedPrice}</p>
-                                        <p className="text-gray-600 text-lg">เลื่อนวันเรียนได้ 1 ครั้ง</p>
-                                    </div>
-                                </div>
-
-                                {/* Navigation Buttons */}
-                                <div className="flex gap-4 justify-between">
-                                    <button onClick={handlePrevStep} className="btn-secondary">
-                                        ← ย้อนกลับ
-                                    </button>
-                                    <button onClick={handleNextStep} className="btn-primary">
-                                        ถัดไป →
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Step 3 (or 4 if no packages): Customer Information */}
-                        {((step === 3 && !selectedCourse?.hasPackages) || (step === 4 && selectedCourse?.hasPackages)) && (
-                            <div className="fade-in">
-                                <h2 className="text-3xl font-bold jia-red mb-8">กรอกข้อมูล</h2>
-
-                                <div className="bg-white rounded-2xl p-6 card-shadow mb-8">
-                                    <div className="space-y-6">
-                                        <div>
-                                            <label className="block text-sm font-bold jia-red mb-2">
-                                                ชื่อ-นามสกุล <span className="text-red-600">*</span>
-                                            </label>
-                                            <input
-                                                type="text"
-                                                className="form-input"
-                                                placeholder="กรอกชื่อ-นามสกุล"
-                                                value={customerName}
-                                                onChange={(e) => setCustomerName(e.target.value)}
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-bold jia-red mb-2">
-                                                เบอร์โทรศัพท์ <span className="text-red-600">*</span>
-                                            </label>
-                                            <input
-                                                type="tel"
-                                                className="form-input"
-                                                placeholder="0XX-XXX-XXXX"
-                                                value={customerPhone}
-                                                onChange={(e) => setCustomerPhone(e.target.value)}
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-bold jia-red mb-2">อีเมล (ไม่บังคับ)</label>
-                                            <input
-                                                type="email"
-                                                className="form-input"
-                                                placeholder="example@email.com"
-                                                value={customerEmail}
-                                                onChange={(e) => setCustomerEmail(e.target.value)}
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-bold jia-red mb-2">โค้ดส่วนลด (ไม่บังคับ)</label>
-                                            <input
-                                                type="text"
-                                                className="form-input"
-                                                placeholder="เช่น JIA-XXXXX หรือ SALE-XXXXX"
-                                                value={promoCode}
-                                                onChange={(e) => handlePromoCodeChange(e.target.value)}
-                                                maxLength="20"
-                                            />
-                                            {promoFeedback && (
-                                                <div className={`promo-feedback ${promoValid ? 'valid' : 'invalid'}`}>
-                                                    {promoFeedback}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="privacy-notice-footer">
-                                            <strong>ข้อมูลของท่านได้รับการคุ้มครองตาม พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562</strong>
-                                            <p>
-                                                <span
-                                                    className="pdpa-link"
-                                                    onClick={() => setShowPrivacyNotice(!showPrivacyNotice)}
-                                                >
-                                                    อ่านนโยบายความเป็นส่วนตัวอีกครั้ง →
-                                                </span>
-                                            </p>
-                                            {showPrivacyNotice && (
-                                                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #ccc', fontSize: '12px' }}>
-                                                    <p>
-                                                        <strong>นโยบายความเป็นส่วนตัว</strong>
-                                                    </p>
-                                                    <p>
-                                                        เราจะใช้ข้อมูลของท่านเพื่อการจัดการจองคลาสเรียนและการชำระเงินเท่านั้น จะไม่นำไปใช้เพื่อวัตถุประสงค์อื่น
-                                                        และจะไม่เปิดเผยต่อบุคคลที่สาม ท่านมีสิทธิ์ลบข้อมูลได้ตลอดเวลาโดยติดต่อ LINE: @jiacpr
-                                                    </p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Navigation Buttons */}
-                                <div className="flex gap-4 justify-between">
-                                    <button onClick={handlePrevStep} className="btn-secondary">
-                                        ← ย้อนกลับ
-                                    </button>
-                                    <button onClick={handleNextStep} className="btn-primary">
-                                        ถัดไป →
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Step 4 (or 5 if no packages): Payment */}
-                        {((step === 4 && !selectedCourse?.hasPackages) || (step === 5 && selectedCourse?.hasPackages)) && (
-                            <div className="fade-in">
-                                <h2 className="text-3xl font-bold jia-red mb-8">ชำระเงิน</h2>
-
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                                    {/* Left side: Booking Summary */}
-                                    <div>
-                                        <h3 className="text-xl font-bold mb-6">สรุปการจอง</h3>
-                                        <div className="payment-summary">
-                                            <div className="space-y-4">
-                                                <div className="flex justify-between pb-4 border-b">
-                                                    <span className="text-gray-600">คลาส</span>
-                                                    <span className="font-semibold">{selectedCourse?.label}</span>
-                                                </div>
-                                                <div className="pb-4 border-b">
-                                                    <div className="flex justify-between">
-                                                        <span className="text-gray-600">วันที่</span>
-                                                        <span className="font-semibold">{thaiDateString(new Date(selectedDate))}</span>
-                                                    </div>
-                                                    {(selectedCourse?.totalDays || 1) > 1 && additionalDates.filter(d => d).map((d, i) => (
-                                                        <div key={i} className="flex justify-between mt-1">
-                                                            <span className="text-gray-400 text-sm">วันที่ {i + 2}</span>
-                                                            <span className="font-semibold text-sm">{thaiDateString(new Date(d))}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <div className="flex justify-between pb-4 border-b">
-                                                    <span className="text-gray-600">เวลา</span>
-                                                    <span className="font-semibold">
-                                                        {selectedTime}
-                                                        {(selectedCourse?.totalDays || 1) > 1 && ` (${selectedCourse.totalDays} วัน)`}
-                                                    </span>
-                                                </div>
-                                                {selectedCourse?.hasPackages && (
-                                                    <div className="flex justify-between pb-4 border-b">
-                                                        <span className="text-gray-600">แพ็กเกจ</span>
-                                                        <span className="font-semibold">
-                                                            {selectedPackage === 'flex' ? 'Flexible' : 'Fixed'}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                                <div className="flex justify-between pb-4 border-b">
-                                                    <span className="text-gray-600">ราคา</span>
-                                                    <span className="font-semibold">฿{calculateFinalPrice() + discountAmount}</span>
-                                                </div>
-                                                {discountAmount > 0 && (
-                                                    <div className="flex justify-between pb-4 border-b text-green-600">
-                                                        <span>ส่วนลด</span>
-                                                        <span className="font-semibold">-฿{discountAmount}</span>
-                                                    </div>
-                                                )}
-                                                <div className="flex justify-between pt-4">
-                                                    <span className="font-bold">ยอดชำระ</span>
-                                                    <span className="text-2xl font-bold jia-red">฿{finalPrice}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Right side: Payment Methods */}
-                                    <div>
-                                        <h3 className="text-xl font-bold mb-6">ช่องทางชำระเงิน</h3>
-
-                                        {/* Stripe Online Payment */}
-                                        <div className="payment-method" style={{background:'#f0f0ff',border:'2px solid #635BFF'}}>
-                                            <h4 style={{color:'#635BFF'}}>💳 ชำระออนไลน์ (บัตรเครดิต / PromptPay)</h4>
-                                            <button onClick={async () => {
-                                                try {
-                                                    const res = await fetch(SUPABASE_URL + '/functions/v1/stripe-checkout', {
-                                                        method: 'POST',
-                                                        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY },
-                                                        body: JSON.stringify({
-                                                            type: 'booking',
-                                                            items: [{ name: 'JIA Course: ' + (selectedCourse?.label || 'CPR/AED'), amount: finalPrice }],
-                                                            metadata: { booking_id: Date.now().toString(36), name: formData.name, phone: formData.phone },
-                                                            successUrl: window.location.origin + window.location.pathname + '?payment=success',
-                                                            cancelUrl: window.location.origin + window.location.pathname + '?payment=cancel',
-                                                        }),
-                                                    });
-                                                    const data = await res.json();
-                                                    if (data.url) window.location.href = data.url;
-                                                    else alert('เกิดข้อผิดพลาด: ' + (data.error || ''));
-                                                } catch(e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
-                                            }} className="btn-primary" style={{width:'100%',marginTop:8,background:'#635BFF',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-                                                ชำระผ่าน Stripe — ฿{finalPrice}
-                                            </button>
-                                            <p className="text-xs text-gray-500 mt-2 text-center">Visa / Mastercard / PromptPay — ยืนยันอัตโนมัติ</p>
-                                        </div>
-
-                                        <div className="text-center text-sm text-gray-400 my-4">— หรือโอนเงิน —</div>
-
-                                        {/* PromptPay QR */}
-                                        <div className="payment-method">
-                                            <h4>PromptPay QR Code</h4>
-                                            <div className="qr-section">
-                                                <div className="qr-placeholder">QR Code</div>
-                                                <p className="text-sm text-gray-600 mt-2">สแกน QR เพื่อชำระเงิน</p>
-                                                <p className="text-sm font-semibold mt-2">PromptPay: {paymentSettings.promptpay || '088-558-8078'}</p>
-                                            </div>
-                                        </div>
-
-                                        {/* Bank Transfer */}
-                                        <div className="payment-method">
-                                            <h4>หรือโอนเงิน</h4>
-                                            <div className="bank-info">
-                                                <p>
-                                                    <strong>ธนาคาร:</strong> {paymentSettings.bankName || 'กสิกรไทย'}
-                                                </p>
-                                                <p>
-                                                    <strong>ชื่อบัญชี:</strong> {paymentSettings.accountName || 'บริษัท เจี๋ยรักษา จำกัด'}
-                                                </p>
-                                                <p>
-                                                    <strong>เลขที่บัญชี:</strong> {paymentSettings.accountNumber || 'รอใส่ข้อมูล'}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        {/* Final Price Display */}
-                                        <div className="payment-final-price">ยอดที่ต้องชำระ: ฿{finalPrice}</div>
-                                    </div>
-                                </div>
-
-                                {/* Payment Slip Upload */}
-                                <div className="bg-white rounded-2xl p-6 card-shadow mb-8">
-                                    <label className="block text-sm font-bold jia-red mb-4">
-                                        แนบหลักฐานการชำระเงิน (สลิป) <span className="text-red-600">*</span>
-                                    </label>
-                                    <div className={`slip-upload-area ${paymentSlip ? 'has-file' : ''}`}>
-                                        <input
-                                            type="file"
-                                            id="payment-slip"
-                                            className="file-input"
-                                            accept="image/jpg,image/jpeg,image/png"
-                                            onChange={handlePaymentSlipUpload}
-                                        />
-                                        <label htmlFor="payment-slip" className="cursor-pointer">
-                                            <p className="text-sm text-gray-600 mb-2">คลิกเพื่ออัพโหลดรูปภาพสลิป</p>
-                                            <span className="upload-btn" style={{display:'inline-block'}}>
-                                                เลือกไฟล์รูปภาพ
-                                            </span>
-                                        </label>
-                                        {paymentSlipPreview && (
-                                            <div className="mt-4 text-center">
-                                                <img
-                                                    src={paymentSlipPreview}
-                                                    alt="Payment slip preview"
-                                                    className="slip-preview mx-auto"
-                                                />
-                                                <p className="text-sm text-green-600 mt-2">✓ อัพโหลดสลิปสำเร็จ</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Navigation Buttons */}
-                                <div className="flex gap-4 justify-between">
-                                    <button onClick={handlePrevStep} className="btn-secondary">
-                                        ← ย้อนกลับ
-                                    </button>
-                                    <button onClick={handleSubmitBooking} className="btn-primary">
-                                        ยืนยันการจอง →
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Step 5 (or 6 if no packages): Success Screen */}
-                        {((step === 5 && !selectedCourse?.hasPackages) || (step === 6 && selectedCourse?.hasPackages)) && (
-                            <div className="fade-in">
-                                <div className="success-screen max-w-2xl mx-auto">
-                                    <div className="success-icon">✓</div>
-                                    <h2 className="text-4xl font-bold jia-red mb-4">จองสำเร็จ!</h2>
-                                    <p className="text-xl text-gray-600 mb-2">รอตรวจสอบการชำระเงิน</p>
-                                    <p className="text-lg text-gray-600 mb-8">ทีมงานจะตรวจสอบสลิปและยืนยันภายใน 24 ชั่วโมง</p>
-
-                                    <div className="bg-white rounded-2xl p-8 card-shadow mb-8 text-left">
-                                        <div className="booking-ref">รหัสจอง: {bookingRef}</div>
-
-                                        <div className="space-y-6 text-left">
-                                            <div>
-                                                <p className="text-sm text-gray-600 mb-1">คลาส</p>
-                                                <p className="text-lg font-bold">{selectedCourse?.label}</p>
-                                            </div>
-
-                                            <div>
-                                                <p className="text-sm text-gray-600 mb-1">วันที่และเวลาเรียน</p>
-                                                <p className="text-lg font-bold">
-                                                    วันที่ 1: {thaiDateString(new Date(selectedDate))} · {selectedTime}
-                                                </p>
-                                                {(selectedCourse?.totalDays || 1) > 1 && additionalDates.filter(d => d).map((d, i) => (
-                                                    <p key={i} className="text-base font-semibold text-gray-700 mt-1">
-                                                        วันที่ {i + 2}: {thaiDateString(new Date(d))} · {selectedTime}
-                                                    </p>
-                                                ))}
-                                                {(selectedCourse?.totalDays || 1) > 1 && (
-                                                    <p className="text-sm text-gray-500 mt-2">
-                                                        รวม {selectedCourse.totalDays} วัน × {selectedCourse.durationHours || 2} ชม.
-                                                    </p>
-                                                )}
-                                            </div>
-
-                                            {selectedCourse?.hasPackages && (
-                                                <div>
-                                                    <p className="text-sm text-gray-600 mb-1">แพ็กเกจ</p>
-                                                    <p className="text-lg font-bold">
-                                                        {selectedPackage === 'flex' ? 'Flexible - เลื่อนวันเรียนได้ไม่จำกัด' : 'Fixed - เลื่อนวันเรียนได้ 1 ครั้ง'}
-                                                    </p>
-                                                </div>
-                                            )}
-
-                                            <div>
-                                                <p className="text-sm text-gray-600 mb-1">ชื่อ</p>
-                                                <p className="text-lg font-bold">{customerName}</p>
-                                            </div>
-
-                                            <div>
-                                                <p className="text-sm text-gray-600 mb-1">เบอร์โทรศัพท์</p>
-                                                <p className="text-lg font-bold">{customerPhone}</p>
-                                            </div>
-
-                                            <div>
-                                                <p className="text-sm text-gray-600 mb-1">ยอดรวม</p>
-                                                <p className="text-2xl font-bold jia-red">฿{finalPrice}</p>
-                                            </div>
-
-                                            <div>
-                                                <p className="text-sm text-gray-600 mb-1">สถานะการชำระเงิน</p>
-                                                <p className="text-lg font-bold text-orange-600">รอตรวจสอบ</p>
-                                            </div>
-
-                                            {/* LINE CTA — ส่งหลักฐานการชำระเงิน */}
-                                            <div className="border-t pt-6" style={{background:'linear-gradient(135deg, #06C755 0%, #04A648 100%)', borderRadius:'16px', padding:'24px', marginTop:'16px'}}>
-                                                <p className="text-center text-white font-bold text-xl mb-2">📲 ส่งหลักฐานชำระเงินทาง LINE</p>
-                                                <p className="text-center text-white/90 text-sm mb-4">
-                                                    เพิ่มเพื่อน LINE แล้วส่งสลิป + รหัสจอง<br/>
-                                                    เพื่อยืนยันการชำระเงินรวดเร็วขึ้น!
-                                                </p>
-                                                <div className="text-center mb-3">
-                                                    <a href="https://line.me/R/ti/p/@jiacpr" target="_blank"
-                                                       style={{display:'inline-block', background:'white', color:'#06C755', fontWeight:'bold', fontSize:'18px', padding:'14px 32px', borderRadius:'50px', textDecoration:'none', boxShadow:'0 4px 12px rgba(0,0,0,0.15)'}}>
-                                                        เพิ่มเพื่อน @jiacpr
-                                                    </a>
-                                                </div>
-                                                <p className="text-center text-white/80 text-xs">
-                                                    แจ้งรหัสจอง: <strong className="text-white">{bookingRef}</strong> พร้อมแนบสลิป
-                                                </p>
-                                            </div>
-
-                                            {/* โทรสอบถาม */}
-                                            <div className="border-t pt-4 mt-4 text-center">
-                                                <p className="text-gray-600 text-sm mb-2">หรือติดต่อสอบถาม</p>
-                                                <a href="tel:0885588078" style={{color:'#C8102E', fontWeight:'bold', textDecoration:'none', fontSize:'16px'}}>
-                                                    📞 088-558-8078
-                                                </a>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <button onClick={handleNewBooking} className="btn-primary text-lg px-8 py-3">
-                                        จองอีกครั้ง
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </main>
-
-                    {/* Footer */}
-                    <footer className="bg-gray-100 text-gray-600 py-8 px-4 mt-16">
-                        <div className="max-w-4xl mx-auto text-center">
-                            <p className="mb-2">JIA TRAINER CENTER</p>
-                            <p className="text-sm">สอบถามข้อมูลเพิ่มเติม: LINE @jiacpr | 088-558-8078</p>
-                            <p className="text-sm mt-4">ข้อมูลของท่านได้รับการคุ้มครองตาม พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562</p>
-                        </div>
-                    </footer>
-                </div>
-            );
+            setInstructorAvailability(map);
+          } else {
+            setInstructorAvailability(raw);
+          }
         }
+      } catch (e) {}
 
-        ReactDOM.render(<AppLoader />, document.getElementById('root'));
-    </script>
+      // Load payment settings
+      try {
+        const ps = localStorage.getItem('jia_payment_settings');
+        if (ps) setPaymentSettings(JSON.parse(ps));
+      } catch (e) {}
+
+      // v2: Load classes
+      try {
+        const cls = JSON.parse(localStorage.getItem('jia_classes') || '[]');
+        if (cls.length > 0) {
+          setClasses(cls);
+          setUseClassMode(true);
+          console.log('📋 Class mode ON —', cls.filter(c => c.status === 'ready').length, 'ready classes');
+        }
+      } catch (e) {}
+
+      // Load available courses
+      const courses = getCourses();
+      setAvailableCourses(courses);
+
+      // Auto-select course if only one is available
+      if (courses.length === 1) {
+        setSelectedCourse(courses[0]);
+        setStep(2);
+      }
+    };
+
+    // โหลดจาก localStorage ทันที (ข้อมูล cache)
+    loadFromStorage();
+
+    // รอ API fetch เสร็จ แล้ว reload ใหม่ (แก้ race condition)
+    if (window.JIA_DATA_READY && typeof window.JIA_DATA_READY.then === 'function') {
+      window.JIA_DATA_READY.then(() => {
+        console.log('✅ JIA_DATA_READY resolved — reloading data from localStorage');
+        loadFromStorage();
+      }).catch(() => {});
+    }
+
+    // Read promo code from URL parameter (?code=SALE-XXXXXX)
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlCode = urlParams.get('code');
+    if (urlCode) {
+      setPromoCode(urlCode.toUpperCase());
+      setTimeout(() => {
+        validatePromoCode(urlCode.toUpperCase());
+      }, 100);
+    }
+  }, []);
+  const handlePDPAConsent = () => {
+    sessionStorage.setItem('jia_pdpa_consented', 'true');
+    setPdpaConsented(true);
+  };
+
+  // v2: ดึง ready classes สำหรับคอร์สที่เลือก
+  const getReadyClassesForCourse = courseKey => {
+    if (!useClassMode) return [];
+    return classes.filter(c => c.status === 'ready' && c.courseKey === courseKey);
+  };
+
+  // คืน ready classes ทุกคอร์สสำหรับวันนั้น
+  const getReadyClassesForDate = dateStr => {
+    if (!useClassMode) return [];
+    return classes.filter(c => c.status === 'ready' && c.date === dateStr);
+  };
+  const isDateAvailable = dateStr => {
+    if (useClassMode) {
+      // v2: แสดงวันที่มี ready class จากคอร์สใดก็ได้
+      if (getReadyClassesForDate(dateStr).length > 0) return true;
+      // fallback ถ้าไม่มี ready class เลย → ใช้ instructor availability
+    }
+    return instructorAvailability[dateStr] && instructorAvailability[dateStr].length > 0;
+  };
+
+  // ตรวจว่ามีวันใดๆ ที่จองได้ในเดือนปัจจุบัน+เดือนหน้า
+  const hasAvailableDatesInView = (() => {
+    const checkMonth = month => {
+      const days = getDaysInMonth(month);
+      for (let d = 1; d <= days; d++) {
+        if (isDateAvailable(formatDate(new Date(month.getFullYear(), month.getMonth(), d)))) return true;
+      }
+      return false;
+    };
+    const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
+    return checkMonth(currentMonth) || checkMonth(nextMonth);
+  })();
+  const getAvailableTimeSlotsForDate = dateStr => {
+    if (useClassMode) {
+      const readyClasses = getReadyClassesForDate(dateStr);
+      if (readyClasses.length > 0) {
+        // ถ้าเลือกคอร์สแล้ว → กรองเฉพาะคอร์สนั้น
+        const filtered = selectedCourse ? readyClasses.filter(c => c.courseKey === selectedCourse.key) : readyClasses;
+        return [...new Set((filtered.length > 0 ? filtered : readyClasses).map(c => c.timeSlot))];
+      }
+    }
+    const slots = instructorAvailability[dateStr];
+    if (!slots) return [];
+    const courseSlots = selectedCourse?.timeSlots || TIME_SLOTS;
+    return courseSlots.filter(slot => slots.includes(slot));
+  };
+
+  // ─── ตรวจสอบโค้ดส่วนลด (ทั้ง JIA- และ SALE-) ───
+  const validatePromoCode = code => {
+    if (!code) return;
+    const promoData = localStorage.getItem('jia_promo_codes');
+    if (promoData) {
+      try {
+        const promoCodes = JSON.parse(promoData);
+        if (promoCodes[code]) {
+          const codeData = promoCodes[code];
+          if (!codeData.used) {
+            const label = code.startsWith('JIA-') ? 'คูปองคอร์สออนไลน์' : 'โค้ดส่วนลด';
+            const unit = codeData.discountUnit || 'baht';
+            let discAmt = Number(codeData.discount) || 0;
+            let discLabel = '';
+            if (unit === 'free' || discAmt >= 100 && unit === 'percent') {
+              discLabel = '🎁 ฟรี!';
+              // จะคำนวณ discount จริงตอน submit
+              discAmt = 999999; // flag ว่าฟรี
+            } else if (unit === 'percent') {
+              discLabel = 'ลด ' + discAmt + '%';
+            } else {
+              discLabel = 'ลด ฿' + discAmt;
+            }
+            setPromoValid(true);
+            setPromoFeedback(`${label} ${discLabel} ✓`);
+            setDiscountAmount(discAmt);
+          } else {
+            setPromoValid(false);
+            setPromoFeedback('โค้ดนี้ถูกใช้แล้ว ✗');
+          }
+          return;
+        }
+      } catch (e) {}
+    }
+    setPromoValid(false);
+    setPromoFeedback('โค้ดไม่ถูกต้อง ✗');
+  };
+  const handlePromoCodeChange = code => {
+    setPromoCode(code.toUpperCase());
+    setDiscountAmount(0);
+    setPromoValid(false);
+    setPromoFeedback('');
+    if (!code) return;
+    if (code.startsWith('JIA-') || code.startsWith('SALE-')) {
+      validatePromoCode(code);
+    } else {
+      setPromoValid(false);
+      setPromoFeedback('โค้ดไม่ถูกต้อง ✗');
+    }
+  };
+  const handlePaymentSlipUpload = e => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPaymentSlip(reader.result);
+        setPaymentSlipPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  const handleNextStep = () => {
+    if (step === 1 && !selectedCourse) {
+      alert('กรุณาเลือกคลาส');
+      return;
+    }
+    if (step === 2 && (!selectedDate || !selectedTime)) {
+      alert('กรุณาเลือกวันและเวลา');
+      return;
+    }
+    // Step 3 is conditional: only if course has packages
+    const courseHasPackages = selectedCourse && selectedCourse.hasPackages;
+    if (step === 3 && courseHasPackages && !selectedPackage) {
+      alert('กรุณาเลือกแพ็กเกจ');
+      return;
+    }
+    // Adjust step progression based on course packages
+    if (step === 3 && !courseHasPackages) {
+      // Skip step 3 entirely, go to step 4 (customer info)
+      setStep(4);
+      return;
+    }
+    if (step === 4 && (!customerName || !customerPhone)) {
+      alert('กรุณากรอกชื่อและเบอร์โทรศัพท์');
+      return;
+    }
+    if (step === 5 && !paymentSlip) {
+      alert('กรุณาอัพโหลดหลักฐานการชำระเงิน');
+      return;
+    }
+    setStep(step + 1);
+  };
+  const handlePrevStep = () => {
+    if (step > 1) {
+      // Handle step 3 special case when skipped
+      if (step === 4 && selectedCourse && !selectedCourse.hasPackages) {
+        setStep(2);
+      } else {
+        setStep(step - 1);
+      }
+    }
+  };
+  const calculateFinalPrice = () => {
+    if (!selectedCourse) return 0;
+    let basePrice = 0;
+    if (selectedCourse.hasPackages) {
+      basePrice = selectedPackage === 'flex' ? selectedCourse.flexPrice : selectedCourse.fixedPrice;
+    } else {
+      basePrice = selectedCourse.price || 0;
+    }
+    return basePrice - discountAmount;
+  };
+  const finalPrice = calculateFinalPrice();
+  const handleSubmitBooking = async () => {
+    try {
+      const customerId = uid();
+      const bookingId = uid();
+
+      // อัพโหลดสลิปไป Google Drive (ถ้ามี API)
+      let slipData = paymentSlip;
+      if (window.JIA_API_URL && paymentSlip) {
+        try {
+          slipData = await uploadSlipToAPI(paymentSlip, bookingId);
+        } catch (e) {
+          console.error('Slip upload error:', e);
+        }
+      }
+      const sessionId = uid();
+      const today = formatDate(new Date());
+      const customer = {
+        id: customerId,
+        name: customerName,
+        tel: customerPhone,
+        email: customerEmail || '',
+        createdAt: today,
+        source: 'online'
+      };
+      let packageName = 'standard';
+      if (selectedCourse.hasPackages) {
+        packageName = selectedPackage;
+      }
+
+      // Collect all dates for multi-day courses
+      const allDates = [selectedDate, ...additionalDates.filter(d => d)];
+      const totalDays = selectedCourse?.totalDays || 1;
+      const booking = {
+        id: bookingId,
+        customerId,
+        name: customerName,
+        tel: customerPhone,
+        courseType: selectedCourse.key,
+        courseName: selectedCourse.label,
+        classId: useClassMode && selectedCourse && selectedDate && selectedTime ? classes.find(c => c.status === 'ready' && c.courseKey === selectedCourse.key && c.date === selectedDate && c.timeSlot === selectedTime)?.id || '' : '',
+        channel: promoCode.startsWith('SALE-') ? 'ผ่านเซลล์' : promoCode.startsWith('JIA-') ? 'คอร์สออนไลน์' : 'ซื้อเอง (เว็บ)',
+        package: packageName,
+        totalPeople: 1,
+        finalPrice: finalPrice,
+        discountCode: promoCode || '',
+        discountAmount,
+        paymentMode: 'โอนเงิน',
+        paymentSlip: slipData,
+        paymentStatus: 'รอตรวจสอบ',
+        startDate: selectedDate,
+        timeSlot: selectedTime,
+        totalDays: totalDays,
+        additionalDates: totalDays > 1 ? additionalDates.filter(d => d) : [],
+        salesStaff: promoCode.startsWith('SALE-') ? promoCode : 'Online',
+        instructor: '',
+        note: totalDays > 1 ? `จองผ่านเว็บ (${totalDays} วัน)` : 'จองผ่านเว็บ',
+        pdpaConsent: true,
+        pdpaConsentDate: new Date().toISOString(),
+        createdAt: today
+      };
+
+      // Create sessions — one per day for multi-day courses
+      const sessions = allDates.map((date, idx) => ({
+        id: idx === 0 ? sessionId : uid(),
+        bookingId,
+        customerId,
+        sessionNo: idx + 1,
+        done: false,
+        date: date,
+        sessionTime: selectedTime,
+        place: 'Online',
+        createdAt: today
+      }));
+
+      // Save to localStorage + sync ตรงไป Supabase ทีละ row
+      const existingCustomers = JSON.parse(localStorage.getItem('jia_customers') || '[]');
+      existingCustomers.push(customer);
+      localStorage.setItem('jia_customers', JSON.stringify(existingCustomers));
+      const existingBookings = JSON.parse(localStorage.getItem('jia_bookings') || '[]');
+      existingBookings.push(booking);
+      localStorage.setItem('jia_bookings', JSON.stringify(existingBookings));
+      const existingSessions = JSON.parse(localStorage.getItem('jia_sessions') || '[]');
+      sessions.forEach(s => existingSessions.push(s));
+      localStorage.setItem('jia_sessions', JSON.stringify(existingSessions));
+
+      // Sync to Supabase — รอทั้งหมด เพื่อยืนยันว่าบันทึกสำเร็จ
+      try {
+        await Promise.all([jiaApiPost('saveRow', {
+          sheet: 'customers'
+        }, customer), jiaApiPost('saveRow', {
+          sheet: 'bookings'
+        }, booking), ...sessions.map(s => jiaApiPost('saveRow', {
+          sheet: 'sessions'
+        }, s))]);
+        console.log('✅ Booking synced to Supabase:', bookingId);
+      } catch (syncErr) {
+        console.error('❌ Supabase sync failed:', syncErr);
+        // ยังดำเนินการจองต่อได้ — ข้อมูลอยู่ใน localStorage แล้ว
+      }
+
+      // Mark promo code as used (ทั้ง SALE- และ JIA-)
+      if (promoCode.startsWith('SALE-') || promoCode.startsWith('JIA-')) {
+        const promoData = localStorage.getItem('jia_promo_codes');
+        if (promoData) {
+          try {
+            const promoCodes = JSON.parse(promoData);
+            if (promoCodes[promoCode]) {
+              promoCodes[promoCode].used = true;
+              promoCodes[promoCode].usedBy = customerName;
+              promoCodes[promoCode].usedAt = new Date().toISOString();
+              localStorage.setItem('jia_promo_codes', JSON.stringify(promoCodes));
+            }
+          } catch (e) {}
+        }
+      }
+
+      // แจ้งเตือนการจองใหม่ทางอีเมล
+      jiaApiPost('notifyBooking', {}, booking).catch(err => console.warn('⚠️ Notify failed:', err));
+      setBookingRef(bookingId);
+      setStep(selectedCourse?.hasPackages ? 6 : 5);
+    } catch (error) {
+      console.error('Booking error:', error);
+      alert('เกิดข้อผิดพลาดในการจอง: ' + error.message);
+    }
+  };
+  const handleNewBooking = () => {
+    setSelectedCourse(null);
+    setSelectedDate(null);
+    setSelectedTime(null);
+    setAdditionalDates([]);
+    setSelectedPackage(null);
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerEmail('');
+    setPromoCode('');
+    setPromoFeedback('');
+    setPromoValid(false);
+    setDiscountAmount(0);
+    setPaymentSlip(null);
+    setPaymentSlipPreview(null);
+    setShowPrivacyNotice(false);
+    setStep(1);
+  };
+  const renderCalendar = month => {
+    const daysInMonth = getDaysInMonth(month);
+    const firstDay = getFirstDayOfMonth(month);
+    const days = [];
+
+    // Previous month days
+    const prevMonthDays = getDaysInMonth(new Date(month.getFullYear(), month.getMonth() - 1));
+    for (let i = firstDay - 1; i >= 0; i--) {
+      days.push(/*#__PURE__*/React.createElement("div", {
+        key: `prev-${i}`,
+        className: "calendar-day other-month"
+      }, prevMonthDays - i));
+    }
+
+    // Current month days
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = formatDate(new Date(month.getFullYear(), month.getMonth(), day));
+      const isAvailable = isDateAvailable(dateStr);
+      const isSelected = selectedDate === dateStr;
+      const dayClasses = useClassMode ? getReadyClassesForDate(dateStr) : [];
+      days.push(/*#__PURE__*/React.createElement("div", {
+        key: `current-${day}`,
+        className: `calendar-day ${isAvailable ? 'available' : 'unavailable'} ${isSelected ? 'selected' : ''}`,
+        style: isAvailable && !isSelected ? {
+          borderColor: '#C8102E'
+        } : {},
+        onClick: () => {
+          if (!isAvailable) return;
+          setSelectedDate(dateStr);
+          // auto-set course จาก class ถ้ามีเพียงคอร์สเดียว
+          if (useClassMode && dayClasses.length > 0) {
+            const keys = [...new Set(dayClasses.map(c => c.courseKey))];
+            if (keys.length === 1) {
+              const course = availableCourses.find(c => c.key === keys[0]);
+              if (course) setSelectedCourse(course);
+            }
+          }
+        }
+      }, /*#__PURE__*/React.createElement("div", null, day), isAvailable && dayClasses.length > 0 && /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: '9px',
+          lineHeight: '1.2',
+          marginTop: '2px',
+          color: isSelected ? 'white' : '#C8102E',
+          fontWeight: '600'
+        }
+      }, [...new Set(dayClasses.map(c => c.courseName || c.courseKey))].slice(0, 2).map((name, i) => /*#__PURE__*/React.createElement("div", {
+        key: i,
+        style: {
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap'
+        }
+      }, name)))));
+    }
+
+    // Next month days
+    const remainingDays = 42 - days.length;
+    for (let day = 1; day <= remainingDays; day++) {
+      days.push(/*#__PURE__*/React.createElement("div", {
+        key: `next-${day}`,
+        className: "calendar-day other-month"
+      }, day));
+    }
+    return days;
+  };
+
+  // Determine which step to show and progress indicator
+  const getProgressSteps = () => {
+    const steps = [{
+      num: 1,
+      label: 'เลือกคลาส'
+    }, {
+      num: 2,
+      label: 'เลือกวันเรียน'
+    }];
+    if (selectedCourse && selectedCourse.hasPackages) {
+      steps.push({
+        num: 3,
+        label: 'เลือกแพ็กเกจ'
+      });
+      steps.push({
+        num: 4,
+        label: 'กรอกข้อมูล'
+      });
+      steps.push({
+        num: 5,
+        label: 'ชำระเงิน'
+      });
+      steps.push({
+        num: 6,
+        label: 'จองสำเร็จ'
+      });
+    } else {
+      steps.push({
+        num: 3,
+        label: 'กรอกข้อมูล'
+      });
+      steps.push({
+        num: 4,
+        label: 'ชำระเงิน'
+      });
+      steps.push({
+        num: 5,
+        label: 'จองสำเร็จ'
+      });
+    }
+    return steps;
+  };
+  const progressSteps = getProgressSteps();
+  if (!pdpaConsented) {
+    return /*#__PURE__*/React.createElement(PDPAConsent, {
+      onConsent: handlePDPAConsent,
+      onCancel: () => window.close()
+    });
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "min-h-screen",
+    style: {
+      background: 'var(--jia-cream)'
+    }
+  }, /*#__PURE__*/React.createElement("header", {
+    className: "hero-gradient text-white sticky top-0 z-100 shadow-lg"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "max-w-4xl mx-auto px-4 py-5"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", {
+    className: "text-2xl font-bold"
+  }, "จองคลาสเรียน"), /*#__PURE__*/React.createElement("p", {
+    className: "text-red-200 text-sm"
+  }, "JIA TRAINER CENTER — CPR/AED Training")), /*#__PURE__*/React.createElement("div", {
+    className: "text-3xl"
+  }, "🏥")))), /*#__PURE__*/React.createElement("div", {
+    className: "trust-badges bg-white shadow-sm border-b"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "trust-badge"
+  }, "✅ ใบรับรองมาตรฐาน"), /*#__PURE__*/React.createElement("span", {
+    className: "trust-badge"
+  }, "👨‍⚕️ ผู้สอนมืออาชีพ"), /*#__PURE__*/React.createElement("span", {
+    className: "trust-badge"
+  }, "🔒 ข้อมูลปลอดภัย")), /*#__PURE__*/React.createElement("main", {
+    className: "max-w-4xl mx-auto px-4 py-12"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "progress-indicator mb-12"
+  }, progressSteps.map(s => /*#__PURE__*/React.createElement("div", {
+    key: s.num,
+    className: "progress-step"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: `progress-number ${s.num === step ? 'active' : s.num < step ? 'completed' : ''}`
+  }, s.num < step ? '✓' : s.num), /*#__PURE__*/React.createElement("div", {
+    className: `progress-label ${s.num === step ? 'active' : ''}`
+  }, s.label)))), step === 1 && /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-3xl font-bold jia-red mb-8"
+  }, "เลือกคลาส"), availableCourses.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-8 card-shadow text-center"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-lg text-gray-600"
+  }, "ไม่มีคลาสเปิดจองในขณะนี้")) : /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-1 md:grid-cols-2 gap-6 mb-8"
+  }, availableCourses.map(course => {
+    const enrolled = Math.floor(Math.random() * 15) + 1;
+    const max = 20;
+    const priceInfo = course.hasPackages ? `Flex ฿${course.flexPrice} / Fixed ฿${course.fixedPrice}` : `฿${course.price}`;
+    return /*#__PURE__*/React.createElement("div", {
+      key: course.key,
+      className: `course-card ${selectedCourse?.key === course.key ? 'selected' : ''}`,
+      onClick: () => {
+        setSelectedCourse(course);
+        setAdditionalDates([]);
+        setSelectedDate(null);
+        setSelectedTime(null);
+      }
+    }, /*#__PURE__*/React.createElement("h3", {
+      className: "text-2xl font-bold jia-red mb-2"
+    }, course.label), course.description && /*#__PURE__*/React.createElement("p", {
+      className: "text-gray-600 text-sm mb-4"
+    }, course.description), /*#__PURE__*/React.createElement("p", {
+      className: "text-2xl font-bold jia-red mb-4"
+    }, priceInfo), (course.totalDays || 1) > 1 && /*#__PURE__*/React.createElement("p", {
+      className: "text-sm text-amber-600 font-medium mb-2"
+    }, "📚 ", course.totalDays, " วัน × ", course.durationHours || 2, " ชม."), /*#__PURE__*/React.createElement("p", {
+      className: "text-sm text-gray-600"
+    }, "ที่นั่ง: ", enrolled, "/", max));
+  })), availableCourses.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-4 justify-end"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: handleNextStep,
+    className: "btn-primary"
+  }, "ถัดไป →"))), step === 2 && /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-3xl font-bold jia-red mb-8"
+  }, "เลือกวันเรียน"), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-6 card-shadow mb-8"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "text-xl font-bold mb-6"
+  }, thaiMonthYear(currentMonth)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-7 gap-2 mb-6"
+  }, ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].map((day, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "text-center font-bold text-gray-600 py-2 text-sm"
+  }, day)), renderCalendar(currentMonth))), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-6 card-shadow mb-8"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "text-xl font-bold mb-6"
+  }, thaiMonthYear(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-7 gap-2"
+  }, ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].map((day, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "text-center font-bold text-gray-600 py-2 text-sm"
+  }, day)), renderCalendar(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1)))), !hasAvailableDatesInView && /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-6 card-shadow mb-8 text-center",
+    style: {
+      border: '2px solid #C8102E'
+    }
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-lg font-bold jia-red mb-2"
+  }, "ขณะนี้ยังไม่มีวันเรียนที่เปิดรับจอง"), /*#__PURE__*/React.createElement("p", {
+    className: "text-gray-600 mb-4"
+  }, "ติดต่อเราเพื่อจองโดยตรง ทีมงานยินดีช่วยเหลือ"), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col sm:flex-row gap-3 justify-center"
+  }, /*#__PURE__*/React.createElement("a", {
+    href: "https://line.me/R/ti/p/@jiacpr",
+    target: "_blank",
+    className: "btn-primary inline-flex items-center justify-center gap-2",
+    style: {
+      background: '#06C755',
+      textDecoration: 'none',
+      padding: '12px 24px',
+      borderRadius: '8px',
+      color: 'white',
+      fontWeight: 'bold'
+    }
+  }, "LINE @jiacpr"), /*#__PURE__*/React.createElement("a", {
+    href: "tel:0885588078",
+    className: "inline-flex items-center justify-center gap-2",
+    style: {
+      background: '#C8102E',
+      textDecoration: 'none',
+      padding: '12px 24px',
+      borderRadius: '8px',
+      color: 'white',
+      fontWeight: 'bold'
+    }
+  }, "โทร 088-558-8078"))), selectedDate && /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-6 card-shadow mb-8 fade-in"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "text-xl font-bold jia-red mb-2"
+  }, "เลือกเวลา: ", thaiDateString(new Date(selectedDate))), selectedCourse?.durationHours && /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-500 mb-4"
+  }, "ระยะเวลาเรียน: ", selectedCourse.durationHours, " ชั่วโมง"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-1 md:grid-cols-3 gap-4"
+  }, (selectedCourse?.timeSlots || TIME_SLOTS).map(slot => {
+    const isAvailable = getAvailableTimeSlotsForDate(selectedDate).includes(slot);
+    return /*#__PURE__*/React.createElement("div", {
+      key: slot,
+      className: `time-slot ${!isAvailable ? 'opacity-50 cursor-not-allowed' : ''} ${selectedTime === slot ? 'selected' : ''}`,
+      onClick: () => isAvailable && setSelectedTime(slot)
+    }, slot);
+  }))), selectedDate && selectedTime && (selectedCourse?.totalDays || 1) > 1 && /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-6 card-shadow mb-8 fade-in"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "text-xl font-bold jia-red mb-2"
+  }, "คอร์สนี้เรียน ", selectedCourse.totalDays, " วัน — เลือกวันเรียนที่เหลือ"), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-500 mb-4"
+  }, "วันที่ 1: ", thaiDateString(new Date(selectedDate)), " (", selectedTime, ")", selectedCourse.durationHours && ` • ${selectedCourse.durationHours} ชม./วัน`), Array.from({
+    length: (selectedCourse.totalDays || 1) - 1
+  }, (_, i) => {
+    const dayNum = i + 2;
+    const currentVal = additionalDates[i] || "";
+    return /*#__PURE__*/React.createElement("div", {
+      key: i,
+      className: "mb-3"
+    }, /*#__PURE__*/React.createElement("label", {
+      className: "text-sm font-medium text-gray-700 block mb-1"
+    }, "วันที่ ", dayNum), /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-2 items-center"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "date",
+      value: currentVal,
+      min: selectedDate,
+      onChange: e => {
+        const newDates = [...additionalDates];
+        newDates[i] = e.target.value;
+        setAdditionalDates(newDates);
+      },
+      className: "flex-1 border-2 border-gray-200 rounded-xl px-4 py-3 text-lg focus:border-red-400 focus:outline-none"
+    }), currentVal && /*#__PURE__*/React.createElement("span", {
+      className: "text-sm text-green-600 font-medium"
+    }, "✓ ", thaiDateString(new Date(currentVal)))));
+  }), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-gray-400 mt-2"
+  }, "เวลาเรียนทุกวัน: ", selectedTime)), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-4 justify-between"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: handlePrevStep,
+    className: "btn-secondary"
+  }, "← ย้อนกลับ"), /*#__PURE__*/React.createElement("button", {
+    onClick: handleNextStep,
+    className: "btn-primary",
+    disabled: !selectedDate || !selectedTime || (selectedCourse?.totalDays || 1) > 1 && additionalDates.filter(d => d).length < selectedCourse.totalDays - 1
+  }, "ถัดไป →"))), step === 3 && selectedCourse?.hasPackages && /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-3xl font-bold jia-red mb-8"
+  }, "เลือกแพ็กเกจ"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-1 md:grid-cols-2 gap-6 mb-8"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: `package-card ${selectedPackage === 'flex' ? 'selected' : ''}`,
+    onClick: () => setSelectedPackage('flex')
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "badge"
+  }, "ฉันแนะนำ"), /*#__PURE__*/React.createElement("h3", {
+    className: "text-2xl font-bold jia-red mb-2"
+  }, "Flexible"), /*#__PURE__*/React.createElement("p", {
+    className: "text-4xl font-bold jia-red mb-4"
+  }, "฿", selectedCourse.flexPrice), /*#__PURE__*/React.createElement("p", {
+    className: "text-gray-600 text-lg"
+  }, "เลื่อนวันเรียนได้ไม่จำกัด")), /*#__PURE__*/React.createElement("div", {
+    className: `package-card ${selectedPackage === 'fixed' ? 'selected' : ''}`,
+    onClick: () => setSelectedPackage('fixed')
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "badge budget"
+  }, "ประหยัด"), /*#__PURE__*/React.createElement("h3", {
+    className: "text-2xl font-bold jia-red mb-2"
+  }, "Fixed"), /*#__PURE__*/React.createElement("p", {
+    className: "text-4xl font-bold jia-red mb-4"
+  }, "฿", selectedCourse.fixedPrice), /*#__PURE__*/React.createElement("p", {
+    className: "text-gray-600 text-lg"
+  }, "เลื่อนวันเรียนได้ 1 ครั้ง"))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-4 justify-between"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: handlePrevStep,
+    className: "btn-secondary"
+  }, "← ย้อนกลับ"), /*#__PURE__*/React.createElement("button", {
+    onClick: handleNextStep,
+    className: "btn-primary"
+  }, "ถัดไป →"))), (step === 3 && !selectedCourse?.hasPackages || step === 4 && selectedCourse?.hasPackages) && /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-3xl font-bold jia-red mb-8"
+  }, "กรอกข้อมูล"), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-6 card-shadow mb-8"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "space-y-6"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-sm font-bold jia-red mb-2"
+  }, "ชื่อ-นามสกุล ", /*#__PURE__*/React.createElement("span", {
+    className: "text-red-600"
+  }, "*")), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    className: "form-input",
+    placeholder: "กรอกชื่อ-นามสกุล",
+    value: customerName,
+    onChange: e => setCustomerName(e.target.value)
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-sm font-bold jia-red mb-2"
+  }, "เบอร์โทรศัพท์ ", /*#__PURE__*/React.createElement("span", {
+    className: "text-red-600"
+  }, "*")), /*#__PURE__*/React.createElement("input", {
+    type: "tel",
+    className: "form-input",
+    placeholder: "0XX-XXX-XXXX",
+    value: customerPhone,
+    onChange: e => setCustomerPhone(e.target.value)
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-sm font-bold jia-red mb-2"
+  }, "อีเมล (ไม่บังคับ)"), /*#__PURE__*/React.createElement("input", {
+    type: "email",
+    className: "form-input",
+    placeholder: "example@email.com",
+    value: customerEmail,
+    onChange: e => setCustomerEmail(e.target.value)
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-sm font-bold jia-red mb-2"
+  }, "โค้ดส่วนลด (ไม่บังคับ)"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    className: "form-input",
+    placeholder: "เช่น JIA-XXXXX หรือ SALE-XXXXX",
+    value: promoCode,
+    onChange: e => handlePromoCodeChange(e.target.value),
+    maxLength: "20"
+  }), promoFeedback && /*#__PURE__*/React.createElement("div", {
+    className: `promo-feedback ${promoValid ? 'valid' : 'invalid'}`
+  }, promoFeedback)), /*#__PURE__*/React.createElement("div", {
+    className: "privacy-notice-footer"
+  }, /*#__PURE__*/React.createElement("strong", null, "ข้อมูลของท่านได้รับการคุ้มครองตาม พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562"), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("span", {
+    className: "pdpa-link",
+    onClick: () => setShowPrivacyNotice(!showPrivacyNotice)
+  }, "อ่านนโยบายความเป็นส่วนตัวอีกครั้ง →")), showPrivacyNotice && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: '12px',
+      paddingTop: '12px',
+      borderTop: '1px solid #ccc',
+      fontSize: '12px'
+    }
+  }, /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "นโยบายความเป็นส่วนตัว")), /*#__PURE__*/React.createElement("p", null, "เราจะใช้ข้อมูลของท่านเพื่อการจัดการจองคลาสเรียนและการชำระเงินเท่านั้น จะไม่นำไปใช้เพื่อวัตถุประสงค์อื่น และจะไม่เปิดเผยต่อบุคคลที่สาม ท่านมีสิทธิ์ลบข้อมูลได้ตลอดเวลาโดยติดต่อ LINE: @jiacpr"))))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-4 justify-between"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: handlePrevStep,
+    className: "btn-secondary"
+  }, "← ย้อนกลับ"), /*#__PURE__*/React.createElement("button", {
+    onClick: handleNextStep,
+    className: "btn-primary"
+  }, "ถัดไป →"))), (step === 4 && !selectedCourse?.hasPackages || step === 5 && selectedCourse?.hasPackages) && /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-3xl font-bold jia-red mb-8"
+  }, "ชำระเงิน"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    className: "text-xl font-bold mb-6"
+  }, "สรุปการจอง"), /*#__PURE__*/React.createElement("div", {
+    className: "payment-summary"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between pb-4 border-b"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-gray-600"
+  }, "คลาส"), /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold"
+  }, selectedCourse?.label)), /*#__PURE__*/React.createElement("div", {
+    className: "pb-4 border-b"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-gray-600"
+  }, "วันที่"), /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold"
+  }, thaiDateString(new Date(selectedDate)))), (selectedCourse?.totalDays || 1) > 1 && additionalDates.filter(d => d).map((d, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "flex justify-between mt-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-gray-400 text-sm"
+  }, "วันที่ ", i + 2), /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold text-sm"
+  }, thaiDateString(new Date(d)))))), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between pb-4 border-b"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-gray-600"
+  }, "เวลา"), /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold"
+  }, selectedTime, (selectedCourse?.totalDays || 1) > 1 && ` (${selectedCourse.totalDays} วัน)`)), selectedCourse?.hasPackages && /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between pb-4 border-b"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-gray-600"
+  }, "แพ็กเกจ"), /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold"
+  }, selectedPackage === 'flex' ? 'Flexible' : 'Fixed')), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between pb-4 border-b"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-gray-600"
+  }, "ราคา"), /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold"
+  }, "฿", calculateFinalPrice() + discountAmount)), discountAmount > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between pb-4 border-b text-green-600"
+  }, /*#__PURE__*/React.createElement("span", null, "ส่วนลด"), /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold"
+  }, "-฿", discountAmount)), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between pt-4"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "font-bold"
+  }, "ยอดชำระ"), /*#__PURE__*/React.createElement("span", {
+    className: "text-2xl font-bold jia-red"
+  }, "฿", finalPrice))))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    className: "text-xl font-bold mb-6"
+  }, "ช่องทางชำระเงิน"), /*#__PURE__*/React.createElement("div", {
+    className: "payment-method",
+    style: {
+      background: '#f0f0ff',
+      border: '2px solid #635BFF'
+    }
+  }, /*#__PURE__*/React.createElement("h4", {
+    style: {
+      color: '#635BFF'
+    }
+  }, "💳 ชำระออนไลน์ (บัตรเครดิต / PromptPay)"), /*#__PURE__*/React.createElement("button", {
+    onClick: async () => {
+      try {
+        const res = await fetch(SUPABASE_URL + '/functions/v1/stripe-checkout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_KEY,
+            Authorization: 'Bearer ' + SUPABASE_KEY
+          },
+          body: JSON.stringify({
+            type: 'booking',
+            items: [{
+              name: 'JIA Course: ' + (selectedCourse?.label || 'CPR/AED'),
+              amount: finalPrice
+            }],
+            metadata: {
+              booking_id: Date.now().toString(36),
+              name: formData.name,
+              phone: formData.phone
+            },
+            successUrl: window.location.origin + window.location.pathname + '?payment=success',
+            cancelUrl: window.location.origin + window.location.pathname + '?payment=cancel'
+          })
+        });
+        const data = await res.json();
+        if (data.url) window.location.href = data.url;else alert('เกิดข้อผิดพลาด: ' + (data.error || ''));
+      } catch (e) {
+        alert('เกิดข้อผิดพลาด กรุณาลองใหม่');
+      }
+    },
+    className: "btn-primary",
+    style: {
+      width: '100%',
+      marginTop: 8,
+      background: '#635BFF',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8
+    }
+  }, "ชำระผ่าน Stripe — ฿", finalPrice), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-gray-500 mt-2 text-center"
+  }, "Visa / Mastercard / PromptPay — ยืนยันอัตโนมัติ")), /*#__PURE__*/React.createElement("div", {
+    className: "text-center text-sm text-gray-400 my-4"
+  }, "— หรือโอนเงิน —"), /*#__PURE__*/React.createElement("div", {
+    className: "payment-method"
+  }, /*#__PURE__*/React.createElement("h4", null, "PromptPay QR Code"), /*#__PURE__*/React.createElement("div", {
+    className: "qr-section"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "qr-placeholder"
+  }, "QR Code"), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-600 mt-2"
+  }, "สแกน QR เพื่อชำระเงิน"), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm font-semibold mt-2"
+  }, "PromptPay: ", paymentSettings.promptpay || '088-558-8078'))), /*#__PURE__*/React.createElement("div", {
+    className: "payment-method"
+  }, /*#__PURE__*/React.createElement("h4", null, "หรือโอนเงิน"), /*#__PURE__*/React.createElement("div", {
+    className: "bank-info"
+  }, /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "ธนาคาร:"), " ", paymentSettings.bankName || 'กสิกรไทย'), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "ชื่อบัญชี:"), " ", paymentSettings.accountName || 'บริษัท เจี๋ยรักษา จำกัด'), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "เลขที่บัญชี:"), " ", paymentSettings.accountNumber || 'รอใส่ข้อมูล'))), /*#__PURE__*/React.createElement("div", {
+    className: "payment-final-price"
+  }, "ยอดที่ต้องชำระ: ฿", finalPrice))), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-6 card-shadow mb-8"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "block text-sm font-bold jia-red mb-4"
+  }, "แนบหลักฐานการชำระเงิน (สลิป) ", /*#__PURE__*/React.createElement("span", {
+    className: "text-red-600"
+  }, "*")), /*#__PURE__*/React.createElement("div", {
+    className: `slip-upload-area ${paymentSlip ? 'has-file' : ''}`
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    id: "payment-slip",
+    className: "file-input",
+    accept: "image/jpg,image/jpeg,image/png",
+    onChange: handlePaymentSlipUpload
+  }), /*#__PURE__*/React.createElement("label", {
+    htmlFor: "payment-slip",
+    className: "cursor-pointer"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-600 mb-2"
+  }, "คลิกเพื่ออัพโหลดรูปภาพสลิป"), /*#__PURE__*/React.createElement("span", {
+    className: "upload-btn",
+    style: {
+      display: 'inline-block'
+    }
+  }, "เลือกไฟล์รูปภาพ")), paymentSlipPreview && /*#__PURE__*/React.createElement("div", {
+    className: "mt-4 text-center"
+  }, /*#__PURE__*/React.createElement("img", {
+    src: paymentSlipPreview,
+    alt: "Payment slip preview",
+    className: "slip-preview mx-auto"
+  }), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-green-600 mt-2"
+  }, "✓ อัพโหลดสลิปสำเร็จ")))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-4 justify-between"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: handlePrevStep,
+    className: "btn-secondary"
+  }, "← ย้อนกลับ"), /*#__PURE__*/React.createElement("button", {
+    onClick: handleSubmitBooking,
+    className: "btn-primary"
+  }, "ยืนยันการจอง →"))), (step === 5 && !selectedCourse?.hasPackages || step === 6 && selectedCourse?.hasPackages) && /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "success-screen max-w-2xl mx-auto"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "success-icon"
+  }, "✓"), /*#__PURE__*/React.createElement("h2", {
+    className: "text-4xl font-bold jia-red mb-4"
+  }, "จองสำเร็จ!"), /*#__PURE__*/React.createElement("p", {
+    className: "text-xl text-gray-600 mb-2"
+  }, "รอตรวจสอบการชำระเงิน"), /*#__PURE__*/React.createElement("p", {
+    className: "text-lg text-gray-600 mb-8"
+  }, "ทีมงานจะตรวจสอบสลิปและยืนยันภายใน 24 ชั่วโมง"), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-8 card-shadow mb-8 text-left"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "booking-ref"
+  }, "รหัสจอง: ", bookingRef), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-6 text-left"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-600 mb-1"
+  }, "คลาส"), /*#__PURE__*/React.createElement("p", {
+    className: "text-lg font-bold"
+  }, selectedCourse?.label)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-600 mb-1"
+  }, "วันที่และเวลาเรียน"), /*#__PURE__*/React.createElement("p", {
+    className: "text-lg font-bold"
+  }, "วันที่ 1: ", thaiDateString(new Date(selectedDate)), " · ", selectedTime), (selectedCourse?.totalDays || 1) > 1 && additionalDates.filter(d => d).map((d, i) => /*#__PURE__*/React.createElement("p", {
+    key: i,
+    className: "text-base font-semibold text-gray-700 mt-1"
+  }, "วันที่ ", i + 2, ": ", thaiDateString(new Date(d)), " · ", selectedTime)), (selectedCourse?.totalDays || 1) > 1 && /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-500 mt-2"
+  }, "รวม ", selectedCourse.totalDays, " วัน × ", selectedCourse.durationHours || 2, " ชม.")), selectedCourse?.hasPackages && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-600 mb-1"
+  }, "แพ็กเกจ"), /*#__PURE__*/React.createElement("p", {
+    className: "text-lg font-bold"
+  }, selectedPackage === 'flex' ? 'Flexible - เลื่อนวันเรียนได้ไม่จำกัด' : 'Fixed - เลื่อนวันเรียนได้ 1 ครั้ง')), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-600 mb-1"
+  }, "ชื่อ"), /*#__PURE__*/React.createElement("p", {
+    className: "text-lg font-bold"
+  }, customerName)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-600 mb-1"
+  }, "เบอร์โทรศัพท์"), /*#__PURE__*/React.createElement("p", {
+    className: "text-lg font-bold"
+  }, customerPhone)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-600 mb-1"
+  }, "ยอดรวม"), /*#__PURE__*/React.createElement("p", {
+    className: "text-2xl font-bold jia-red"
+  }, "฿", finalPrice)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-600 mb-1"
+  }, "สถานะการชำระเงิน"), /*#__PURE__*/React.createElement("p", {
+    className: "text-lg font-bold text-orange-600"
+  }, "รอตรวจสอบ")), /*#__PURE__*/React.createElement("div", {
+    className: "border-t pt-6",
+    style: {
+      background: 'linear-gradient(135deg, #06C755 0%, #04A648 100%)',
+      borderRadius: '16px',
+      padding: '24px',
+      marginTop: '16px'
+    }
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-center text-white font-bold text-xl mb-2"
+  }, "📲 ส่งหลักฐานชำระเงินทาง LINE"), /*#__PURE__*/React.createElement("p", {
+    className: "text-center text-white/90 text-sm mb-4"
+  }, "เพิ่มเพื่อน LINE แล้วส่งสลิป + รหัสจอง", /*#__PURE__*/React.createElement("br", null), "เพื่อยืนยันการชำระเงินรวดเร็วขึ้น!"), /*#__PURE__*/React.createElement("div", {
+    className: "text-center mb-3"
+  }, /*#__PURE__*/React.createElement("a", {
+    href: "https://line.me/R/ti/p/@jiacpr",
+    target: "_blank",
+    style: {
+      display: 'inline-block',
+      background: 'white',
+      color: '#06C755',
+      fontWeight: 'bold',
+      fontSize: '18px',
+      padding: '14px 32px',
+      borderRadius: '50px',
+      textDecoration: 'none',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+    }
+  }, "เพิ่มเพื่อน @jiacpr")), /*#__PURE__*/React.createElement("p", {
+    className: "text-center text-white/80 text-xs"
+  }, "แจ้งรหัสจอง: ", /*#__PURE__*/React.createElement("strong", {
+    className: "text-white"
+  }, bookingRef), " พร้อมแนบสลิป")), /*#__PURE__*/React.createElement("div", {
+    className: "border-t pt-4 mt-4 text-center"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-gray-600 text-sm mb-2"
+  }, "หรือติดต่อสอบถาม"), /*#__PURE__*/React.createElement("a", {
+    href: "tel:0885588078",
+    style: {
+      color: '#C8102E',
+      fontWeight: 'bold',
+      textDecoration: 'none',
+      fontSize: '16px'
+    }
+  }, "📞 088-558-8078")))), /*#__PURE__*/React.createElement("button", {
+    onClick: handleNewBooking,
+    className: "btn-primary text-lg px-8 py-3"
+  }, "จองอีกครั้ง")))), /*#__PURE__*/React.createElement("footer", {
+    className: "bg-gray-100 text-gray-600 py-8 px-4 mt-16"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "max-w-4xl mx-auto text-center"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "mb-2"
+  }, "JIA TRAINER CENTER"), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm"
+  }, "สอบถามข้อมูลเพิ่มเติม: LINE @jiacpr | 088-558-8078"), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm mt-4"
+  }, "ข้อมูลของท่านได้รับการคุ้มครองตาม พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562"))));
+}
+ReactDOM.render(/*#__PURE__*/React.createElement(AppLoader, null), document.getElementById('root'));
+</script>
 
 <!-- ─── ปุ่มช่วยเหลือลอย ─── -->
 <style>

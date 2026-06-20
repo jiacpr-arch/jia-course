@@ -11,7 +11,6 @@ tailwind.config = { theme: { extend: { fontFamily: { sans: ['"Noto Sans Thai"', 
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <style>
   body { font-family: 'Noto Sans Thai', sans-serif; margin: 0; }
@@ -136,63 +135,126 @@ window.JIA_DATA_READY = (async function() {
 
 </script>
 
-<script type="text/babel">
-const { useState, useEffect, useMemo, useCallback } = React;
+<script>const {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback
+} = React;
 
 // ─── Helpers ───
 const uid = () => 'bk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
 const today = () => new Date().toISOString().slice(0, 10);
-const fmt = (d) => { if (!d) return '-'; try { return new Date(d + 'T00:00:00').toLocaleDateString('th-TH', {day:'numeric',month:'short',year:'numeric'}); } catch(e) { return d; } };
-const fmtPrice = (p) => Number(p || 0).toLocaleString();
+const fmt = d => {
+  if (!d) return '-';
+  try {
+    return new Date(d + 'T00:00:00').toLocaleDateString('th-TH', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  } catch (e) {
+    return d;
+  }
+};
+const fmtPrice = p => Number(p || 0).toLocaleString();
 const TIME_SLOTS_DEFAULT = ["11:00-13:00", "14:00-16:00", "17:00-19:00"];
 function getAllTimeSlots(courses) {
   if (!courses || courses.length === 0) return [...TIME_SLOTS_DEFAULT];
   const all = new Set();
-  courses.forEach(c => { (Array.isArray(c.timeSlots) ? c.timeSlots : TIME_SLOTS_DEFAULT).forEach(s => all.add(s)); });
+  courses.forEach(c => {
+    (Array.isArray(c.timeSlots) ? c.timeSlots : TIME_SLOTS_DEFAULT).forEach(s => all.add(s));
+  });
   return [...all].sort();
 }
-
-const CPR_PACKAGES = [
-  { key: "flex", label: "Flexible (เลื่อนได้ไม่จำกัด)", price: 600 },
-  { key: "fixed", label: "Fixed (เลื่อนได้ 1 ครั้ง)", price: 500 },
-];
+const CPR_PACKAGES = [{
+  key: "flex",
+  label: "Flexible (เลื่อนได้ไม่จำกัด)",
+  price: 600
+}, {
+  key: "fixed",
+  label: "Fixed (เลื่อนได้ 1 ครั้ง)",
+  price: 500
+}];
 const CHANNELS = ["Walk-in", "โทรศัพท์", "LINE", "Facebook", "Instagram", "เว็บไซต์", "ผ่านเซลล์", "อื่นๆ"];
 const PAYMENTS = ["เงินสด", "ธนาคาร", "Prompt Pay", "ลงชื่อสัญญา"];
-
-const TABS = [
-  { id: 'dashboard', label: 'หน้าหลัก', icon: '🏠', mobileLabel: 'หน้าหลัก' },
-  { id: 'myBookings', label: '📋 การจอง', icon: '📋', mobileLabel: 'การจอง' },
-  { id: 'newBooking', label: '➕ จองใหม่', icon: '➕', mobileLabel: 'จองใหม่' },
-  { id: 'myCustomers', label: '👥 ลูกค้า', icon: '👥', mobileLabel: 'ลูกค้า' },
-  { id: 'calendar', label: '📅 ปฏิทิน', icon: '📅', mobileLabel: 'ปฏิทิน' },
-  { id: 'bookingReport', label: '📊 รายงานจอง', icon: '📊', mobileLabel: 'รายงาน' },
-  { id: 'availReport', label: '📅 วันพร้อมสอน', icon: '🗓️', mobileLabel: 'วันพร้อมสอน' },
-  { id: 'earnings', label: '💰 รายได้', icon: '💰', mobileLabel: 'รายได้' },
-  { id: 'promo', label: '🏷️ โปรโม', icon: '🏷️', mobileLabel: 'โปรโม' },
-];
+const TABS = [{
+  id: 'dashboard',
+  label: 'หน้าหลัก',
+  icon: '🏠',
+  mobileLabel: 'หน้าหลัก'
+}, {
+  id: 'myBookings',
+  label: '📋 การจอง',
+  icon: '📋',
+  mobileLabel: 'การจอง'
+}, {
+  id: 'newBooking',
+  label: '➕ จองใหม่',
+  icon: '➕',
+  mobileLabel: 'จองใหม่'
+}, {
+  id: 'myCustomers',
+  label: '👥 ลูกค้า',
+  icon: '👥',
+  mobileLabel: 'ลูกค้า'
+}, {
+  id: 'calendar',
+  label: '📅 ปฏิทิน',
+  icon: '📅',
+  mobileLabel: 'ปฏิทิน'
+}, {
+  id: 'bookingReport',
+  label: '📊 รายงานจอง',
+  icon: '📊',
+  mobileLabel: 'รายงาน'
+}, {
+  id: 'availReport',
+  label: '📅 วันพร้อมสอน',
+  icon: '🗓️',
+  mobileLabel: 'วันพร้อมสอน'
+}, {
+  id: 'earnings',
+  label: '💰 รายได้',
+  icon: '💰',
+  mobileLabel: 'รายได้'
+}, {
+  id: 'promo',
+  label: '🏷️ โปรโม',
+  icon: '🏷️',
+  mobileLabel: 'โปรโม'
+}];
 
 // ─── Loading Screen ───
 function App() {
   const [ready, setReady] = useState(false);
-  useEffect(() => { window.JIA_DATA_READY.then(() => setReady(true)); }, []);
-  if (!ready) return (
-    <div className="min-h-screen flex items-center justify-center bg-emerald-50">
-      <div className="text-center">
-        <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-emerald-700 font-medium">กำลังโหลดข้อมูล...</p>
-      </div>
-    </div>
-  );
+  useEffect(() => {
+    window.JIA_DATA_READY.then(() => setReady(true));
+  }, []);
+  if (!ready) return /*#__PURE__*/React.createElement("div", {
+    className: "min-h-screen flex items-center justify-center bg-emerald-50"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto mb-4"
+  }), /*#__PURE__*/React.createElement("p", {
+    className: "text-emerald-700 font-medium"
+  }, "กำลังโหลดข้อมูล...")));
   if (!window.JIA_AUTH_USER) return null;
-  return <SalesApp />;
+  return /*#__PURE__*/React.createElement(SalesApp, null);
 }
 
 // ─── Main Sales App ───
 function SalesApp() {
   const user = window.JIA_AUTH_USER;
   const [tab, setTab] = useState('dashboard');
-  const load = (k, fallback) => { try { return JSON.parse(localStorage.getItem(k)) || fallback; } catch(e) { return fallback; } };
-
+  const load = (k, fallback) => {
+    try {
+      return JSON.parse(localStorage.getItem(k)) || fallback;
+    } catch (e) {
+      return fallback;
+    }
+  };
   const [customers, setCustomers] = useState(() => load('jia_customers', []));
   const [bookings, setBookings] = useState(() => load('jia_bookings', []));
   const [sessions, setSessions] = useState(() => load('jia_sessions', []));
@@ -203,367 +265,480 @@ function SalesApp() {
   const [commissions, setCommissions] = useState(() => load('jia_staff_commissions', {}));
   const [classes, setClasses] = useState(() => load('jia_classes', []));
   const [instructorAvail, setInstructorAvail] = useState(() => load('jia_instructor_avail', []));
-
-  const save = useCallback((key, data) => { localStorage.setItem(key, JSON.stringify(data)); }, []);
-
-  const cfg = useCallback((key) => {
+  const save = useCallback((key, data) => {
+    localStorage.setItem(key, JSON.stringify(data));
+  }, []);
+  const cfg = useCallback(key => {
     const c = courses.find(c => c.key === key);
-    return c || { label: key, price: 0, discountPrice: 0, timeSlots: TIME_SLOTS_DEFAULT, max: 999 };
+    return c || {
+      label: key,
+      price: 0,
+      discountPrice: 0,
+      timeSlots: TIME_SLOTS_DEFAULT,
+      max: 999
+    };
   }, [courses]);
-
   const enrolled = useMemo(() => {
     const map = {};
-    bookings.forEach(b => { map[b.courseType] = (map[b.courseType] || 0) + (Number(b.totalPeople) || 1); });
+    bookings.forEach(b => {
+      map[b.courseType] = (map[b.courseType] || 0) + (Number(b.totalPeople) || 1);
+    });
     return map;
   }, [bookings]);
 
   // ─── My bookings only ───
-  const myBookings = useMemo(() =>
-    bookings.filter(b => b.salesStaff === user.name || b.createdBy === user.name),
-    [bookings, user.name]
-  );
+  const myBookings = useMemo(() => bookings.filter(b => b.salesStaff === user.name || b.createdBy === user.name), [bookings, user.name]);
   const myCustomerIds = useMemo(() => new Set(myBookings.map(b => b.customerId)), [myBookings]);
   const myCustomers = useMemo(() => customers.filter(c => myCustomerIds.has(c.id)), [customers, myCustomerIds]);
 
   // ─── Actions ───
-  const addBooking = useCallback(async (bk) => {
-    bk.id = uid(); bk.createdAt = today();
+  const addBooking = useCallback(async bk => {
+    bk.id = uid();
+    bk.createdAt = today();
     const next = [...bookings, bk];
-    setBookings(next); save('jia_bookings', next);
+    setBookings(next);
+    save('jia_bookings', next);
     jiaApiPost('addBooking', {}, bk).catch(e => console.warn('⚠️ Sync booking failed:', e.message));
     jiaApiPost('notifyBooking', {}, bk).catch(e => console.warn('⚠️ Notify booking failed:', e.message));
-    const slist = Array.from({ length: Number(bk.totalPeople) || 1 }, (_, i) => ({
-      id: uid(), bookingId: bk.id, customerId: bk.customerId,
-      sessionNo: i + 1, done: false, date: "", note: ""
+    const slist = Array.from({
+      length: Number(bk.totalPeople) || 1
+    }, (_, i) => ({
+      id: uid(),
+      bookingId: bk.id,
+      customerId: bk.customerId,
+      sessionNo: i + 1,
+      done: false,
+      date: "",
+      note: ""
     }));
     const nextS = [...sessions, ...slist];
-    setSessions(nextS); save('jia_sessions', nextS);
-    slist.forEach(s => { jiaApiPost('addSession', {}, s).catch(e => console.warn('⚠️ Sync session failed:', e.message)); });
+    setSessions(nextS);
+    save('jia_sessions', nextS);
+    slist.forEach(s => {
+      jiaApiPost('addSession', {}, s).catch(e => console.warn('⚠️ Sync session failed:', e.message));
+    });
     showToast('✅ บันทึกการจองสำเร็จ');
   }, [bookings, sessions, save]);
-
   const updateBooking = useCallback((id, data) => {
-    const next = bookings.map(b => b.id === id ? { ...b, ...data } : b);
-    setBookings(next); save('jia_bookings', next);
-    jiaApiPost('addBooking', {}, { id, ...data }).catch(e => console.warn('⚠️ Update booking sync failed:', e.message));
+    const next = bookings.map(b => b.id === id ? {
+      ...b,
+      ...data
+    } : b);
+    setBookings(next);
+    save('jia_bookings', next);
+    jiaApiPost('addBooking', {}, {
+      id,
+      ...data
+    }).catch(e => console.warn('⚠️ Update booking sync failed:', e.message));
   }, [bookings, save]);
-
-  const addCustomer = useCallback(async (c) => {
-    const newCust = { id: uid(), ...c, createdAt: today() };
+  const addCustomer = useCallback(async c => {
+    const newCust = {
+      id: uid(),
+      ...c,
+      createdAt: today()
+    };
     const next = [...customers, newCust];
-    setCustomers(next); save('jia_customers', next);
+    setCustomers(next);
+    save('jia_customers', next);
     jiaApiPost('addCustomer', {}, newCust).catch(e => console.warn('⚠️ Sync customer failed:', e.message));
     return newCust;
   }, [customers, save]);
-
   const updateCustomer = useCallback((id, data) => {
-    const next = customers.map(c => c.id === id ? { ...c, ...data } : c);
-    setCustomers(next); save('jia_customers', next);
+    const next = customers.map(c => c.id === id ? {
+      ...c,
+      ...data
+    } : c);
+    setCustomers(next);
+    save('jia_customers', next);
   }, [customers, save]);
-
-  const logout = () => { localStorage.removeItem('jia_user'); sessionStorage.removeItem('jia_user'); window.location.href = LOGIN_PAGE; };
+  const logout = () => {
+    localStorage.removeItem('jia_user');
+    sessionStorage.removeItem('jia_user');
+    window.location.href = LOGIN_PAGE;
+  };
 
   // Bottom nav tabs (main 5 for mobile)
-  const mobileNavTabs = TABS.filter(t => ['dashboard','myBookings','newBooking','bookingReport','availReport'].includes(t.id));
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header — compact on mobile */}
-      <header className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg">
-        <div className="max-w-5xl mx-auto px-4 py-3 md:py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight">JIA SALES</h1>
-            <p className="text-emerald-100 text-xs md:text-sm">{user.name}</p>
-          </div>
-          <button onClick={logout} className="bg-emerald-800 hover:bg-emerald-900 px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-colors">
-            ออกจากระบบ
-          </button>
-        </div>
-      </header>
-
-      {/* Desktop Tab Nav */}
-      <nav className="top-tabs bg-white border-b shadow-sm sticky top-0 z-40">
-        <div className="max-w-5xl mx-auto px-4 flex gap-0 overflow-x-auto custom-scroll">
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`px-3 md:px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                tab === t.id ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-gray-500 hover:text-emerald-600'
-              }`}>{t.label}</button>
-          ))}
-        </div>
-      </nav>
-
-      {/* Content */}
-      <main className={`main-content max-w-5xl mx-auto px-3 md:px-4 py-4 md:py-6 ${tab === 'newBooking' ? 'has-sticky' : ''}`}>
-        {tab === 'dashboard' && <DashboardTab bookings={myBookings} customers={myCustomers} sessions={sessions} cfg={cfg}
-          commissions={commissions} classes={classes} userName={user.name} setTab={setTab} />}
-        {tab === 'myBookings' && <MyBookingsTab bookings={myBookings} customers={customers} sessions={sessions} cfg={cfg}
-          updateBooking={updateBooking} courses={courses} />}
-        {tab === 'newBooking' && <NewBookingTab customers={customers} allCustomers={customers} addCustomer={addCustomer} addBooking={addBooking}
-          courses={courses} cfg={cfg} staff={staff} instructors={instructors} promoCodes={promoCodes} enrolled={enrolled} userName={user.name} />}
-        {tab === 'myCustomers' && <MyCustomersTab customers={myCustomers} bookings={myBookings} sessions={sessions}
-          cfg={cfg} updateCustomer={updateCustomer} updateBooking={updateBooking} courses={courses} instructors={instructors} />}
-        {tab === 'calendar' && <CalendarTab bookings={myBookings} customers={customers} cfg={cfg} />}
-        {tab === 'bookingReport' && <BookingReportTab bookings={myBookings} customers={customers} sessions={sessions} cfg={cfg} courses={courses} />}
-        {tab === 'availReport' && <InstructorAvailReport instructors={instructors} instructorAvail={instructorAvail} courses={courses} classes={classes} />}
-        {tab === 'promo' && <PromoTab promoCodes={promoCodes} />}
-        {tab === 'earnings' && <EarningsTab bookings={myBookings} commissions={commissions} classes={classes} userName={user.name} />}
-      </main>
-
-      {/* Mobile Bottom Navigation */}
-      <div className="bottom-nav bg-white border-t shadow-lg">
-        <div className="flex justify-around items-center h-[52px]">
-          {mobileNavTabs.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex flex-col items-center justify-center px-1 min-w-0 flex-1 h-full transition-colors ${
-                tab === t.id ? 'text-emerald-600' : 'text-gray-400'
-              }`}>
-              <span className="text-lg leading-none">{t.icon}</span>
-              <span className="text-[9px] mt-0.5 truncate w-full text-center font-medium">{t.mobileLabel}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  const mobileNavTabs = TABS.filter(t => ['dashboard', 'myBookings', 'newBooking', 'bookingReport', 'availReport'].includes(t.id));
+  return /*#__PURE__*/React.createElement("div", {
+    className: "min-h-screen bg-gray-50"
+  }, /*#__PURE__*/React.createElement("header", {
+    className: "bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "max-w-5xl mx-auto px-4 py-3 md:py-4 flex justify-between items-center"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", {
+    className: "text-xl md:text-2xl font-bold tracking-tight"
+  }, "JIA SALES"), /*#__PURE__*/React.createElement("p", {
+    className: "text-emerald-100 text-xs md:text-sm"
+  }, user.name)), /*#__PURE__*/React.createElement("button", {
+    onClick: logout,
+    className: "bg-emerald-800 hover:bg-emerald-900 px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-colors"
+  }, "ออกจากระบบ"))), /*#__PURE__*/React.createElement("nav", {
+    className: "top-tabs bg-white border-b shadow-sm sticky top-0 z-40"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "max-w-5xl mx-auto px-4 flex gap-0 overflow-x-auto custom-scroll"
+  }, TABS.map(t => /*#__PURE__*/React.createElement("button", {
+    key: t.id,
+    onClick: () => setTab(t.id),
+    className: `px-3 md:px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${tab === t.id ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-gray-500 hover:text-emerald-600'}`
+  }, t.label)))), /*#__PURE__*/React.createElement("main", {
+    className: `main-content max-w-5xl mx-auto px-3 md:px-4 py-4 md:py-6 ${tab === 'newBooking' ? 'has-sticky' : ''}`
+  }, tab === 'dashboard' && /*#__PURE__*/React.createElement(DashboardTab, {
+    bookings: myBookings,
+    customers: myCustomers,
+    sessions: sessions,
+    cfg: cfg,
+    commissions: commissions,
+    classes: classes,
+    userName: user.name,
+    setTab: setTab
+  }), tab === 'myBookings' && /*#__PURE__*/React.createElement(MyBookingsTab, {
+    bookings: myBookings,
+    customers: customers,
+    sessions: sessions,
+    cfg: cfg,
+    updateBooking: updateBooking,
+    courses: courses
+  }), tab === 'newBooking' && /*#__PURE__*/React.createElement(NewBookingTab, {
+    customers: customers,
+    allCustomers: customers,
+    addCustomer: addCustomer,
+    addBooking: addBooking,
+    courses: courses,
+    cfg: cfg,
+    staff: staff,
+    instructors: instructors,
+    promoCodes: promoCodes,
+    enrolled: enrolled,
+    userName: user.name
+  }), tab === 'myCustomers' && /*#__PURE__*/React.createElement(MyCustomersTab, {
+    customers: myCustomers,
+    bookings: myBookings,
+    sessions: sessions,
+    cfg: cfg,
+    updateCustomer: updateCustomer,
+    updateBooking: updateBooking,
+    courses: courses,
+    instructors: instructors
+  }), tab === 'calendar' && /*#__PURE__*/React.createElement(CalendarTab, {
+    bookings: myBookings,
+    customers: customers,
+    cfg: cfg
+  }), tab === 'bookingReport' && /*#__PURE__*/React.createElement(BookingReportTab, {
+    bookings: myBookings,
+    customers: customers,
+    sessions: sessions,
+    cfg: cfg,
+    courses: courses
+  }), tab === 'availReport' && /*#__PURE__*/React.createElement(InstructorAvailReport, {
+    instructors: instructors,
+    instructorAvail: instructorAvail,
+    courses: courses,
+    classes: classes
+  }), tab === 'promo' && /*#__PURE__*/React.createElement(PromoTab, {
+    promoCodes: promoCodes
+  }), tab === 'earnings' && /*#__PURE__*/React.createElement(EarningsTab, {
+    bookings: myBookings,
+    commissions: commissions,
+    classes: classes,
+    userName: user.name
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "bottom-nav bg-white border-t shadow-lg"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-around items-center h-[52px]"
+  }, mobileNavTabs.map(t => /*#__PURE__*/React.createElement("button", {
+    key: t.id,
+    onClick: () => setTab(t.id),
+    className: `flex flex-col items-center justify-center px-1 min-w-0 flex-1 h-full transition-colors ${tab === t.id ? 'text-emerald-600' : 'text-gray-400'}`
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-lg leading-none"
+  }, t.icon), /*#__PURE__*/React.createElement("span", {
+    className: "text-[9px] mt-0.5 truncate w-full text-center font-medium"
+  }, t.mobileLabel))))));
 }
 
 // ═══════════════════════════════════════════════════════════
 // DASHBOARD — หน้าแรก สรุปภาพรวม + Quick Actions
 // ═══════════════════════════════════════════════════════════
-function DashboardTab({ bookings, customers, sessions, cfg, commissions, classes, userName, setTab }) {
+function DashboardTab({
+  bookings,
+  customers,
+  sessions,
+  cfg,
+  commissions,
+  classes,
+  userName,
+  setTab
+}) {
   const t = today();
   const todayBookings = useMemo(() => bookings.filter(b => b.startDate === t), [bookings, t]);
-
-  return (
-    <div className="space-y-4">
-      {/* Big Action Buttons */}
-      <button onClick={() => setTab('newBooking')}
-        className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-2xl p-6 text-center shadow-lg transition-colors"
-        style={{cursor:'pointer'}}>
-        <div className="text-4xl mb-2">➕</div>
-        <div className="text-xl font-bold">จองคอร์สใหม่</div>
-      </button>
-
-      <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => setTab('myBookings')}
-          className="bg-white hover:bg-gray-50 active:bg-gray-100 rounded-2xl border-2 border-gray-100 p-5 text-center transition-colors"
-          style={{cursor:'pointer'}}>
-          <div className="text-3xl mb-2">📋</div>
-          <div className="text-sm font-bold text-gray-800">การจอง</div>
-          <div className="text-xs text-gray-500 mt-1">{bookings.length} รายการ</div>
-        </button>
-        <button onClick={() => setTab('myCustomers')}
-          className="bg-white hover:bg-gray-50 active:bg-gray-100 rounded-2xl border-2 border-gray-100 p-5 text-center transition-colors"
-          style={{cursor:'pointer'}}>
-          <div className="text-3xl mb-2">👥</div>
-          <div className="text-sm font-bold text-gray-800">ลูกค้า</div>
-          <div className="text-xs text-gray-500 mt-1">{customers.length} คน</div>
-        </button>
-        <button onClick={() => setTab('earnings')}
-          className="bg-white hover:bg-gray-50 active:bg-gray-100 rounded-2xl border-2 border-gray-100 p-5 text-center transition-colors"
-          style={{cursor:'pointer'}}>
-          <div className="text-3xl mb-2">💰</div>
-          <div className="text-sm font-bold text-gray-800">รายได้</div>
-          <div className="text-xs text-gray-500 mt-1">คอมมิชชั่น</div>
-        </button>
-        <button onClick={() => setTab('calendar')}
-          className="bg-white hover:bg-gray-50 active:bg-gray-100 rounded-2xl border-2 border-gray-100 p-5 text-center transition-colors"
-          style={{cursor:'pointer'}}>
-          <div className="text-3xl mb-2">📅</div>
-          <div className="text-sm font-bold text-gray-800">ปฏิทิน</div>
-          <div className="text-xs text-gray-500 mt-1">ดูตาราง</div>
-        </button>
-      </div>
-
-      {/* Today's Bookings - compact */}
-      {todayBookings.length > 0 && (
-        <div className="bg-white rounded-2xl border p-4">
-          <h3 className="font-bold text-gray-800 mb-2">วันนี้ ({todayBookings.length} จอง)</h3>
-          {todayBookings.slice(0, 3).map(bk => (
-            <div key={bk.id} className="flex justify-between items-center py-2 border-b last:border-b-0">
-              <div className="text-sm font-medium text-gray-800">{bk.name} <span className="text-gray-400 font-normal">· {bk.timeSlot}</span></div>
-              <div className="text-sm font-bold text-emerald-600">฿{fmtPrice(bk.finalPrice)}</div>
-            </div>
-          ))}
-          {todayBookings.length > 3 && (
-            <button onClick={() => setTab('myBookings')} className="text-xs text-emerald-600 font-medium mt-2">ดูทั้งหมด →</button>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setTab('newBooking'),
+    className: "w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-2xl p-6 text-center shadow-lg transition-colors",
+    style: {
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-4xl mb-2"
+  }, "➕"), /*#__PURE__*/React.createElement("div", {
+    className: "text-xl font-bold"
+  }, "จองคอร์สใหม่")), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setTab('myBookings'),
+    className: "bg-white hover:bg-gray-50 active:bg-gray-100 rounded-2xl border-2 border-gray-100 p-5 text-center transition-colors",
+    style: {
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-3xl mb-2"
+  }, "📋"), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-bold text-gray-800"
+  }, "การจอง"), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500 mt-1"
+  }, bookings.length, " รายการ")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setTab('myCustomers'),
+    className: "bg-white hover:bg-gray-50 active:bg-gray-100 rounded-2xl border-2 border-gray-100 p-5 text-center transition-colors",
+    style: {
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-3xl mb-2"
+  }, "👥"), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-bold text-gray-800"
+  }, "ลูกค้า"), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500 mt-1"
+  }, customers.length, " คน")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setTab('earnings'),
+    className: "bg-white hover:bg-gray-50 active:bg-gray-100 rounded-2xl border-2 border-gray-100 p-5 text-center transition-colors",
+    style: {
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-3xl mb-2"
+  }, "💰"), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-bold text-gray-800"
+  }, "รายได้"), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500 mt-1"
+  }, "คอมมิชชั่น")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setTab('calendar'),
+    className: "bg-white hover:bg-gray-50 active:bg-gray-100 rounded-2xl border-2 border-gray-100 p-5 text-center transition-colors",
+    style: {
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-3xl mb-2"
+  }, "📅"), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-bold text-gray-800"
+  }, "ปฏิทิน"), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500 mt-1"
+  }, "ดูตาราง"))), todayBookings.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl border p-4"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-bold text-gray-800 mb-2"
+  }, "วันนี้ (", todayBookings.length, " จอง)"), todayBookings.slice(0, 3).map(bk => /*#__PURE__*/React.createElement("div", {
+    key: bk.id,
+    className: "flex justify-between items-center py-2 border-b last:border-b-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-medium text-gray-800"
+  }, bk.name, " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-gray-400 font-normal"
+  }, "· ", bk.timeSlot)), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-bold text-emerald-600"
+  }, "฿", fmtPrice(bk.finalPrice)))), todayBookings.length > 3 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setTab('myBookings'),
+    className: "text-xs text-emerald-600 font-medium mt-2"
+  }, "ดูทั้งหมด →")));
 }
 
 // ═══════════════════════════════════════════════════════════
 // TAB 1: การจองของฉัน
 // ═══════════════════════════════════════════════════════════
-function MyBookingsTab({ bookings, customers, sessions, cfg, updateBooking, courses }) {
+function MyBookingsTab({
+  bookings,
+  customers,
+  sessions,
+  cfg,
+  updateBooking,
+  courses
+}) {
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [editBkId, setEditBkId] = useState(null);
   const [viewSlipBk, setViewSlipBk] = useState(null);
   const t = today();
-
   const filtered = useMemo(() => {
     let list = [...bookings];
-    if (filter === 'today') list = list.filter(b => b.startDate === t);
-    else if (filter === 'upcoming') list = list.filter(b => b.startDate > t);
-    else if (filter === 'past') list = list.filter(b => b.startDate < t);
+    if (filter === 'today') list = list.filter(b => b.startDate === t);else if (filter === 'upcoming') list = list.filter(b => b.startDate > t);else if (filter === 'past') list = list.filter(b => b.startDate < t);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(b => (b.name || '').toLowerCase().includes(q) || (b.tel || '').includes(q));
     }
     return list.sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''));
   }, [bookings, filter, search, t]);
-
   const stats = useMemo(() => ({
     total: bookings.length,
     today: bookings.filter(b => b.startDate === t).length,
     upcoming: bookings.filter(b => b.startDate > t).length,
-    revenue: bookings.reduce((s, b) => s + (Number(b.finalPrice) || 0), 0),
+    revenue: bookings.reduce((s, b) => s + (Number(b.finalPrice) || 0), 0)
   }), [bookings, t]);
-
-  return (
-    <div className="space-y-4">
-      {/* Compact stat row */}
-      <div className="flex gap-2 overflow-x-auto custom-scroll pb-1">
-        <div className="flex-shrink-0 bg-emerald-600 text-white rounded-xl px-4 py-3 min-w-[90px] text-center">
-          <div className="text-xl font-bold">{stats.total}</div>
-          <div className="text-[10px] opacity-80">ทั้งหมด</div>
-        </div>
-        <div className="flex-shrink-0 bg-green-500 text-white rounded-xl px-4 py-3 min-w-[90px] text-center">
-          <div className="text-xl font-bold">{stats.today}</div>
-          <div className="text-[10px] opacity-80">วันนี้</div>
-        </div>
-        <div className="flex-shrink-0 bg-teal-500 text-white rounded-xl px-4 py-3 min-w-[90px] text-center">
-          <div className="text-xl font-bold">{stats.upcoming}</div>
-          <div className="text-[10px] opacity-80">กำลังจะมา</div>
-        </div>
-        <div className="flex-shrink-0 bg-amber-500 text-white rounded-xl px-4 py-3 min-w-[100px] text-center">
-          <div className="text-lg font-bold">฿{fmtPrice(stats.revenue)}</div>
-          <div className="text-[10px] opacity-80">ยอดขาย</div>
-        </div>
-      </div>
-
-      {/* Filter + Search */}
-      <div className="space-y-2">
-        <div className="flex gap-1.5 overflow-x-auto custom-scroll pb-1">
-          {[['all','ทั้งหมด'],['today','วันนี้'],['upcoming','กำลังจะมา'],['past','ผ่านแล้ว']].map(([k,l]) => (
-            <button key={k} onClick={() => setFilter(k)}
-              className={`flex-shrink-0 text-xs font-medium px-3 py-2 rounded-full transition-colors ${
-                filter === k ? 'bg-emerald-600 text-white' : 'bg-white text-gray-600 border border-gray-200'
-              }`}>{l}</button>
-          ))}
-        </div>
-        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="ค้นหาชื่อ/เบอร์..."
-          className="w-full border border-gray-200 bg-white rounded-xl px-4 py-2.5 text-sm input-focus" />
-      </div>
-
-      {/* Booking Cards */}
-      <div className="space-y-2">
-        {filtered.length === 0 ? (
-          <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-8 text-center">
-            <div className="text-4xl mb-2">📋</div>
-            <div className="text-gray-500">ไม่มีการจอง</div>
-          </div>
-        ) : filtered.map(bk => {
-          const bkSessions = sessions.filter(s => s.bookingId === bk.id);
-          const done = bkSessions.filter(s => s.done).length;
-          const isPaid = bk.paymentStatus === 'ชำระแล้ว' || bk.paymentMode === 'โอนเงิน (ตรวจแล้ว)';
-          const isPending = bk.paymentStatus === 'รอตรวจสอบ';
-          const isToday = bk.startDate === t;
-          const rCount = Number(bk.rescheduleCount) || 0;
-          const pct = bkSessions.length > 0 ? Math.round((done / bkSessions.length) * 100) : 0;
-
-          return (
-            <div key={bk.id} className={`card-hover bg-white rounded-xl p-4 space-y-2 ${
-              isToday ? 'border-l-4 border-l-green-400 border border-green-200' : 'border border-gray-200'
-            }`}>
-              {/* Row 1: Name + badges */}
-              <div className="flex justify-between items-start gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-bold text-sm flex-shrink-0">
-                    {(bk.name || '?')[0]}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-bold text-gray-800 text-sm truncate">{bk.name}</div>
-                    <div className="text-[11px] text-gray-400">{bk.tel}</div>
-                  </div>
-                </div>
-                <div className="flex gap-1 flex-shrink-0">
-                  {isToday && <span className="pulse-badge text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">วันนี้</span>}
-                  {isPaid ? <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">ชำระแล้ว</span>
-                    : isPending ? <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">รอตรวจ</span>
-                    : <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-medium">รอชำระ</span>}
-                </div>
-              </div>
-
-              {/* Row 2: Key info */}
-              <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-600">
-                <span>{cfg(bk.courseType).label}</span>
-                <span>👥 {bk.totalPeople}</span>
-                <span>📅 {fmt(bk.startDate)}</span>
-                <span>⏰ {bk.timeSlot}</span>
-                <span className="font-semibold text-emerald-600">฿{fmtPrice(bk.finalPrice)}</span>
-              </div>
-
-              {/* Action buttons: slip + reschedule */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <button onClick={() => setViewSlipBk({ ...bk, courseLabel: cfg(bk.courseType).label })}
-                  className="text-[11px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-lg hover:bg-blue-200 font-medium">
-                  🧾 ใบยืนยัน
-                </button>
-                {rCount > 0 && <span className="text-[11px] text-orange-600 bg-orange-50 px-2 py-0.5 rounded-lg">เลื่อน {rCount} ครั้ง</span>}
-                {(() => {
-                  const maxR = bk.cprPackage === 'fixed' ? 1 : bk.cprPackage === 'flex' ? 999 : 2;
-                  const canR = rCount < maxR;
-                  return canR ? (
-                    <button onClick={() => setEditBkId(editBkId === bk.id ? null : bk.id)}
-                      className="text-[11px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-lg hover:bg-amber-200 font-medium">
-                      {editBkId === bk.id ? '✕ ปิด' : '📅 เลื่อนวัน'}
-                    </button>
-                  ) : rCount > 0 ? <span className="text-[10px] text-gray-400">ครบสิทธิ์เลื่อน</span> : null;
-                })()}
-              </div>
-
-              {/* Inline Reschedule Form */}
-              {editBkId === bk.id && (() => {
-                const maxR = bk.cprPackage === 'fixed' ? 1 : bk.cprPackage === 'flex' ? 999 : 2;
-                const canR = rCount < maxR;
-                return <RescheduleForm bk={bk} updateBooking={updateBooking} canR={canR} rCount={rCount} maxR={maxR}
-                  courses={courses} onDone={() => setEditBkId(null)} />;
-              })()}
-
-              {/* Progress */}
-              <div className="flex items-center gap-2">
-                <div className="flex-1 bg-gray-100 rounded-full h-1.5">
-                  <div className="bg-emerald-500 h-1.5 rounded-full transition-all" style={{ width: pct + '%' }} />
-                </div>
-                <span className="text-[10px] text-gray-400 flex-shrink-0">{done}/{bkSessions.length}</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Confirmation Slip Modal — ดูใบยืนยันซ้ำ */}
-      {viewSlipBk && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center overflow-y-auto p-4 pt-8 pb-20">
-          <div className="w-full max-w-md">
-            <BookingConfirmationSlip bk={viewSlipBk} onClose={() => setViewSlipBk(null)} />
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 overflow-x-auto custom-scroll pb-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex-shrink-0 bg-emerald-600 text-white rounded-xl px-4 py-3 min-w-[90px] text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xl font-bold"
+  }, stats.total), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] opacity-80"
+  }, "ทั้งหมด")), /*#__PURE__*/React.createElement("div", {
+    className: "flex-shrink-0 bg-green-500 text-white rounded-xl px-4 py-3 min-w-[90px] text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xl font-bold"
+  }, stats.today), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] opacity-80"
+  }, "วันนี้")), /*#__PURE__*/React.createElement("div", {
+    className: "flex-shrink-0 bg-teal-500 text-white rounded-xl px-4 py-3 min-w-[90px] text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xl font-bold"
+  }, stats.upcoming), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] opacity-80"
+  }, "กำลังจะมา")), /*#__PURE__*/React.createElement("div", {
+    className: "flex-shrink-0 bg-amber-500 text-white rounded-xl px-4 py-3 min-w-[100px] text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-bold"
+  }, "฿", fmtPrice(stats.revenue)), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] opacity-80"
+  }, "ยอดขาย"))), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1.5 overflow-x-auto custom-scroll pb-1"
+  }, [['all', 'ทั้งหมด'], ['today', 'วันนี้'], ['upcoming', 'กำลังจะมา'], ['past', 'ผ่านแล้ว']].map(([k, l]) => /*#__PURE__*/React.createElement("button", {
+    key: k,
+    onClick: () => setFilter(k),
+    className: `flex-shrink-0 text-xs font-medium px-3 py-2 rounded-full transition-colors ${filter === k ? 'bg-emerald-600 text-white' : 'bg-white text-gray-600 border border-gray-200'}`
+  }, l))), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: search,
+    onChange: e => setSearch(e.target.value),
+    placeholder: "ค้นหาชื่อ/เบอร์...",
+    className: "w-full border border-gray-200 bg-white rounded-xl px-4 py-2.5 text-sm input-focus"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, filtered.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl border-2 border-dashed border-gray-200 p-8 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-4xl mb-2"
+  }, "📋"), /*#__PURE__*/React.createElement("div", {
+    className: "text-gray-500"
+  }, "ไม่มีการจอง")) : filtered.map(bk => {
+    const bkSessions = sessions.filter(s => s.bookingId === bk.id);
+    const done = bkSessions.filter(s => s.done).length;
+    const isPaid = bk.paymentStatus === 'ชำระแล้ว' || bk.paymentMode === 'โอนเงิน (ตรวจแล้ว)';
+    const isPending = bk.paymentStatus === 'รอตรวจสอบ';
+    const isToday = bk.startDate === t;
+    const rCount = Number(bk.rescheduleCount) || 0;
+    const pct = bkSessions.length > 0 ? Math.round(done / bkSessions.length * 100) : 0;
+    return /*#__PURE__*/React.createElement("div", {
+      key: bk.id,
+      className: `card-hover bg-white rounded-xl p-4 space-y-2 ${isToday ? 'border-l-4 border-l-green-400 border border-green-200' : 'border border-gray-200'}`
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex justify-between items-start gap-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2 min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-bold text-sm flex-shrink-0"
+    }, (bk.name || '?')[0]), /*#__PURE__*/React.createElement("div", {
+      className: "min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "font-bold text-gray-800 text-sm truncate"
+    }, bk.name), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] text-gray-400"
+    }, bk.tel))), /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-1 flex-shrink-0"
+    }, isToday && /*#__PURE__*/React.createElement("span", {
+      className: "pulse-badge text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium"
+    }, "วันนี้"), isPaid ? /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium"
+    }, "ชำระแล้ว") : isPending ? /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium"
+    }, "รอตรวจ") : /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-medium"
+    }, "รอชำระ"))), /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-600"
+    }, /*#__PURE__*/React.createElement("span", null, cfg(bk.courseType).label), /*#__PURE__*/React.createElement("span", null, "👥 ", bk.totalPeople), /*#__PURE__*/React.createElement("span", null, "📅 ", fmt(bk.startDate)), /*#__PURE__*/React.createElement("span", null, "⏰ ", bk.timeSlot), /*#__PURE__*/React.createElement("span", {
+      className: "font-semibold text-emerald-600"
+    }, "฿", fmtPrice(bk.finalPrice))), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2 flex-wrap"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => setViewSlipBk({
+        ...bk,
+        courseLabel: cfg(bk.courseType).label
+      }),
+      className: "text-[11px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-lg hover:bg-blue-200 font-medium"
+    }, "🧾 ใบยืนยัน"), rCount > 0 && /*#__PURE__*/React.createElement("span", {
+      className: "text-[11px] text-orange-600 bg-orange-50 px-2 py-0.5 rounded-lg"
+    }, "เลื่อน ", rCount, " ครั้ง"), (() => {
+      const maxR = bk.cprPackage === 'fixed' ? 1 : bk.cprPackage === 'flex' ? 999 : 2;
+      const canR = rCount < maxR;
+      return canR ? /*#__PURE__*/React.createElement("button", {
+        onClick: () => setEditBkId(editBkId === bk.id ? null : bk.id),
+        className: "text-[11px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-lg hover:bg-amber-200 font-medium"
+      }, editBkId === bk.id ? '✕ ปิด' : '📅 เลื่อนวัน') : rCount > 0 ? /*#__PURE__*/React.createElement("span", {
+        className: "text-[10px] text-gray-400"
+      }, "ครบสิทธิ์เลื่อน") : null;
+    })()), editBkId === bk.id && (() => {
+      const maxR = bk.cprPackage === 'fixed' ? 1 : bk.cprPackage === 'flex' ? 999 : 2;
+      const canR = rCount < maxR;
+      return /*#__PURE__*/React.createElement(RescheduleForm, {
+        bk: bk,
+        updateBooking: updateBooking,
+        canR: canR,
+        rCount: rCount,
+        maxR: maxR,
+        courses: courses,
+        onDone: () => setEditBkId(null)
+      });
+    })(), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 bg-gray-100 rounded-full h-1.5"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "bg-emerald-500 h-1.5 rounded-full transition-all",
+      style: {
+        width: pct + '%'
+      }
+    })), /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] text-gray-400 flex-shrink-0"
+    }, done, "/", bkSessions.length)));
+  })), viewSlipBk && /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center overflow-y-auto p-4 pt-8 pb-20"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "w-full max-w-md"
+  }, /*#__PURE__*/React.createElement(BookingConfirmationSlip, {
+    bk: viewSlipBk,
+    onClose: () => setViewSlipBk(null)
+  }))));
 }
 
 // ═══════════════════════════════════════════════════════════
 // TAB 2: จองคอร์ส
 // ═══════════════════════════════════════════════════════════
-function NewBookingTab({ customers, allCustomers, addCustomer, addBooking, courses, cfg, staff, instructors, promoCodes, enrolled, userName }) {
+function NewBookingTab({
+  customers,
+  allCustomers,
+  addCustomer,
+  addBooking,
+  courses,
+  cfg,
+  staff,
+  instructors,
+  promoCodes,
+  enrolled,
+  userName
+}) {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [showNewCust, setShowNewCust] = useState(false);
   const [custName, setCustName] = useState('');
@@ -582,50 +757,77 @@ function NewBookingTab({ customers, allCustomers, addCustomer, addBooking, cours
   const [pendingBk, setPendingBk] = useState(null);
   const [custSearch, setCustSearch] = useState('');
   const [confirmedBk, setConfirmedBk] = useState(null);
-
   const courseConfig = cfg(courseType);
   const finalPrice = courseConfig.price || 0;
   const canBook = courseType && channel && totalPeople && paymentMode && startDate && timeSlot && selectedCustomer && (courseType !== 'CPR' || cprPackage);
   const dynSlots = getAllTimeSlots(courses);
-
   const filteredCusts = useMemo(() => {
     if (!custSearch.trim()) return allCustomers;
     const q = custSearch.toLowerCase();
-    return allCustomers.filter(c => (c.name||'').toLowerCase().includes(q) || (c.tel||'').includes(q));
+    return allCustomers.filter(c => (c.name || '').toLowerCase().includes(q) || (c.tel || '').includes(q));
   }, [allCustomers, custSearch]);
-
   const handleSubmit = () => {
     if (!canBook) return;
     const bk = {
-      customerId: selectedCustomer.id, name: selectedCustomer.name, tel: selectedCustomer.tel,
-      courseType, channel, totalPeople: Number(totalPeople), finalPrice,
-      paymentMode, startDate, timeSlot, salesStaff: userName, instructor, note, cprPackage,
+      customerId: selectedCustomer.id,
+      name: selectedCustomer.name,
+      tel: selectedCustomer.tel,
+      courseType,
+      channel,
+      totalPeople: Number(totalPeople),
+      finalPrice,
+      paymentMode,
+      startDate,
+      timeSlot,
+      salesStaff: userName,
+      instructor,
+      note,
+      cprPackage,
       discountCode: discountCode.toUpperCase() || '',
-      createdBy: userName, rescheduleCount: 0,
-      paymentStatus: 'ชำระแล้ว',
+      createdBy: userName,
+      rescheduleCount: 0,
+      paymentStatus: 'ชำระแล้ว'
     };
     setPendingBk(bk);
     setShowConfirm(true);
   };
-
   const confirmSubmit = async () => {
     if (!pendingBk) return;
     // addBooking จะสร้าง id + createdAt เอง → ใช้ pendingBk ตรงๆ
     await addBooking(pendingBk);
     // หลัง addBooking, pendingBk จะมี id แล้ว (addBooking mutate bk.id)
-    const savedBk = { ...pendingBk };
-    setShowConfirm(false); setPendingBk(null);
-    setConfirmedBk({ ...savedBk, courseLabel: cfg(savedBk.courseType).label });
-    setCourseType(''); setChannel(''); setTotalPeople(''); setPaymentMode('');
-    setStartDate(''); setTimeSlot(''); setInstructor(''); setNote('');
-    setSelectedCustomer(null); setCprPackage(''); setDiscountCode('');
+    const savedBk = {
+      ...pendingBk
+    };
+    setShowConfirm(false);
+    setPendingBk(null);
+    setConfirmedBk({
+      ...savedBk,
+      courseLabel: cfg(savedBk.courseType).label
+    });
+    setCourseType('');
+    setChannel('');
+    setTotalPeople('');
+    setPaymentMode('');
+    setStartDate('');
+    setTimeSlot('');
+    setInstructor('');
+    setNote('');
+    setSelectedCustomer(null);
+    setCprPackage('');
+    setDiscountCode('');
   };
-
   const handleAddCust = async () => {
     if (!custName || !custTel) return;
-    const c = await addCustomer({ name: custName, tel: custTel, note: '' });
+    const c = await addCustomer({
+      name: custName,
+      tel: custTel,
+      note: ''
+    });
     setSelectedCustomer(c);
-    setCustName(''); setCustTel(''); setShowNewCust(false);
+    setCustName('');
+    setCustTel('');
+    setShowNewCust(false);
   };
 
   // Default to today's date and 1 person
@@ -636,663 +838,726 @@ function NewBookingTab({ customers, allCustomers, addCustomer, addBooking, cours
 
   // If we just confirmed a booking, show the slip
   if (confirmedBk) {
-    return <BookingConfirmationSlip bk={confirmedBk} onClose={() => setConfirmedBk(null)} />;
+    return /*#__PURE__*/React.createElement(BookingConfirmationSlip, {
+      bk: confirmedBk,
+      onClose: () => setConfirmedBk(null)
+    });
   }
-
-  return (
-    <div className="space-y-4">
-      {/* Step 1: Customer */}
-      <div className="bg-white rounded-2xl border border-emerald-100 p-4 md:p-6">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="bg-emerald-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">1</span>
-          <h2 className="font-bold text-base text-emerald-800">เลือกลูกค้า</h2>
-        </div>
-        {!selectedCustomer ? (
-          <div className="space-y-3">
-            <input type="text" value={custSearch} onChange={e => setCustSearch(e.target.value)}
-              placeholder="พิมพ์ชื่อหรือเบอร์โทร..."
-              className="w-full border border-emerald-200 bg-emerald-50 rounded-xl px-4 py-3 text-sm input-focus" />
-            <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
-              {filteredCusts.slice(0, 20).map(c => (
-                <button key={c.id} onClick={() => setSelectedCustomer(c)}
-                  className="card-hover text-left px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition-colors flex justify-between items-center">
-                  <div>
-                    <div className="font-semibold text-sm text-gray-800">{c.name}</div>
-                    <div className="text-xs text-gray-500">{c.tel}</div>
-                  </div>
-                  <span className="text-emerald-400 text-lg">→</span>
-                </button>
-              ))}
-              {filteredCusts.length === 0 && <p className="text-sm text-gray-400 text-center py-4">ไม่พบ — เพิ่มลูกค้าใหม่ด้านล่าง</p>}
-            </div>
-            <button onClick={() => setShowNewCust(true)}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-colors text-sm">
-              + เพิ่มลูกค้าใหม่
-            </button>
-          </div>
-        ) : (
-          <div className="flex justify-between items-center p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-emerald-200 rounded-full flex items-center justify-center text-emerald-700 font-bold text-lg">
-                {(selectedCustomer.name || '?')[0]}
-              </div>
-              <div>
-                <div className="font-semibold text-gray-800">{selectedCustomer.name}</div>
-                <div className="text-sm text-gray-500">{selectedCustomer.tel}</div>
-              </div>
-            </div>
-            <button onClick={() => setSelectedCustomer(null)}
-              className="text-xs bg-white text-emerald-600 px-3 py-2 rounded-lg border border-emerald-300 hover:bg-emerald-50 font-medium">เปลี่ยน</button>
-          </div>
-        )}
-      </div>
-
-      {/* New Customer Inline */}
-      {showNewCust && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 md:p-6 space-y-3">
-          <h2 className="font-bold text-base text-emerald-800">ลูกค้าใหม่</h2>
-          <input type="text" placeholder="ชื่อเต็ม" value={custName} onChange={e => setCustName(e.target.value)}
-            className="w-full border border-emerald-200 bg-white rounded-xl px-4 py-3 text-sm input-focus" />
-          <input type="tel" placeholder="เบอร์โทร" value={custTel} onChange={e => setCustTel(e.target.value)}
-            className="w-full border border-emerald-200 bg-white rounded-xl px-4 py-3 text-sm input-focus" />
-          <div className="flex gap-2">
-            <button onClick={handleAddCust} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl">บันทึก</button>
-            <button onClick={() => setShowNewCust(false)} className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-xl">ยกเลิก</button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 2: Booking Details */}
-      {selectedCustomer && (
-        <div className="bg-white rounded-2xl border border-emerald-100 p-4 md:p-6 space-y-4">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="bg-emerald-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">2</span>
-            <h2 className="font-bold text-base text-emerald-800">รายละเอียดการจอง</h2>
-          </div>
-
-          {/* Course Selection — big cards */}
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-2">เลือกคอร์ส *</label>
-            <div className="grid grid-cols-2 gap-2">
-              {courses.map(c => (
-                <button key={c.key} onClick={() => setCourseType(c.key)}
-                  className={`card-hover p-3 rounded-xl border-2 text-left transition-colors ${
-                    courseType === c.key ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 bg-white hover:border-emerald-200'
-                  }`}>
-                  <div className="font-semibold text-sm text-gray-800">{c.label}</div>
-                  <div className="text-xs text-emerald-600 font-medium mt-0.5">฿{fmtPrice(c.price)}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {courseType === 'CPR' && (
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-2">แพ็กเกจ *</label>
-              <div className="grid grid-cols-2 gap-2">
-                {CPR_PACKAGES.map(p => (
-                  <button key={p.key} onClick={() => setCprPackage(p.key)}
-                    className={`card-hover p-3 rounded-xl border-2 text-left transition-colors ${
-                      cprPackage === p.key ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 bg-white hover:border-emerald-200'
-                    }`}>
-                    <div className="font-semibold text-sm text-gray-800">{p.key === 'flex' ? 'Flexible' : 'Fixed'}</div>
-                    <div className="text-xs text-gray-500">{p.key === 'flex' ? 'เลื่อนได้ไม่จำกัด' : 'เลื่อนได้ 1 ครั้ง'}</div>
-                    <div className="text-xs text-emerald-600 font-medium mt-0.5">฿{fmtPrice(p.price)}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Date, Time, People — compact row */}
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">วันที่ *</label>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm input-focus" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">เวลา *</label>
-              <select value={timeSlot} onChange={e => setTimeSlot(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-2 py-2.5 text-sm input-focus">
-                <option value="">เลือก</option>
-                {dynSlots.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">จำนวนคน *</label>
-              <input type="number" value={totalPeople} onChange={e => setTotalPeople(e.target.value)} min="1"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm input-focus" />
-            </div>
-          </div>
-
-          {/* Channel & Payment — quick select buttons */}
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-2">ช่องทาง *</label>
-            <div className="flex flex-wrap gap-1.5">
-              {CHANNELS.map(c => (
-                <button key={c} onClick={() => setChannel(c)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                    channel === c ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-emerald-50'
-                  }`}>{c}</button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-2">การชำระ *</label>
-            <div className="flex flex-wrap gap-1.5">
-              {PAYMENTS.map(p => (
-                <button key={p} onClick={() => setPaymentMode(p)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                    paymentMode === p ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-emerald-50'
-                  }`}>{p}</button>
-              ))}
-            </div>
-          </div>
-
-          {/* Instructor */}
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1">ผู้สอน</label>
-            <select value={instructor} onChange={e => setInstructor(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm input-focus">
-              <option value="">ยังไม่เลือก</option>
-              {instructors.map(i => <option key={i} value={i}>{i}</option>)}
-            </select>
-          </div>
-
-          {/* Optional fields — collapsible */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">โค้ดส่วนลด</label>
-              <input type="text" value={discountCode} onChange={e => setDiscountCode(e.target.value)}
-                placeholder="JIA-XXXXXX"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm input-focus" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">หมายเหตุ</label>
-              <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="เพิ่มเติม"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm input-focus" />
-            </div>
-          </div>
-
-          {/* Price Summary */}
-          {courseType && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex justify-between items-center">
-              <span className="text-sm text-gray-600">ราคารวม</span>
-              <span className="text-xl font-bold text-emerald-700">฿{fmtPrice(finalPrice)}</span>
-            </div>
-          )}
-
-          <button onClick={handleSubmit} disabled={!canBook}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-colors text-lg">
-            ✅ ยืนยันการจอง
-          </button>
-
-          {/* ช่องว่างด้านล่างเพื่อให้เลื่อนได้พ้น bottom nav */}
-          <div style={{height:'120px'}} className="md:hidden"></div>
-        </div>
-      )}
-
-      {/* Confirmation Dialog */}
-      {showConfirm && pendingBk && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold text-emerald-800 text-center">ยืนยันการจอง</h2>
-            <p className="text-sm text-gray-500 text-center">กรุณาตรวจสอบข้อมูลก่อนบันทึก</p>
-            <div className="bg-emerald-50 rounded-xl p-4 space-y-2">
-              {[
-                ['ลูกค้า', pendingBk.name],
-                ['เบอร์โทร', pendingBk.tel],
-              ].map(([l,v]) => <div key={l} className="flex justify-between text-sm"><span className="text-gray-600">{l}</span><span className="font-semibold text-gray-800">{v}</span></div>)}
-              <hr className="border-emerald-200" />
-              {[
-                ['คอร์ส', cfg(pendingBk.courseType).label],
-                pendingBk.cprPackage && ['แพ็กเกจ', pendingBk.cprPackage === 'flex' ? 'Flexible' : 'Fixed'],
-                ['จำนวนคน', pendingBk.totalPeople + ' คน'],
-              ].filter(Boolean).map(([l,v]) => <div key={l} className="flex justify-between text-sm"><span className="text-gray-600">{l}</span><span className="font-semibold text-gray-800">{v}</span></div>)}
-              <hr className="border-emerald-200" />
-              {[
-                ['วันที่', fmt(pendingBk.startDate)],
-                ['เวลา', pendingBk.timeSlot],
-                ['ผู้สอน', pendingBk.instructor],
-                ['ช่องทาง', pendingBk.channel],
-                ['การชำระ', pendingBk.paymentMode],
-              ].map(([l,v]) => <div key={l} className="flex justify-between text-sm"><span className="text-gray-600">{l}</span><span className="font-semibold text-gray-800">{v}</span></div>)}
-              {pendingBk.discountCode && <div className="flex justify-between text-sm"><span className="text-gray-600">โค้ดส่วนลด</span><span className="font-semibold text-green-600">{pendingBk.discountCode}</span></div>}
-              <hr className="border-emerald-200" />
-              <div className="flex justify-between text-base">
-                <span className="font-bold text-gray-700">ราคารวม</span>
-                <span className="font-bold text-emerald-700">{fmtPrice(pendingBk.finalPrice)} บาท</span>
-              </div>
-              {pendingBk.note && <div className="text-xs text-gray-500 pt-1">หมายเหตุ: {pendingBk.note}</div>}
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => { setShowConfirm(false); setPendingBk(null); }}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-xl transition-colors">แก้ไข</button>
-              <button onClick={confirmSubmit}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-colors">ยืนยันการจอง</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl border border-emerald-100 p-4 md:p-6"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 mb-3"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "bg-emerald-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+  }, "1"), /*#__PURE__*/React.createElement("h2", {
+    className: "font-bold text-base text-emerald-800"
+  }, "เลือกลูกค้า")), !selectedCustomer ? /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: custSearch,
+    onChange: e => setCustSearch(e.target.value),
+    placeholder: "พิมพ์ชื่อหรือเบอร์โทร...",
+    className: "w-full border border-emerald-200 bg-emerald-50 rounded-xl px-4 py-3 text-sm input-focus"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-1 gap-2 max-h-48 overflow-y-auto"
+  }, filteredCusts.slice(0, 20).map(c => /*#__PURE__*/React.createElement("button", {
+    key: c.id,
+    onClick: () => setSelectedCustomer(c),
+    className: "card-hover text-left px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition-colors flex justify-between items-center"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-sm text-gray-800"
+  }, c.name), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, c.tel)), /*#__PURE__*/React.createElement("span", {
+    className: "text-emerald-400 text-lg"
+  }, "→"))), filteredCusts.length === 0 && /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-400 text-center py-4"
+  }, "ไม่พบ — เพิ่มลูกค้าใหม่ด้านล่าง")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowNewCust(true),
+    className: "w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
+  }, "+ เพิ่มลูกค้าใหม่")) : /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center p-4 bg-emerald-50 border border-emerald-200 rounded-xl"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "w-10 h-10 bg-emerald-200 rounded-full flex items-center justify-center text-emerald-700 font-bold text-lg"
+  }, (selectedCustomer.name || '?')[0]), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-gray-800"
+  }, selectedCustomer.name), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm text-gray-500"
+  }, selectedCustomer.tel))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setSelectedCustomer(null),
+    className: "text-xs bg-white text-emerald-600 px-3 py-2 rounded-lg border border-emerald-300 hover:bg-emerald-50 font-medium"
+  }, "เปลี่ยน"))), showNewCust && /*#__PURE__*/React.createElement("div", {
+    className: "bg-emerald-50 border border-emerald-200 rounded-2xl p-4 md:p-6 space-y-3"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "font-bold text-base text-emerald-800"
+  }, "ลูกค้าใหม่"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    placeholder: "ชื่อเต็ม",
+    value: custName,
+    onChange: e => setCustName(e.target.value),
+    className: "w-full border border-emerald-200 bg-white rounded-xl px-4 py-3 text-sm input-focus"
+  }), /*#__PURE__*/React.createElement("input", {
+    type: "tel",
+    placeholder: "เบอร์โทร",
+    value: custTel,
+    onChange: e => setCustTel(e.target.value),
+    className: "w-full border border-emerald-200 bg-white rounded-xl px-4 py-3 text-sm input-focus"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: handleAddCust,
+    className: "flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl"
+  }, "บันทึก"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowNewCust(false),
+    className: "flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-xl"
+  }, "ยกเลิก"))), selectedCustomer && /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl border border-emerald-100 p-4 md:p-6 space-y-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 mb-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "bg-emerald-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+  }, "2"), /*#__PURE__*/React.createElement("h2", {
+    className: "font-bold text-base text-emerald-800"
+  }, "รายละเอียดการจอง")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-medium text-gray-500 block mb-2"
+  }, "เลือกคอร์ส *"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, courses.map(c => /*#__PURE__*/React.createElement("button", {
+    key: c.key,
+    onClick: () => setCourseType(c.key),
+    className: `card-hover p-3 rounded-xl border-2 text-left transition-colors ${courseType === c.key ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 bg-white hover:border-emerald-200'}`
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-sm text-gray-800"
+  }, c.label), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-emerald-600 font-medium mt-0.5"
+  }, "฿", fmtPrice(c.price)))))), courseType === 'CPR' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-medium text-gray-500 block mb-2"
+  }, "แพ็กเกจ *"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, CPR_PACKAGES.map(p => /*#__PURE__*/React.createElement("button", {
+    key: p.key,
+    onClick: () => setCprPackage(p.key),
+    className: `card-hover p-3 rounded-xl border-2 text-left transition-colors ${cprPackage === p.key ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 bg-white hover:border-emerald-200'}`
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-sm text-gray-800"
+  }, p.key === 'flex' ? 'Flexible' : 'Fixed'), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, p.key === 'flex' ? 'เลื่อนได้ไม่จำกัด' : 'เลื่อนได้ 1 ครั้ง'), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-emerald-600 font-medium mt-0.5"
+  }, "฿", fmtPrice(p.price)))))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-3 gap-2"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-medium text-gray-500 block mb-1"
+  }, "วันที่ *"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: startDate,
+    onChange: e => setStartDate(e.target.value),
+    className: "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm input-focus"
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-medium text-gray-500 block mb-1"
+  }, "เวลา *"), /*#__PURE__*/React.createElement("select", {
+    value: timeSlot,
+    onChange: e => setTimeSlot(e.target.value),
+    className: "w-full border border-gray-200 rounded-xl px-2 py-2.5 text-sm input-focus"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "เลือก"), dynSlots.map(s => /*#__PURE__*/React.createElement("option", {
+    key: s,
+    value: s
+  }, s)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-medium text-gray-500 block mb-1"
+  }, "จำนวนคน *"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    value: totalPeople,
+    onChange: e => setTotalPeople(e.target.value),
+    min: "1",
+    className: "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm input-focus"
+  }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-medium text-gray-500 block mb-2"
+  }, "ช่องทาง *"), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-1.5"
+  }, CHANNELS.map(c => /*#__PURE__*/React.createElement("button", {
+    key: c,
+    onClick: () => setChannel(c),
+    className: `px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${channel === c ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-emerald-50'}`
+  }, c)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-medium text-gray-500 block mb-2"
+  }, "การชำระ *"), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-1.5"
+  }, PAYMENTS.map(p => /*#__PURE__*/React.createElement("button", {
+    key: p,
+    onClick: () => setPaymentMode(p),
+    className: `px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${paymentMode === p ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-emerald-50'}`
+  }, p)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-medium text-gray-500 block mb-1"
+  }, "ผู้สอน"), /*#__PURE__*/React.createElement("select", {
+    value: instructor,
+    onChange: e => setInstructor(e.target.value),
+    className: "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm input-focus"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "ยังไม่เลือก"), instructors.map(i => /*#__PURE__*/React.createElement("option", {
+    key: i,
+    value: i
+  }, i)))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-medium text-gray-500 block mb-1"
+  }, "โค้ดส่วนลด"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: discountCode,
+    onChange: e => setDiscountCode(e.target.value),
+    placeholder: "JIA-XXXXXX",
+    className: "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm input-focus"
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-medium text-gray-500 block mb-1"
+  }, "หมายเหตุ"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: note,
+    onChange: e => setNote(e.target.value),
+    placeholder: "เพิ่มเติม",
+    className: "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm input-focus"
+  }))), courseType && /*#__PURE__*/React.createElement("div", {
+    className: "bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex justify-between items-center"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-sm text-gray-600"
+  }, "ราคารวม"), /*#__PURE__*/React.createElement("span", {
+    className: "text-xl font-bold text-emerald-700"
+  }, "฿", fmtPrice(finalPrice))), /*#__PURE__*/React.createElement("button", {
+    onClick: handleSubmit,
+    disabled: !canBook,
+    className: "w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-colors text-lg"
+  }, "✅ ยืนยันการจอง"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: '120px'
+    },
+    className: "md:hidden"
+  })), showConfirm && pendingBk && /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-xl font-bold text-emerald-800 text-center"
+  }, "ยืนยันการจอง"), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-500 text-center"
+  }, "กรุณาตรวจสอบข้อมูลก่อนบันทึก"), /*#__PURE__*/React.createElement("div", {
+    className: "bg-emerald-50 rounded-xl p-4 space-y-2"
+  }, [['ลูกค้า', pendingBk.name], ['เบอร์โทร', pendingBk.tel]].map(([l, v]) => /*#__PURE__*/React.createElement("div", {
+    key: l,
+    className: "flex justify-between text-sm"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-gray-600"
+  }, l), /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold text-gray-800"
+  }, v))), /*#__PURE__*/React.createElement("hr", {
+    className: "border-emerald-200"
+  }), [['คอร์ส', cfg(pendingBk.courseType).label], pendingBk.cprPackage && ['แพ็กเกจ', pendingBk.cprPackage === 'flex' ? 'Flexible' : 'Fixed'], ['จำนวนคน', pendingBk.totalPeople + ' คน']].filter(Boolean).map(([l, v]) => /*#__PURE__*/React.createElement("div", {
+    key: l,
+    className: "flex justify-between text-sm"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-gray-600"
+  }, l), /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold text-gray-800"
+  }, v))), /*#__PURE__*/React.createElement("hr", {
+    className: "border-emerald-200"
+  }), [['วันที่', fmt(pendingBk.startDate)], ['เวลา', pendingBk.timeSlot], ['ผู้สอน', pendingBk.instructor], ['ช่องทาง', pendingBk.channel], ['การชำระ', pendingBk.paymentMode]].map(([l, v]) => /*#__PURE__*/React.createElement("div", {
+    key: l,
+    className: "flex justify-between text-sm"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-gray-600"
+  }, l), /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold text-gray-800"
+  }, v))), pendingBk.discountCode && /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between text-sm"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-gray-600"
+  }, "โค้ดส่วนลด"), /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold text-green-600"
+  }, pendingBk.discountCode)), /*#__PURE__*/React.createElement("hr", {
+    className: "border-emerald-200"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between text-base"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "font-bold text-gray-700"
+  }, "ราคารวม"), /*#__PURE__*/React.createElement("span", {
+    className: "font-bold text-emerald-700"
+  }, fmtPrice(pendingBk.finalPrice), " บาท")), pendingBk.note && /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500 pt-1"
+  }, "หมายเหตุ: ", pendingBk.note)), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-3 pt-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setShowConfirm(false);
+      setPendingBk(null);
+    },
+    className: "flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-xl transition-colors"
+  }, "แก้ไข"), /*#__PURE__*/React.createElement("button", {
+    onClick: confirmSubmit,
+    className: "flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-colors"
+  }, "ยืนยันการจอง")))));
 }
 
 // ═══════════════════════════════════════════════════════════
 // BOOKING CONFIRMATION SLIP — ใบยืนยันการจอง
 // ═══════════════════════════════════════════════════════════
-function QRCode({ value, size = 120 }) {
+function QRCode({
+  value,
+  size = 120
+}) {
   const canvasRef = React.useRef(null);
   React.useEffect(() => {
     if (canvasRef.current && window.QRCode) {
-      window.QRCode.toCanvas(canvasRef.current, value, { width: size, margin: 1, color: { dark: '#065f46' } }, (err) => {
+      window.QRCode.toCanvas(canvasRef.current, value, {
+        width: size,
+        margin: 1,
+        color: {
+          dark: '#065f46'
+        }
+      }, err => {
         if (err) console.warn('QR generate failed:', err);
       });
     }
   }, [value, size]);
-  return <canvas ref={canvasRef} />;
+  return /*#__PURE__*/React.createElement("canvas", {
+    ref: canvasRef
+  });
 }
-
-function BookingConfirmationSlip({ bk, onClose }) {
+function BookingConfirmationSlip({
+  bk,
+  onClose
+}) {
   const refNo = (bk.id || '').replace('bk_', '').slice(0, 10).toUpperCase();
-  const qrData = JSON.stringify({ ref: refNo, id: bk.id, name: bk.name, course: bk.courseType, date: bk.startDate, price: bk.finalPrice });
-  const printSlip = () => { window.print(); };
-
-  return (
-    <div className="space-y-4">
-      {/* Action buttons — no-print */}
-      <div className="no-print flex gap-2">
-        <button onClick={printSlip}
-          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors text-sm">
-          🖨️ พิมพ์ / บันทึก PDF
-        </button>
-        <button onClick={onClose}
-          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-colors text-sm">
-          ➕ จองใหม่อีก
-        </button>
-      </div>
-
-      {/* The actual slip */}
-      <div id="booking-slip" className="bg-white rounded-2xl border-2 border-emerald-200 overflow-hidden shadow-lg">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white px-6 py-5 text-center">
-          <div className="text-2xl font-bold tracking-wide">JIA TRAINER CENTER</div>
-          <div className="text-emerald-100 text-sm mt-1">ใบยืนยันการจองคอร์ส</div>
-          <div className="text-emerald-200 text-xs mt-1">Booking Confirmation</div>
-        </div>
-
-        {/* Ref + Status */}
-        <div className="px-6 py-4 flex justify-between items-center border-b border-emerald-100 bg-emerald-50">
-          <div>
-            <div className="text-xs text-gray-500">เลขที่อ้างอิง</div>
-            <div className="text-lg font-bold text-emerald-700 tracking-wider font-mono">{refNo}</div>
-          </div>
-          <div className="bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-bold">
-            ✅ ชำระเงินแล้ว
-          </div>
-        </div>
-
-        {/* Customer Info */}
-        <div className="px-6 py-4 border-b border-gray-100">
-          <div className="text-xs text-gray-400 uppercase tracking-wider mb-2">ข้อมูลลูกค้า</div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <div className="text-xs text-gray-500">ชื่อ</div>
-              <div className="font-semibold text-gray-800">{bk.name}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500">เบอร์โทร</div>
-              <div className="font-semibold text-gray-800">{bk.tel}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Course Details */}
-        <div className="px-6 py-4 border-b border-gray-100">
-          <div className="text-xs text-gray-400 uppercase tracking-wider mb-2">รายละเอียดคอร์ส</div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <div className="text-xs text-gray-500">คอร์ส</div>
-              <div className="font-semibold text-gray-800">{bk.courseLabel || bk.courseType}</div>
-            </div>
-            {bk.cprPackage && (
-              <div>
-                <div className="text-xs text-gray-500">แพ็กเกจ</div>
-                <div className="font-semibold text-gray-800">{bk.cprPackage === 'flex' ? 'Flexible' : 'Fixed'}</div>
-              </div>
-            )}
-            <div>
-              <div className="text-xs text-gray-500">จำนวน</div>
-              <div className="font-semibold text-gray-800">{bk.totalPeople} คน</div>
-            </div>
-            {bk.instructor && (
-              <div>
-                <div className="text-xs text-gray-500">ผู้สอน</div>
-                <div className="font-semibold text-gray-800">{bk.instructor}</div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Schedule */}
-        <div className="px-6 py-4 border-b border-gray-100">
-          <div className="text-xs text-gray-400 uppercase tracking-wider mb-2">กำหนดการ</div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <div className="text-xs text-gray-500">วันที่</div>
-              <div className="font-semibold text-gray-800">{fmt(bk.startDate)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500">เวลา</div>
-              <div className="font-semibold text-gray-800">{bk.timeSlot}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Payment */}
-        <div className="px-6 py-4 border-b border-gray-100">
-          <div className="text-xs text-gray-400 uppercase tracking-wider mb-2">การชำระเงิน</div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <div className="text-xs text-gray-500">ช่องทางชำระ</div>
-              <div className="font-semibold text-gray-800">{bk.paymentMode}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500">สถานะ</div>
-              <div className="font-semibold text-green-600">ชำระแล้ว</div>
-            </div>
-          </div>
-          {bk.discountCode && (
-            <div className="mt-2">
-              <div className="text-xs text-gray-500">โค้ดส่วนลด</div>
-              <div className="font-semibold text-emerald-600">{bk.discountCode}</div>
-            </div>
-          )}
-        </div>
-
-        {/* Total Price — big */}
-        <div className="px-6 py-5 bg-emerald-50 flex justify-between items-center">
-          <span className="text-base font-bold text-gray-700">ยอดรวมทั้งสิ้น</span>
-          <span className="text-2xl font-bold text-emerald-700">฿{fmtPrice(bk.finalPrice)}</span>
-        </div>
-
-        {/* QR Code */}
-        <div className="px-6 py-4 flex justify-center border-b border-gray-100">
-          <div className="text-center">
-            <QRCode value={qrData} size={120} />
-            <div className="text-xs text-gray-400 mt-1">สแกนเพื่อตรวจสอบการจอง</div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 text-center bg-gray-50">
-          <div className="text-xs text-gray-400">วันที่ออกใบยืนยัน: {fmt(bk.createdAt || today())}</div>
-          <div className="text-xs text-gray-400 mt-1">ผู้ทำรายการ: {bk.salesStaff || bk.createdBy}</div>
-          {bk.note && <div className="text-xs text-gray-500 mt-2 italic">หมายเหตุ: {bk.note}</div>}
-          <div className="mt-3 text-xs text-gray-300">JIA Trainer Center — CPR/AED Training</div>
-        </div>
-      </div>
-
-      {/* Bottom action — no-print */}
-      <div className="no-print text-center text-xs text-gray-400 pb-4">
-        กด "พิมพ์" เพื่อบันทึกเป็น PDF หรือ screenshot หน้าจอส่งให้ลูกค้า
-      </div>
-    </div>
-  );
+  const qrData = JSON.stringify({
+    ref: refNo,
+    id: bk.id,
+    name: bk.name,
+    course: bk.courseType,
+    date: bk.startDate,
+    price: bk.finalPrice
+  });
+  const printSlip = () => {
+    window.print();
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "no-print flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: printSlip,
+    className: "flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors text-sm"
+  }, "🖨️ พิมพ์ / บันทึก PDF"), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-colors text-sm"
+  }, "➕ จองใหม่อีก")), /*#__PURE__*/React.createElement("div", {
+    id: "booking-slip",
+    className: "bg-white rounded-2xl border-2 border-emerald-200 overflow-hidden shadow-lg"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-gradient-to-r from-emerald-600 to-emerald-700 text-white px-6 py-5 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-2xl font-bold tracking-wide"
+  }, "JIA TRAINER CENTER"), /*#__PURE__*/React.createElement("div", {
+    className: "text-emerald-100 text-sm mt-1"
+  }, "ใบยืนยันการจองคอร์ส"), /*#__PURE__*/React.createElement("div", {
+    className: "text-emerald-200 text-xs mt-1"
+  }, "Booking Confirmation")), /*#__PURE__*/React.createElement("div", {
+    className: "px-6 py-4 flex justify-between items-center border-b border-emerald-100 bg-emerald-50"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "เลขที่อ้างอิง"), /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-bold text-emerald-700 tracking-wider font-mono"
+  }, refNo)), /*#__PURE__*/React.createElement("div", {
+    className: "bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-bold"
+  }, "✅ ชำระเงินแล้ว")), /*#__PURE__*/React.createElement("div", {
+    className: "px-6 py-4 border-b border-gray-100"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-400 uppercase tracking-wider mb-2"
+  }, "ข้อมูลลูกค้า"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "ชื่อ"), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-gray-800"
+  }, bk.name)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "เบอร์โทร"), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-gray-800"
+  }, bk.tel)))), /*#__PURE__*/React.createElement("div", {
+    className: "px-6 py-4 border-b border-gray-100"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-400 uppercase tracking-wider mb-2"
+  }, "รายละเอียดคอร์ส"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "คอร์ส"), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-gray-800"
+  }, bk.courseLabel || bk.courseType)), bk.cprPackage && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "แพ็กเกจ"), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-gray-800"
+  }, bk.cprPackage === 'flex' ? 'Flexible' : 'Fixed')), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "จำนวน"), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-gray-800"
+  }, bk.totalPeople, " คน")), bk.instructor && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "ผู้สอน"), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-gray-800"
+  }, bk.instructor)))), /*#__PURE__*/React.createElement("div", {
+    className: "px-6 py-4 border-b border-gray-100"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-400 uppercase tracking-wider mb-2"
+  }, "กำหนดการ"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "วันที่"), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-gray-800"
+  }, fmt(bk.startDate))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "เวลา"), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-gray-800"
+  }, bk.timeSlot)))), /*#__PURE__*/React.createElement("div", {
+    className: "px-6 py-4 border-b border-gray-100"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-400 uppercase tracking-wider mb-2"
+  }, "การชำระเงิน"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "ช่องทางชำระ"), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-gray-800"
+  }, bk.paymentMode)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "สถานะ"), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-green-600"
+  }, "ชำระแล้ว"))), bk.discountCode && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "โค้ดส่วนลด"), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-emerald-600"
+  }, bk.discountCode))), /*#__PURE__*/React.createElement("div", {
+    className: "px-6 py-5 bg-emerald-50 flex justify-between items-center"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-base font-bold text-gray-700"
+  }, "ยอดรวมทั้งสิ้น"), /*#__PURE__*/React.createElement("span", {
+    className: "text-2xl font-bold text-emerald-700"
+  }, "฿", fmtPrice(bk.finalPrice))), /*#__PURE__*/React.createElement("div", {
+    className: "px-6 py-4 flex justify-center border-b border-gray-100"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-center"
+  }, /*#__PURE__*/React.createElement(QRCode, {
+    value: qrData,
+    size: 120
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-400 mt-1"
+  }, "สแกนเพื่อตรวจสอบการจอง"))), /*#__PURE__*/React.createElement("div", {
+    className: "px-6 py-4 text-center bg-gray-50"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-400"
+  }, "วันที่ออกใบยืนยัน: ", fmt(bk.createdAt || today())), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-400 mt-1"
+  }, "ผู้ทำรายการ: ", bk.salesStaff || bk.createdBy), bk.note && /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500 mt-2 italic"
+  }, "หมายเหตุ: ", bk.note), /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 text-xs text-gray-300"
+  }, "JIA Trainer Center — CPR/AED Training"))), /*#__PURE__*/React.createElement("div", {
+    className: "no-print text-center text-xs text-gray-400 pb-4"
+  }, "กด \"พิมพ์\" เพื่อบันทึกเป็น PDF หรือ screenshot หน้าจอส่งให้ลูกค้า"));
 }
 
 // ═══════════════════════════════════════════════════════════
 // TAB 3: ลูกค้าของฉัน
 // ═══════════════════════════════════════════════════════════
-function MyCustomersTab({ customers, bookings, sessions, cfg, updateCustomer, updateBooking, courses, instructors }) {
+function MyCustomersTab({
+  customers,
+  bookings,
+  sessions,
+  cfg,
+  updateCustomer,
+  updateBooking,
+  courses,
+  instructors
+}) {
   const [editId, setEditId] = useState(null);
   const [editBkId, setEditBkId] = useState(null);
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-700">
-        ลูกค้าของคุณทั้งหมด {customers.length} ราย
-      </div>
-      {customers.length === 0 ? (
-        <div className="bg-white rounded-xl border p-8 text-center">
-          <div className="text-4xl mb-2">👥</div>
-          <div className="text-gray-500">ยังไม่มีลูกค้า</div>
-        </div>
-      ) : customers.map(cust => {
-        const custBks = bookings.filter(b => b.customerId === cust.id);
-        return (
-          <div key={cust.id} className="bg-white rounded-xl border border-emerald-100 p-5">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-gray-800">{cust.name}</h3>
-                <p className="text-sm text-gray-500">{cust.tel}</p>
-              </div>
-              <button onClick={() => setEditId(editId === cust.id ? null : cust.id)}
-                className="text-xs bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg hover:bg-emerald-200">
-                {editId === cust.id ? 'ปิด' : 'แก้ไข'}
-              </button>
-            </div>
-
-            {editId === cust.id && (
-              <div className="bg-emerald-50 p-3 rounded-lg mb-4 space-y-2">
-                <input type="text" value={cust.name} onChange={e => updateCustomer(cust.id, { name: e.target.value })}
-                  className="w-full border border-emerald-200 bg-white rounded px-2 py-1 text-sm" />
-                <input type="tel" value={cust.tel} onChange={e => updateCustomer(cust.id, { tel: e.target.value })}
-                  className="w-full border border-emerald-200 bg-white rounded px-2 py-1 text-sm" />
-              </div>
-            )}
-
-            <div className="space-y-3">
-              {custBks.length === 0 ? <p className="text-sm text-gray-500">ไม่มีการจอง</p> :
-                custBks.map(bk => {
-                  const bkSessions = sessions.filter(s => s.bookingId === bk.id);
-                  const done = bkSessions.filter(s => s.done).length;
-                  const rCount = Number(bk.rescheduleCount) || 0;
-                  const maxR = bk.cprPackage === 'fixed' ? 1 : bk.cprPackage === 'flex' ? 999 : 2;
-                  const canR = rCount < maxR;
-
-                  return (
-                    <div key={bk.id} className="border border-emerald-100 rounded-lg p-3 space-y-2">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="font-semibold text-sm text-gray-800">{cfg(bk.courseType).label} • {bk.totalPeople} คน</div>
-                          <div className="text-xs text-gray-500 space-y-0.5">
-                            <div>📅 {fmt(bk.startDate)} {bk.timeSlot}</div>
-                            <div>💰 {fmtPrice(bk.finalPrice)} บาท • {bk.paymentMode}</div>
-                            <div>🎓 {bk.instructor}</div>
-                          </div>
-                        </div>
-                        <button onClick={() => setEditBkId(editBkId === bk.id ? null : bk.id)}
-                          className={`text-xs px-2 py-1 rounded ${canR ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-gray-100 text-gray-500'}`}
-                          disabled={!canR && editBkId !== bk.id}>
-                          {editBkId === bk.id ? 'ปิด' : `เลื่อน (${rCount}/${maxR === 999 ? '∞' : maxR})`}
-                        </button>
-                      </div>
-
-                      {editBkId === bk.id && (
-                        <RescheduleForm bk={bk} updateBooking={updateBooking} canR={canR} rCount={rCount} maxR={maxR}
-                          courses={courses} onDone={() => setEditBkId(null)} />
-                      )}
-
-                      <div className="text-xs text-gray-600 pt-1">
-                        <span className="font-medium">{done}/{bkSessions.length} เรียนแล้ว</span>
-                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
-                          <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: (bkSessions.length > 0 ? Math.round((done / bkSessions.length) * 100) : 0) + '%' }} />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              }
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-6"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-700"
+  }, "ลูกค้าของคุณทั้งหมด ", customers.length, " ราย"), customers.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border p-8 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-4xl mb-2"
+  }, "👥"), /*#__PURE__*/React.createElement("div", {
+    className: "text-gray-500"
+  }, "ยังไม่มีลูกค้า")) : customers.map(cust => {
+    const custBks = bookings.filter(b => b.customerId === cust.id);
+    return /*#__PURE__*/React.createElement("div", {
+      key: cust.id,
+      className: "bg-white rounded-xl border border-emerald-100 p-5"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex justify-between items-start mb-4"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+      className: "text-lg font-bold text-gray-800"
+    }, cust.name), /*#__PURE__*/React.createElement("p", {
+      className: "text-sm text-gray-500"
+    }, cust.tel)), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setEditId(editId === cust.id ? null : cust.id),
+      className: "text-xs bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg hover:bg-emerald-200"
+    }, editId === cust.id ? 'ปิด' : 'แก้ไข')), editId === cust.id && /*#__PURE__*/React.createElement("div", {
+      className: "bg-emerald-50 p-3 rounded-lg mb-4 space-y-2"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "text",
+      value: cust.name,
+      onChange: e => updateCustomer(cust.id, {
+        name: e.target.value
+      }),
+      className: "w-full border border-emerald-200 bg-white rounded px-2 py-1 text-sm"
+    }), /*#__PURE__*/React.createElement("input", {
+      type: "tel",
+      value: cust.tel,
+      onChange: e => updateCustomer(cust.id, {
+        tel: e.target.value
+      }),
+      className: "w-full border border-emerald-200 bg-white rounded px-2 py-1 text-sm"
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "space-y-3"
+    }, custBks.length === 0 ? /*#__PURE__*/React.createElement("p", {
+      className: "text-sm text-gray-500"
+    }, "ไม่มีการจอง") : custBks.map(bk => {
+      const bkSessions = sessions.filter(s => s.bookingId === bk.id);
+      const done = bkSessions.filter(s => s.done).length;
+      const rCount = Number(bk.rescheduleCount) || 0;
+      const maxR = bk.cprPackage === 'fixed' ? 1 : bk.cprPackage === 'flex' ? 999 : 2;
+      const canR = rCount < maxR;
+      return /*#__PURE__*/React.createElement("div", {
+        key: bk.id,
+        className: "border border-emerald-100 rounded-lg p-3 space-y-2"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "flex justify-between items-start"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "flex-1"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "font-semibold text-sm text-gray-800"
+      }, cfg(bk.courseType).label, " • ", bk.totalPeople, " คน"), /*#__PURE__*/React.createElement("div", {
+        className: "text-xs text-gray-500 space-y-0.5"
+      }, /*#__PURE__*/React.createElement("div", null, "📅 ", fmt(bk.startDate), " ", bk.timeSlot), /*#__PURE__*/React.createElement("div", null, "💰 ", fmtPrice(bk.finalPrice), " บาท • ", bk.paymentMode), /*#__PURE__*/React.createElement("div", null, "🎓 ", bk.instructor))), /*#__PURE__*/React.createElement("button", {
+        onClick: () => setEditBkId(editBkId === bk.id ? null : bk.id),
+        className: `text-xs px-2 py-1 rounded ${canR ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-gray-100 text-gray-500'}`,
+        disabled: !canR && editBkId !== bk.id
+      }, editBkId === bk.id ? 'ปิด' : `เลื่อน (${rCount}/${maxR === 999 ? '∞' : maxR})`)), editBkId === bk.id && /*#__PURE__*/React.createElement(RescheduleForm, {
+        bk: bk,
+        updateBooking: updateBooking,
+        canR: canR,
+        rCount: rCount,
+        maxR: maxR,
+        courses: courses,
+        onDone: () => setEditBkId(null)
+      }), /*#__PURE__*/React.createElement("div", {
+        className: "text-xs text-gray-600 pt-1"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "font-medium"
+      }, done, "/", bkSessions.length, " เรียนแล้ว"), /*#__PURE__*/React.createElement("div", {
+        className: "w-full bg-gray-200 rounded-full h-1.5 mt-1"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "bg-emerald-500 h-1.5 rounded-full",
+        style: {
+          width: (bkSessions.length > 0 ? Math.round(done / bkSessions.length * 100) : 0) + '%'
+        }
+      }))));
+    })));
+  }));
 }
-
-function RescheduleForm({ bk, updateBooking, canR, rCount, maxR, courses, onDone }) {
+function RescheduleForm({
+  bk,
+  updateBooking,
+  canR,
+  rCount,
+  maxR,
+  courses,
+  onDone
+}) {
   const [newDate, setNewDate] = useState(bk.startDate);
   const [newTime, setNewTime] = useState(bk.timeSlot);
   const dynSlots = getAllTimeSlots(courses);
-
   const handleSave = () => {
-    if (!canR) { showToast('❌ ครบจำนวนครั้งที่เลื่อนได้แล้ว', true); return; }
+    if (!canR) {
+      showToast('❌ ครบจำนวนครั้งที่เลื่อนได้แล้ว', true);
+      return;
+    }
     const changed = newDate !== bk.startDate || newTime !== bk.timeSlot;
-    if (!changed) { onDone(); return; }
-    updateBooking(bk.id, { startDate: newDate, timeSlot: newTime, rescheduleCount: rCount + 1 });
+    if (!changed) {
+      onDone();
+      return;
+    }
+    updateBooking(bk.id, {
+      startDate: newDate,
+      timeSlot: newTime,
+      rescheduleCount: rCount + 1
+    });
     showToast('✅ เลื่อนวันสำเร็จ');
     onDone();
   };
-
-  return (
-    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
-      <div className={`text-xs px-2 py-1 rounded ${canR ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-        เลื่อนแล้ว {rCount}/{maxR === 999 ? '∞' : maxR} ครั้ง {!canR && '— ไม่สามารถเลื่อนได้อีก'}
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-xs font-medium text-gray-700 block mb-1">วันที่ใหม่</label>
-          <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} disabled={!canR}
-            className={`w-full border rounded px-2 py-1 text-xs ${canR ? 'border-amber-200 bg-white' : 'border-gray-300 bg-gray-100 cursor-not-allowed'}`} />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-gray-700 block mb-1">เวลาใหม่</label>
-          <select value={newTime} onChange={e => setNewTime(e.target.value)} disabled={!canR}
-            className={`w-full border rounded px-2 py-1 text-xs ${canR ? 'border-amber-200 bg-white' : 'border-gray-300 bg-gray-100 cursor-not-allowed'}`}>
-            {dynSlots.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-      </div>
-      <div className="flex gap-2">
-        <button onClick={handleSave} disabled={!canR}
-          className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white text-xs font-semibold py-2 rounded">บันทึก</button>
-        <button onClick={onDone} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 text-xs font-semibold py-2 rounded">ยกเลิก</button>
-      </div>
-    </div>
-  );
+  return /*#__PURE__*/React.createElement("div", {
+    className: "bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: `text-xs px-2 py-1 rounded ${canR ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`
+  }, "เลื่อนแล้ว ", rCount, "/", maxR === 999 ? '∞' : maxR, " ครั้ง ", !canR && '— ไม่สามารถเลื่อนได้อีก'), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-medium text-gray-700 block mb-1"
+  }, "วันที่ใหม่"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: newDate,
+    onChange: e => setNewDate(e.target.value),
+    disabled: !canR,
+    className: `w-full border rounded px-2 py-1 text-xs ${canR ? 'border-amber-200 bg-white' : 'border-gray-300 bg-gray-100 cursor-not-allowed'}`
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-medium text-gray-700 block mb-1"
+  }, "เวลาใหม่"), /*#__PURE__*/React.createElement("select", {
+    value: newTime,
+    onChange: e => setNewTime(e.target.value),
+    disabled: !canR,
+    className: `w-full border rounded px-2 py-1 text-xs ${canR ? 'border-amber-200 bg-white' : 'border-gray-300 bg-gray-100 cursor-not-allowed'}`
+  }, dynSlots.map(s => /*#__PURE__*/React.createElement("option", {
+    key: s,
+    value: s
+  }, s))))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: handleSave,
+    disabled: !canR,
+    className: "flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white text-xs font-semibold py-2 rounded"
+  }, "บันทึก"), /*#__PURE__*/React.createElement("button", {
+    onClick: onDone,
+    className: "flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 text-xs font-semibold py-2 rounded"
+  }, "ยกเลิก")));
 }
 
 // ═══════════════════════════════════════════════════════════
 // TAB 4: ปฏิทิน
 // ═══════════════════════════════════════════════════════════
-function CalendarTab({ bookings, customers, cfg }) {
+function CalendarTab({
+  bookings,
+  customers,
+  cfg
+}) {
   const [viewDate, setViewDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(null);
-
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const monthLabel = new Date(year, month).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
-
+  const monthLabel = new Date(year, month).toLocaleDateString('th-TH', {
+    month: 'long',
+    year: 'numeric'
+  });
   const cells = useMemo(() => {
     const arr = [];
     for (let i = 0; i < firstDay; i++) arr.push(null);
     for (let i = 1; i <= daysInMonth; i++) arr.push(i);
     return arr;
   }, [firstDay, daysInMonth]);
-
-  const getDateStr = (day) => `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-  const getDayBks = (day) => bookings.filter(b => b.startDate === getDateStr(day));
+  const getDateStr = day => `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const getDayBks = day => bookings.filter(b => b.startDate === getDateStr(day));
   const todayStr = today();
-
   const selectedBks = selectedDay ? getDayBks(selectedDay) : [];
-
-  return (
-    <div className="space-y-4">
-      {/* Calendar */}
-      <div className="bg-white rounded-2xl border p-3 md:p-4">
-        <div className="flex justify-between items-center mb-3">
-          <button onClick={() => setViewDate(new Date(year, month - 1))}
-            className="bg-emerald-100 text-emerald-700 w-9 h-9 rounded-full flex items-center justify-center hover:bg-emerald-200 transition-colors text-lg">◀</button>
-          <h2 className="text-base md:text-lg font-bold text-gray-800">{monthLabel}</h2>
-          <button onClick={() => setViewDate(new Date(year, month + 1))}
-            className="bg-emerald-100 text-emerald-700 w-9 h-9 rounded-full flex items-center justify-center hover:bg-emerald-200 transition-colors text-lg">▶</button>
-        </div>
-        <div className="grid grid-cols-7 gap-0.5 md:gap-1 mb-1">
-          {['อา','จ','อ','พ','พฤ','ศ','ส'].map(d => (
-            <div key={d} className="text-center text-[10px] md:text-xs font-bold text-gray-400 py-1">{d}</div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-0.5 md:gap-1">
-          {cells.map((day, idx) => {
-            if (!day) return <div key={idx} className="aspect-square" />;
-            const bks = getDayBks(day);
-            const isToday = getDateStr(day) === todayStr;
-            const isSel = selectedDay === day;
-            return (
-              <button key={idx} onClick={() => setSelectedDay(day)}
-                className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs md:text-sm transition-all
-                  ${isSel ? 'bg-emerald-600 text-white shadow-md scale-105' : isToday ? 'bg-green-100 text-green-700 font-bold' : 'hover:bg-emerald-50 text-gray-700'}`}>
-                <span>{day}</span>
-                {bks.length > 0 && <span className={`text-[9px] md:text-[10px] font-bold ${isSel ? 'text-emerald-100' : 'text-emerald-600'}`}>{bks.length}</span>}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Selected Day Detail */}
-      {selectedDay && (
-        <div className="bg-white rounded-2xl border p-4">
-          <h3 className="font-bold text-gray-800 mb-3 text-sm">
-            {selectedDay} {monthLabel} ({selectedBks.length} การจอง)
-          </h3>
-          <div className="space-y-2">
-            {selectedBks.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-4">ไม่มีการจองวันนี้</p>
-            ) : selectedBks.map(bk => (
-              <div key={bk.id} className="card-hover bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex justify-between items-center">
-                <div>
-                  <div className="font-semibold text-sm text-gray-800">{bk.name}</div>
-                  <div className="text-xs text-gray-500">{cfg(bk.courseType).label} · {bk.totalPeople} คน · {bk.timeSlot}</div>
-                </div>
-                <div className="text-sm font-bold text-emerald-600">฿{fmtPrice(bk.finalPrice)}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl border p-3 md:p-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center mb-3"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setViewDate(new Date(year, month - 1)),
+    className: "bg-emerald-100 text-emerald-700 w-9 h-9 rounded-full flex items-center justify-center hover:bg-emerald-200 transition-colors text-lg"
+  }, "◀"), /*#__PURE__*/React.createElement("h2", {
+    className: "text-base md:text-lg font-bold text-gray-800"
+  }, monthLabel), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setViewDate(new Date(year, month + 1)),
+    className: "bg-emerald-100 text-emerald-700 w-9 h-9 rounded-full flex items-center justify-center hover:bg-emerald-200 transition-colors text-lg"
+  }, "▶")), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-7 gap-0.5 md:gap-1 mb-1"
+  }, ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].map(d => /*#__PURE__*/React.createElement("div", {
+    key: d,
+    className: "text-center text-[10px] md:text-xs font-bold text-gray-400 py-1"
+  }, d))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-7 gap-0.5 md:gap-1"
+  }, cells.map((day, idx) => {
+    if (!day) return /*#__PURE__*/React.createElement("div", {
+      key: idx,
+      className: "aspect-square"
+    });
+    const bks = getDayBks(day);
+    const isToday = getDateStr(day) === todayStr;
+    const isSel = selectedDay === day;
+    return /*#__PURE__*/React.createElement("button", {
+      key: idx,
+      onClick: () => setSelectedDay(day),
+      className: `aspect-square rounded-lg flex flex-col items-center justify-center text-xs md:text-sm transition-all
+                  ${isSel ? 'bg-emerald-600 text-white shadow-md scale-105' : isToday ? 'bg-green-100 text-green-700 font-bold' : 'hover:bg-emerald-50 text-gray-700'}`
+    }, /*#__PURE__*/React.createElement("span", null, day), bks.length > 0 && /*#__PURE__*/React.createElement("span", {
+      className: `text-[9px] md:text-[10px] font-bold ${isSel ? 'text-emerald-100' : 'text-emerald-600'}`
+    }, bks.length));
+  }))), selectedDay && /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl border p-4"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-bold text-gray-800 mb-3 text-sm"
+  }, selectedDay, " ", monthLabel, " (", selectedBks.length, " การจอง)"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, selectedBks.length === 0 ? /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-gray-400 text-center py-4"
+  }, "ไม่มีการจองวันนี้") : selectedBks.map(bk => /*#__PURE__*/React.createElement("div", {
+    key: bk.id,
+    className: "card-hover bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex justify-between items-center"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-sm text-gray-800"
+  }, bk.name), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, cfg(bk.courseType).label, " · ", bk.totalPeople, " คน · ", bk.timeSlot)), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-bold text-emerald-600"
+  }, "฿", fmtPrice(bk.finalPrice)))))));
 }
 
 // ═══════════════════════════════════════════════════════════
 // TAB 5: โค้ดโปรโม (read-only)
 // ═══════════════════════════════════════════════════════════
-function PromoTab({ promoCodes }) {
-  return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-bold text-gray-800">โค้ดโปรโมชั่น</h2>
-      {(!promoCodes || promoCodes.length === 0) ? (
-        <div className="bg-white rounded-xl border p-8 text-center text-gray-500">ไม่มีโค้ดโปรโม</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {promoCodes.map((p, i) => (
-            <div key={i} className="bg-white rounded-xl border border-emerald-100 p-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="font-bold text-emerald-700 text-lg">{p.code}</div>
-                  {p.description && <div className="text-xs text-gray-500 mt-1">{p.description}</div>}
-                </div>
-                <span className={`text-xs px-2 py-1 rounded-full font-medium ${p.used ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>
-                  {p.used ? 'ใช้แล้ว' : 'ใช้ได้'}
-                </span>
-              </div>
-              <div className="mt-2 text-sm text-gray-600">
-                ส่วนลด: <span className="font-semibold text-emerald-600">{fmtPrice(p.discount || 0)} บาท</span>
-              </div>
-              {p.usedBy && <div className="text-xs text-gray-400 mt-1">ใช้โดย: {p.usedBy}</div>}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+function PromoTab({
+  promoCodes
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-bold text-gray-800"
+  }, "โค้ดโปรโมชั่น"), !promoCodes || promoCodes.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border p-8 text-center text-gray-500"
+  }, "ไม่มีโค้ดโปรโม") : /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-1 md:grid-cols-2 gap-3"
+  }, promoCodes.map((p, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "bg-white rounded-xl border border-emerald-100 p-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-start"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "font-bold text-emerald-700 text-lg"
+  }, p.code), p.description && /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500 mt-1"
+  }, p.description)), /*#__PURE__*/React.createElement("span", {
+    className: `text-xs px-2 py-1 rounded-full font-medium ${p.used ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`
+  }, p.used ? 'ใช้แล้ว' : 'ใช้ได้')), /*#__PURE__*/React.createElement("div", {
+    className: "mt-2 text-sm text-gray-600"
+  }, "ส่วนลด: ", /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold text-emerald-600"
+  }, fmtPrice(p.discount || 0), " บาท")), p.usedBy && /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-400 mt-1"
+  }, "ใช้โดย: ", p.usedBy)))));
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1301,9 +1566,16 @@ function PromoTab({ promoCodes }) {
 // ═══════════════════════════════════════════════════════════
 // BOOKING REPORT — รายงานการจอง (แสดงให้ลูกค้าหลังจอง)
 // ═══════════════════════════════════════════════════════════
-function BookingReportTab({ bookings, customers, sessions, cfg, courses }) {
+function BookingReportTab({
+  bookings,
+  customers,
+  sessions,
+  cfg,
+  courses
+}) {
   const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-01';
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-01';
   });
   const [dateTo, setDateTo] = useState(() => {
     const d = new Date();
@@ -1313,9 +1585,7 @@ function BookingReportTab({ bookings, customers, sessions, cfg, courses }) {
   const [filterCourse, setFilterCourse] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [viewSlipBk, setViewSlipBk] = useState(null);
-
   const courseKeys = useMemo(() => [...new Set(bookings.map(b => b.courseType))].filter(Boolean), [bookings]);
-
   const filtered = useMemo(() => {
     return bookings.filter(b => {
       const d = b.startDate || b.createdAt || '';
@@ -1326,198 +1596,248 @@ function BookingReportTab({ bookings, customers, sessions, cfg, courses }) {
       return true;
     }).sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''));
   }, [bookings, dateFrom, dateTo, filterCourse, filterStatus]);
-
   const stats = useMemo(() => ({
     total: filtered.length,
     totalPeople: filtered.reduce((s, b) => s + (parseInt(b.totalPeople) || 1), 0),
     revenue: filtered.reduce((s, b) => s + (parseFloat(b.finalPrice) || 0), 0),
     paid: filtered.filter(b => b.paymentStatus === 'ชำระแล้ว').length,
-    pending: filtered.filter(b => b.paymentStatus !== 'ชำระแล้ว').length,
+    pending: filtered.filter(b => b.paymentStatus !== 'ชำระแล้ว').length
   }), [filtered]);
-
-  const printReport = () => { window.print(); };
+  const printReport = () => {
+    window.print();
+  };
 
   // Quick date presets
-  const setPreset = (key) => {
+  const setPreset = key => {
     const now = new Date();
-    const y = now.getFullYear(), m = now.getMonth();
-    if (key === 'today') { const d = today(); setDateFrom(d); setDateTo(d); }
-    else if (key === 'week') {
-      const start = new Date(now); start.setDate(now.getDate() - now.getDay());
-      const end = new Date(start); end.setDate(start.getDate() + 6);
-      setDateFrom(start.toISOString().slice(0, 10)); setDateTo(end.toISOString().slice(0, 10));
-    }
-    else if (key === 'month') {
+    const y = now.getFullYear(),
+      m = now.getMonth();
+    if (key === 'today') {
+      const d = today();
+      setDateFrom(d);
+      setDateTo(d);
+    } else if (key === 'week') {
+      const start = new Date(now);
+      start.setDate(now.getDate() - now.getDay());
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      setDateFrom(start.toISOString().slice(0, 10));
+      setDateTo(end.toISOString().slice(0, 10));
+    } else if (key === 'month') {
       setDateFrom(y + '-' + String(m + 1).padStart(2, '0') + '-01');
       const last = new Date(y, m + 1, 0);
       setDateTo(last.toISOString().slice(0, 10));
-    }
-    else if (key === '30d') {
-      const start = new Date(now); start.setDate(now.getDate() - 30);
-      setDateFrom(start.toISOString().slice(0, 10)); setDateTo(now.toISOString().slice(0, 10));
+    } else if (key === '30d') {
+      const start = new Date(now);
+      start.setDate(now.getDate() - 30);
+      setDateFrom(start.toISOString().slice(0, 10));
+      setDateTo(now.toISOString().slice(0, 10));
     }
   };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-emerald-800">รายงานการจอง</h2>
-        <button onClick={printReport} className="no-print text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium">
-          พิมพ์รายงาน
-        </button>
-      </div>
-
-      {/* Quick Presets */}
-      <div className="no-print flex gap-1.5 flex-wrap">
-        {[['today','วันนี้'],['week','สัปดาห์นี้'],['month','เดือนนี้'],['30d','30 วัน']].map(([k,l]) => (
-          <button key={k} onClick={() => setPreset(k)}
-            className="text-xs bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full hover:bg-emerald-200 font-medium">{l}</button>
-        ))}
-      </div>
-
-      {/* Date Range + Filters */}
-      <div className="no-print bg-white rounded-xl border p-4 space-y-3">
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-xs text-gray-500">จากวันที่</label>
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm input-focus" />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500">ถึงวันที่</label>
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm input-focus" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <select value={filterCourse} onChange={e => setFilterCourse(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm input-focus">
-            <option value="all">ทุกคอร์ส</option>
-            {courseKeys.map(k => <option key={k} value={k}>{cfg(k).label || k}</option>)}
-          </select>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm input-focus">
-            <option value="all">ทุกสถานะ</option>
-            <option value="paid">ชำระแล้ว</option>
-            <option value="pending">รอชำระ</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white rounded-xl border p-4 text-center">
-          <div className="text-xs text-gray-500">จำนวนจอง</div>
-          <div className="text-2xl font-bold text-emerald-700">{stats.total}</div>
-          <div className="text-xs text-gray-400">{stats.totalPeople} คน</div>
-        </div>
-        <div className="bg-white rounded-xl border p-4 text-center">
-          <div className="text-xs text-gray-500">ยอดรวม</div>
-          <div className="text-2xl font-bold text-blue-600">฿{fmtPrice(stats.revenue)}</div>
-        </div>
-        <div className="bg-white rounded-xl border p-4 text-center">
-          <div className="text-xs text-gray-500">ชำระแล้ว</div>
-          <div className="text-2xl font-bold text-green-600">{stats.paid}</div>
-        </div>
-        <div className="bg-white rounded-xl border p-4 text-center">
-          <div className="text-xs text-gray-500">รอชำระ</div>
-          <div className="text-2xl font-bold text-amber-600">{stats.pending}</div>
-        </div>
-      </div>
-
-      {/* Booking List */}
-      <div className="space-y-2">
-        {filtered.length === 0 ? (
-          <div className="bg-white rounded-xl border p-8 text-center text-gray-400">
-            ไม่มีข้อมูลการจองในช่วงนี้
-          </div>
-        ) : filtered.map(bk => {
-          const isPaid = bk.paymentStatus === 'ชำระแล้ว';
-          const bkSessions = sessions.filter(s => s.bookingId === bk.id);
-          const done = bkSessions.filter(s => s.done).length;
-          return (
-            <div key={bk.id} className="bg-white rounded-xl border p-4 space-y-2">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="font-bold text-sm text-gray-800">{bk.name}</div>
-                  <div className="text-xs text-gray-500">{bk.tel}</div>
-                </div>
-                <div className="flex gap-1.5 items-center">
-                  {isPaid
-                    ? <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">ชำระแล้ว</span>
-                    : <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">รอชำระ</span>}
-                  <span className="text-sm font-bold text-emerald-700">฿{fmtPrice(bk.finalPrice)}</span>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-x-3 text-xs text-gray-600">
-                <span>{cfg(bk.courseType).label}</span>
-                <span>{fmt(bk.startDate)}</span>
-                <span>{bk.timeSlot}</span>
-                <span>{bk.totalPeople} คน</span>
-                {bk.instructor && <span>ผู้สอน: {bk.instructor}</span>}
-              </div>
-              {bkSessions.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-gray-100 rounded-full h-1.5">
-                    <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: (bkSessions.length > 0 ? Math.round((done / bkSessions.length) * 100) : 0) + '%' }} />
-                  </div>
-                  <span className="text-[10px] text-gray-400">เรียน {done}/{bkSessions.length}</span>
-                </div>
-              )}
-              <button onClick={() => setViewSlipBk({ ...bk, courseLabel: cfg(bk.courseType).label })}
-                className="no-print text-[11px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-lg hover:bg-blue-200 font-medium">
-                ใบยืนยัน
-              </button>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Slip Modal */}
-      {viewSlipBk && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center overflow-y-auto p-4 pt-8 pb-20">
-          <div className="w-full max-w-md">
-            <BookingConfirmationSlip bk={viewSlipBk} onClose={() => setViewSlipBk(null)} />
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-xl font-bold text-emerald-800"
+  }, "รายงานการจอง"), /*#__PURE__*/React.createElement("button", {
+    onClick: printReport,
+    className: "no-print text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium"
+  }, "พิมพ์รายงาน")), /*#__PURE__*/React.createElement("div", {
+    className: "no-print flex gap-1.5 flex-wrap"
+  }, [['today', 'วันนี้'], ['week', 'สัปดาห์นี้'], ['month', 'เดือนนี้'], ['30d', '30 วัน']].map(([k, l]) => /*#__PURE__*/React.createElement("button", {
+    key: k,
+    onClick: () => setPreset(k),
+    className: "text-xs bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full hover:bg-emerald-200 font-medium"
+  }, l))), /*#__PURE__*/React.createElement("div", {
+    className: "no-print bg-white rounded-xl border p-4 space-y-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs text-gray-500"
+  }, "จากวันที่"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: dateFrom,
+    onChange: e => setDateFrom(e.target.value),
+    className: "w-full border rounded-lg px-3 py-2 text-sm input-focus"
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs text-gray-500"
+  }, "ถึงวันที่"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: dateTo,
+    onChange: e => setDateTo(e.target.value),
+    className: "w-full border rounded-lg px-3 py-2 text-sm input-focus"
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, /*#__PURE__*/React.createElement("select", {
+    value: filterCourse,
+    onChange: e => setFilterCourse(e.target.value),
+    className: "border rounded-lg px-3 py-2 text-sm input-focus"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "ทุกคอร์ส"), courseKeys.map(k => /*#__PURE__*/React.createElement("option", {
+    key: k,
+    value: k
+  }, cfg(k).label || k))), /*#__PURE__*/React.createElement("select", {
+    value: filterStatus,
+    onChange: e => setFilterStatus(e.target.value),
+    className: "border rounded-lg px-3 py-2 text-sm input-focus"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "ทุกสถานะ"), /*#__PURE__*/React.createElement("option", {
+    value: "paid"
+  }, "ชำระแล้ว"), /*#__PURE__*/React.createElement("option", {
+    value: "pending"
+  }, "รอชำระ")))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border p-4 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "จำนวนจอง"), /*#__PURE__*/React.createElement("div", {
+    className: "text-2xl font-bold text-emerald-700"
+  }, stats.total), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-400"
+  }, stats.totalPeople, " คน")), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border p-4 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "ยอดรวม"), /*#__PURE__*/React.createElement("div", {
+    className: "text-2xl font-bold text-blue-600"
+  }, "฿", fmtPrice(stats.revenue))), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border p-4 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "ชำระแล้ว"), /*#__PURE__*/React.createElement("div", {
+    className: "text-2xl font-bold text-green-600"
+  }, stats.paid)), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border p-4 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "รอชำระ"), /*#__PURE__*/React.createElement("div", {
+    className: "text-2xl font-bold text-amber-600"
+  }, stats.pending))), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, filtered.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border p-8 text-center text-gray-400"
+  }, "ไม่มีข้อมูลการจองในช่วงนี้") : filtered.map(bk => {
+    const isPaid = bk.paymentStatus === 'ชำระแล้ว';
+    const bkSessions = sessions.filter(s => s.bookingId === bk.id);
+    const done = bkSessions.filter(s => s.done).length;
+    return /*#__PURE__*/React.createElement("div", {
+      key: bk.id,
+      className: "bg-white rounded-xl border p-4 space-y-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex justify-between items-start"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      className: "font-bold text-sm text-gray-800"
+    }, bk.name), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs text-gray-500"
+    }, bk.tel)), /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-1.5 items-center"
+    }, isPaid ? /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium"
+    }, "ชำระแล้ว") : /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium"
+    }, "รอชำระ"), /*#__PURE__*/React.createElement("span", {
+      className: "text-sm font-bold text-emerald-700"
+    }, "฿", fmtPrice(bk.finalPrice)))), /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-wrap gap-x-3 text-xs text-gray-600"
+    }, /*#__PURE__*/React.createElement("span", null, cfg(bk.courseType).label), /*#__PURE__*/React.createElement("span", null, fmt(bk.startDate)), /*#__PURE__*/React.createElement("span", null, bk.timeSlot), /*#__PURE__*/React.createElement("span", null, bk.totalPeople, " คน"), bk.instructor && /*#__PURE__*/React.createElement("span", null, "ผู้สอน: ", bk.instructor)), bkSessions.length > 0 && /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 bg-gray-100 rounded-full h-1.5"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "bg-emerald-500 h-1.5 rounded-full",
+      style: {
+        width: (bkSessions.length > 0 ? Math.round(done / bkSessions.length * 100) : 0) + '%'
+      }
+    })), /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] text-gray-400"
+    }, "เรียน ", done, "/", bkSessions.length)), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setViewSlipBk({
+        ...bk,
+        courseLabel: cfg(bk.courseType).label
+      }),
+      className: "no-print text-[11px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-lg hover:bg-blue-200 font-medium"
+    }, "ใบยืนยัน"));
+  })), viewSlipBk && /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center overflow-y-auto p-4 pt-8 pb-20"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "w-full max-w-md"
+  }, /*#__PURE__*/React.createElement(BookingConfirmationSlip, {
+    bk: viewSlipBk,
+    onClose: () => setViewSlipBk(null)
+  }))));
 }
 
 // ═══════════════════════════════════════════════════════════
 // INSTRUCTOR AVAIL REPORT — รายงานวันพร้อมสอน
 // ═══════════════════════════════════════════════════════════
-function InstructorAvailReport({ instructors, instructorAvail, courses, classes }) {
+function InstructorAvailReport({
+  instructors,
+  instructorAvail,
+  courses,
+  classes
+}) {
   const [year, setYear] = useState(() => new Date().getFullYear() + 543);
   const [month, setMonth] = useState(() => new Date().getMonth());
   const [selectedInstructor, setSelectedInstructor] = useState('all');
   const [viewMode, setViewMode] = useState('ready'); // 'ready' = คลาสพร้อมเรียน, 'avail' = วันว่างผู้สอน
   const dynSlots = useMemo(() => getAllTimeSlots(courses), [courses]);
-
   const CLASS_STATUS = {
-    waiting_instructor: { label: "รอผู้สอน", color: "bg-yellow-100 text-yellow-700", icon: "🟡" },
-    ready:              { label: "พร้อมรับนักเรียน", color: "bg-blue-100 text-blue-700", icon: "🔵" },
-    full:               { label: "เต็ม", color: "bg-green-100 text-green-700", icon: "🟢" },
-    completed:          { label: "สอนแล้ว", color: "bg-gray-100 text-gray-500", icon: "✅" },
-    cancelled:          { label: "ยกเลิก", color: "bg-red-100 text-red-600", icon: "❌" },
+    waiting_instructor: {
+      label: "รอผู้สอน",
+      color: "bg-yellow-100 text-yellow-700",
+      icon: "🟡"
+    },
+    ready: {
+      label: "พร้อมรับนักเรียน",
+      color: "bg-blue-100 text-blue-700",
+      icon: "🔵"
+    },
+    full: {
+      label: "เต็ม",
+      color: "bg-green-100 text-green-700",
+      icon: "🟢"
+    },
+    completed: {
+      label: "สอนแล้ว",
+      color: "bg-gray-100 text-gray-500",
+      icon: "✅"
+    },
+    cancelled: {
+      label: "ยกเลิก",
+      color: "bg-red-100 text-red-600",
+      icon: "❌"
+    }
   };
-
-  const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
-    "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+  const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
   const dayNames = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
-
-  const handlePrevMonth = () => { if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1); };
-  const handleNextMonth = () => { if (month === 11) { setMonth(0); setYear(year + 1); } else setMonth(month + 1); };
-
+  const handlePrevMonth = () => {
+    if (month === 0) {
+      setMonth(11);
+      setYear(year - 1);
+    } else setMonth(month - 1);
+  };
+  const handleNextMonth = () => {
+    if (month === 11) {
+      setMonth(0);
+      setYear(year + 1);
+    } else setMonth(month + 1);
+  };
   const ceYear = year - 543;
   const daysInMonth = new Date(ceYear, month + 1, 0).getDate();
   const firstDay = new Date(ceYear, month, 1).getDay();
-
-  const days = useMemo(() => Array.from({ length: daysInMonth }, (_, i) => {
+  const days = useMemo(() => Array.from({
+    length: daysInMonth
+  }, (_, i) => {
     const d = String(i + 1).padStart(2, '0');
     const m = String(month + 1).padStart(2, '0');
-    return { date: ceYear + '-' + m + '-' + d, day: i + 1 };
+    return {
+      date: ceYear + '-' + m + '-' + d,
+      day: i + 1
+    };
   }), [ceYear, month, daysInMonth]);
 
   // Filter availability by selected instructor
@@ -1528,14 +1848,10 @@ function InstructorAvailReport({ instructors, instructorAvail, courses, classes 
 
   // Classes in this month
   const monthPrefix = ceYear + '-' + String(month + 1).padStart(2, '0');
-  const monthClasses = useMemo(() =>
-    (classes || []).filter(c => (c.date || '').startsWith(monthPrefix)),
-    [classes, monthPrefix]);
+  const monthClasses = useMemo(() => (classes || []).filter(c => (c.date || '').startsWith(monthPrefix)), [classes, monthPrefix]);
 
   // Ready classes = status 'ready' (พร้อมรับนักเรียน) — ลูกค้าจองได้เลย
-  const readyClasses = useMemo(() =>
-    monthClasses.filter(c => c.status === 'ready'),
-    [monthClasses]);
+  const readyClasses = useMemo(() => monthClasses.filter(c => c.status === 'ready'), [monthClasses]);
 
   // Monthly stats
   const monthStats = useMemo(() => {
@@ -1550,329 +1866,314 @@ function InstructorAvailReport({ instructors, instructorAvail, courses, classes 
       stats[inst] = {
         availDays: dates.size,
         availSlots: instAvail.length,
-        matchingClasses: assignedClasses.length,
+        matchingClasses: assignedClasses.length
       };
     });
     return stats;
   }, [instructors, instructorAvail, monthClasses, monthPrefix, selectedInstructor]);
 
   // Get availability for a specific date
-  const getDateAvail = (date) => filteredAvail.filter(a => a.date === date);
+  const getDateAvail = date => filteredAvail.filter(a => a.date === date);
 
   // Get classes for a date
-  const getDateClasses = (date) => (classes || []).filter(c => c.date === date);
+  const getDateClasses = date => (classes || []).filter(c => c.date === date);
 
   // Get ready classes for a date
-  const getDateReadyClasses = (date) => (classes || []).filter(c => c.date === date && c.status === 'ready');
+  const getDateReadyClasses = date => (classes || []).filter(c => c.date === date && c.status === 'ready');
 
   // Find course label
-  const getCourseLabel = (cls) => {
+  const getCourseLabel = cls => {
     const c = (courses || []).find(co => co.key === cls.courseKey);
     return c ? c.label : cls.courseName || cls.courseKey || '-';
   };
-
-  return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-bold text-emerald-800">รายงานวันพร้อมสอน</h2>
-
-      {/* View Mode Toggle */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-        <button onClick={() => setViewMode('ready')}
-          className={`flex-1 text-xs font-medium py-2.5 rounded-lg transition-all ${viewMode === 'ready' ? 'bg-white shadow text-blue-700' : 'text-gray-500'}`}>
-          คลาสพร้อมเรียน
-        </button>
-        <button onClick={() => setViewMode('avail')}
-          className={`flex-1 text-xs font-medium py-2.5 rounded-lg transition-all ${viewMode === 'avail' ? 'bg-white shadow text-emerald-700' : 'text-gray-500'}`}>
-          วันว่างผู้สอน
-        </button>
-      </div>
-
-      {/* Month Navigation */}
-      <div className="bg-white rounded-xl border p-4 space-y-3">
-        {viewMode === 'avail' && (
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">เลือกผู้สอน</label>
-            <select value={selectedInstructor} onChange={e => setSelectedInstructor(e.target.value)}
-              className="w-full border border-emerald-200 bg-emerald-50 rounded-lg px-3 py-2 text-sm input-focus">
-              <option value="all">ทุกคน</option>
-              {instructors.map(inst => <option key={inst} value={inst}>{inst}</option>)}
-            </select>
-          </div>
-        )}
-        <div className="flex justify-between items-center">
-          <button onClick={handlePrevMonth} className="text-emerald-600 hover:text-emerald-800 font-bold px-2">◀</button>
-          <h3 className="font-bold text-gray-800">{monthNames[month]} {year}</h3>
-          <button onClick={handleNextMonth} className="text-emerald-600 hover:text-emerald-800 font-bold px-2">▶</button>
-        </div>
-      </div>
-
-      {/* ══════════ VIEW: คลาสพร้อมเรียน ══════════ */}
-      {viewMode === 'ready' && (
-        <>
-          {/* Summary */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="bg-white rounded-xl border p-3 text-center">
-              <div className="text-lg font-bold text-gray-800">{monthClasses.length}</div>
-              <div className="text-[10px] text-gray-500">คลาสทั้งหมด</div>
-            </div>
-            <div className="bg-blue-50 rounded-xl border border-blue-200 p-3 text-center">
-              <div className="text-lg font-bold text-blue-700">{readyClasses.length}</div>
-              <div className="text-[10px] text-blue-600">พร้อมรับนักเรียน</div>
-            </div>
-            <div className="bg-yellow-50 rounded-xl border border-yellow-200 p-3 text-center">
-              <div className="text-lg font-bold text-yellow-700">{monthClasses.filter(c => c.status === 'waiting_instructor').length}</div>
-              <div className="text-[10px] text-yellow-600">รอผู้สอน</div>
-            </div>
-          </div>
-
-          {/* Calendar — Ready Classes */}
-          <div className="bg-white rounded-xl border p-4">
-            <div className="grid grid-cols-7 gap-1">
-              {dayNames.map(d => <div key={d} className="text-center text-xs font-semibold text-gray-600 py-1">{d}</div>)}
-              {Array.from({ length: firstDay }).map((_, i) => <div key={"e-" + i} className="min-h-[70px]" />)}
-              {days.map(d => {
-                const dateClasses = getDateClasses(d.date);
-                const readyCls = dateClasses.filter(c => c.status === 'ready');
-                const waitingCls = dateClasses.filter(c => c.status === 'waiting_instructor');
-                const fullCls = dateClasses.filter(c => c.status === 'full');
-                const isToday = d.date === today();
-                const hasReady = readyCls.length > 0;
-
-                return (
-                  <div key={d.date} className={`border rounded p-1 min-h-[70px] transition-colors ${
-                    isToday ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300' :
-                    hasReady ? 'bg-blue-50 border-blue-300' :
-                    dateClasses.length > 0 ? 'bg-yellow-50 border-yellow-200' :
-                    'bg-gray-50 border-gray-200'
-                  }`}>
-                    <div className={`text-xs font-semibold text-center mb-0.5 ${isToday ? 'text-emerald-700' : 'text-gray-700'}`}>
-                      {d.day}
-                    </div>
-                    {readyCls.length > 0 && (
-                      <div className="text-[8px] text-center text-blue-700 font-bold bg-blue-100 rounded px-0.5 mb-0.5">
-                        {readyCls.length} พร้อม
-                      </div>
-                    )}
-                    {waitingCls.length > 0 && (
-                      <div className="text-[8px] text-center text-yellow-700 font-medium">
-                        {waitingCls.length} รอ
-                      </div>
-                    )}
-                    {fullCls.length > 0 && (
-                      <div className="text-[8px] text-center text-green-700 font-medium">
-                        {fullCls.length} เต็ม
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex gap-3 justify-center mt-3 text-[10px] text-gray-500">
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-50 border border-blue-300 inline-block"></span> พร้อมรับนักเรียน</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-50 border border-yellow-200 inline-block"></span> รอผู้สอน</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 border border-green-300 inline-block"></span> เต็ม</span>
-            </div>
-          </div>
-
-          {/* Ready Classes Detail List */}
-          <div className="bg-white rounded-xl border overflow-hidden">
-            <div className="px-4 py-3 bg-blue-50 border-b">
-              <h3 className="font-bold text-sm text-blue-800">คลาสที่พร้อมให้ลูกค้าเรียน</h3>
-            </div>
-            <div className="divide-y max-h-[500px] overflow-y-auto">
-              {(() => {
-                const daysWithClasses = days.filter(d => getDateClasses(d.date).length > 0);
-                if (daysWithClasses.length === 0) {
-                  return <div className="p-6 text-center text-gray-400 text-sm">ไม่มีคลาสในเดือนนี้</div>;
-                }
-                return daysWithClasses.map(d => {
-                  const dateClasses = getDateClasses(d.date);
-                  return (
-                    <div key={d.date} className="px-4 py-3">
-                      <div className="font-semibold text-sm text-gray-800 mb-2">{fmt(d.date)}</div>
-                      <div className="space-y-1.5">
-                        {dateClasses.map(cls => {
-                          const st = CLASS_STATUS[cls.status] || CLASS_STATUS.waiting_instructor;
-                          const isReady = cls.status === 'ready';
-                          const isFull = cls.status === 'full';
-                          const maxSt = parseInt(cls.maxStudents) || '-';
-                          return (
-                            <div key={cls.id} className={`flex items-center justify-between rounded-lg px-3 py-2 ${
-                              isReady ? 'bg-blue-50 border border-blue-200' :
-                              isFull ? 'bg-green-50 border border-green-200' :
-                              'bg-gray-50 border border-gray-200'
-                            }`}>
-                              <div className="min-w-0">
-                                <div className="text-xs font-semibold text-gray-800 truncate">{getCourseLabel(cls)}</div>
-                                <div className="text-[10px] text-gray-500">{cls.timeSlot} | max {maxSt} คน</div>
-                              </div>
-                              <span className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-bold ${st.color}`}>
-                                {st.icon} {st.label}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* ══════════ VIEW: วันว่างผู้สอน ══════════ */}
-      {viewMode === 'avail' && (
-        <>
-          {/* Summary Cards per instructor */}
-          {(() => {
-            const relevantInstructors = selectedInstructor === 'all' ? instructors : [selectedInstructor];
-            return (
-              <div className="space-y-2">
-                {relevantInstructors.map(inst => {
-                  const s = monthStats[inst] || { availDays: 0, availSlots: 0, matchingClasses: 0 };
-                  return (
-                    <div key={inst} className="bg-white rounded-xl border p-4">
-                      <div className="font-bold text-sm text-gray-800 mb-2">{inst}</div>
-                      <div className="grid grid-cols-3 gap-2 text-center">
-                        <div>
-                          <div className="text-lg font-bold text-emerald-600">{s.availDays}</div>
-                          <div className="text-[10px] text-gray-500">วันว่าง</div>
-                        </div>
-                        <div>
-                          <div className="text-lg font-bold text-blue-600">{s.availSlots}</div>
-                          <div className="text-[10px] text-gray-500">ช่วงเวลา</div>
-                        </div>
-                        <div>
-                          <div className="text-lg font-bold text-amber-600">{s.matchingClasses}</div>
-                          <div className="text-[10px] text-gray-500">คลาสตรงเวลา</div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
-
-          {/* Calendar Grid — Instructor Availability */}
-          <div className="bg-white rounded-xl border p-4">
-            <div className="grid grid-cols-7 gap-1">
-              {dayNames.map(d => <div key={d} className="text-center text-xs font-semibold text-gray-600 py-1">{d}</div>)}
-              {Array.from({ length: firstDay }).map((_, i) => <div key={"e-" + i} className="min-h-[70px]" />)}
-              {days.map(d => {
-                const avail = getDateAvail(d.date);
-                const dateClasses = getDateClasses(d.date);
-                const hasAvail = avail.length > 0;
-                const hasClass = dateClasses.length > 0;
-                const isToday = d.date === today();
-                const byInstructor = {};
-                avail.forEach(a => {
-                  if (!byInstructor[a.instructor]) byInstructor[a.instructor] = [];
-                  byInstructor[a.instructor].push(a.timeSlot);
-                });
-                const instructorCount = Object.keys(byInstructor).length;
-
-                return (
-                  <div key={d.date} className={`border rounded p-1 min-h-[70px] transition-colors ${
-                    isToday ? 'border-emerald-400 bg-emerald-50' :
-                    hasAvail && hasClass ? 'bg-blue-50 border-blue-300' :
-                    hasAvail ? 'bg-green-50 border-green-300' :
-                    'bg-gray-50 border-gray-200'
-                  }`}>
-                    <div className={`text-xs font-semibold text-center mb-0.5 ${isToday ? 'text-emerald-700' : 'text-gray-700'}`}>
-                      {d.day}
-                    </div>
-                    {hasAvail && selectedInstructor === 'all' && (
-                      <div className="text-[8px] text-center text-green-700 font-medium">{instructorCount} คน</div>
-                    )}
-                    {hasAvail && selectedInstructor !== 'all' && (
-                      <div className="flex flex-col gap-0.5">
-                        {avail.map(a => (
-                          <div key={a.timeSlot} className="text-[8px] bg-green-500 text-white rounded px-0.5 text-center truncate font-medium">
-                            {a.timeSlot}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {hasClass && (
-                      <div className="text-[8px] text-center text-blue-600 font-medium mt-0.5">
-                        {dateClasses.length} คลาส
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex gap-3 justify-center mt-3 text-[10px] text-gray-500">
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-50 border border-green-300 inline-block"></span> ว่าง</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-50 border border-blue-300 inline-block"></span> ว่าง+มีคลาส</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-50 border border-gray-200 inline-block"></span> ไม่ว่าง</span>
-            </div>
-          </div>
-
-          {/* Daily Detail List */}
-          <div className="bg-white rounded-xl border overflow-hidden">
-            <div className="px-4 py-3 bg-emerald-50 border-b">
-              <h3 className="font-bold text-sm text-emerald-800">รายละเอียดวันพร้อมสอน</h3>
-            </div>
-            <div className="divide-y max-h-[400px] overflow-y-auto">
-              {days.filter(d => getDateAvail(d.date).length > 0).length === 0 ? (
-                <div className="p-6 text-center text-gray-400 text-sm">ไม่มีข้อมูลวันว่างในเดือนนี้</div>
-              ) : days.filter(d => getDateAvail(d.date).length > 0).map(d => {
-                const avail = getDateAvail(d.date);
-                const dateClasses = getDateClasses(d.date);
-                const byInstructor = {};
-                avail.forEach(a => {
-                  if (!byInstructor[a.instructor]) byInstructor[a.instructor] = [];
-                  byInstructor[a.instructor].push(a.timeSlot);
-                });
-
-                return (
-                  <div key={d.date} className="px-4 py-3">
-                    <div className="flex justify-between items-center mb-1">
-                      <div className="font-semibold text-sm text-gray-800">{fmt(d.date)}</div>
-                      {dateClasses.length > 0 && (
-                        <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{dateClasses.length} คลาส</span>
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      {Object.entries(byInstructor).map(([inst, slots]) => (
-                        <div key={inst} className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-700 min-w-[60px]">{inst}</span>
-                          <div className="flex gap-1 flex-wrap">
-                            {slots.sort().map(slot => (
-                              <span key={slot} className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">{slot}</span>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </>
-      )}
-
-      {instructors.length === 0 && viewMode === 'avail' && (
-        <div className="bg-white rounded-xl border p-8 text-center">
-          <div className="text-4xl mb-2">👨‍🏫</div>
-          <div className="text-gray-500">ยังไม่มีข้อมูลผู้สอน</div>
-        </div>
-      )}
-    </div>
-  );
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-xl font-bold text-emerald-800"
+  }, "รายงานวันพร้อมสอน"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1 bg-gray-100 rounded-xl p-1"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setViewMode('ready'),
+    className: `flex-1 text-xs font-medium py-2.5 rounded-lg transition-all ${viewMode === 'ready' ? 'bg-white shadow text-blue-700' : 'text-gray-500'}`
+  }, "คลาสพร้อมเรียน"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setViewMode('avail'),
+    className: `flex-1 text-xs font-medium py-2.5 rounded-lg transition-all ${viewMode === 'avail' ? 'bg-white shadow text-emerald-700' : 'text-gray-500'}`
+  }, "วันว่างผู้สอน")), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border p-4 space-y-3"
+  }, viewMode === 'avail' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs text-gray-500 block mb-1"
+  }, "เลือกผู้สอน"), /*#__PURE__*/React.createElement("select", {
+    value: selectedInstructor,
+    onChange: e => setSelectedInstructor(e.target.value),
+    className: "w-full border border-emerald-200 bg-emerald-50 rounded-lg px-3 py-2 text-sm input-focus"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "ทุกคน"), instructors.map(inst => /*#__PURE__*/React.createElement("option", {
+    key: inst,
+    value: inst
+  }, inst)))), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: handlePrevMonth,
+    className: "text-emerald-600 hover:text-emerald-800 font-bold px-2"
+  }, "◀"), /*#__PURE__*/React.createElement("h3", {
+    className: "font-bold text-gray-800"
+  }, monthNames[month], " ", year), /*#__PURE__*/React.createElement("button", {
+    onClick: handleNextMonth,
+    className: "text-emerald-600 hover:text-emerald-800 font-bold px-2"
+  }, "▶"))), viewMode === 'ready' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-3 gap-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border p-3 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-bold text-gray-800"
+  }, monthClasses.length), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-gray-500"
+  }, "คลาสทั้งหมด")), /*#__PURE__*/React.createElement("div", {
+    className: "bg-blue-50 rounded-xl border border-blue-200 p-3 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-bold text-blue-700"
+  }, readyClasses.length), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-blue-600"
+  }, "พร้อมรับนักเรียน")), /*#__PURE__*/React.createElement("div", {
+    className: "bg-yellow-50 rounded-xl border border-yellow-200 p-3 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-bold text-yellow-700"
+  }, monthClasses.filter(c => c.status === 'waiting_instructor').length), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-yellow-600"
+  }, "รอผู้สอน"))), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border p-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-7 gap-1"
+  }, dayNames.map(d => /*#__PURE__*/React.createElement("div", {
+    key: d,
+    className: "text-center text-xs font-semibold text-gray-600 py-1"
+  }, d)), Array.from({
+    length: firstDay
+  }).map((_, i) => /*#__PURE__*/React.createElement("div", {
+    key: "e-" + i,
+    className: "min-h-[70px]"
+  })), days.map(d => {
+    const dateClasses = getDateClasses(d.date);
+    const readyCls = dateClasses.filter(c => c.status === 'ready');
+    const waitingCls = dateClasses.filter(c => c.status === 'waiting_instructor');
+    const fullCls = dateClasses.filter(c => c.status === 'full');
+    const isToday = d.date === today();
+    const hasReady = readyCls.length > 0;
+    return /*#__PURE__*/React.createElement("div", {
+      key: d.date,
+      className: `border rounded p-1 min-h-[70px] transition-colors ${isToday ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300' : hasReady ? 'bg-blue-50 border-blue-300' : dateClasses.length > 0 ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50 border-gray-200'}`
+    }, /*#__PURE__*/React.createElement("div", {
+      className: `text-xs font-semibold text-center mb-0.5 ${isToday ? 'text-emerald-700' : 'text-gray-700'}`
+    }, d.day), readyCls.length > 0 && /*#__PURE__*/React.createElement("div", {
+      className: "text-[8px] text-center text-blue-700 font-bold bg-blue-100 rounded px-0.5 mb-0.5"
+    }, readyCls.length, " พร้อม"), waitingCls.length > 0 && /*#__PURE__*/React.createElement("div", {
+      className: "text-[8px] text-center text-yellow-700 font-medium"
+    }, waitingCls.length, " รอ"), fullCls.length > 0 && /*#__PURE__*/React.createElement("div", {
+      className: "text-[8px] text-center text-green-700 font-medium"
+    }, fullCls.length, " เต็ม"));
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-3 justify-center mt-3 text-[10px] text-gray-500"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "w-3 h-3 rounded bg-blue-50 border border-blue-300 inline-block"
+  }), " พร้อมรับนักเรียน"), /*#__PURE__*/React.createElement("span", {
+    className: "flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "w-3 h-3 rounded bg-yellow-50 border border-yellow-200 inline-block"
+  }), " รอผู้สอน"), /*#__PURE__*/React.createElement("span", {
+    className: "flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "w-3 h-3 rounded bg-green-100 border border-green-300 inline-block"
+  }), " เต็ม"))), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border overflow-hidden"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "px-4 py-3 bg-blue-50 border-b"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-bold text-sm text-blue-800"
+  }, "คลาสที่พร้อมให้ลูกค้าเรียน")), /*#__PURE__*/React.createElement("div", {
+    className: "divide-y max-h-[500px] overflow-y-auto"
+  }, (() => {
+    const daysWithClasses = days.filter(d => getDateClasses(d.date).length > 0);
+    if (daysWithClasses.length === 0) {
+      return /*#__PURE__*/React.createElement("div", {
+        className: "p-6 text-center text-gray-400 text-sm"
+      }, "ไม่มีคลาสในเดือนนี้");
+    }
+    return daysWithClasses.map(d => {
+      const dateClasses = getDateClasses(d.date);
+      return /*#__PURE__*/React.createElement("div", {
+        key: d.date,
+        className: "px-4 py-3"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "font-semibold text-sm text-gray-800 mb-2"
+      }, fmt(d.date)), /*#__PURE__*/React.createElement("div", {
+        className: "space-y-1.5"
+      }, dateClasses.map(cls => {
+        const st = CLASS_STATUS[cls.status] || CLASS_STATUS.waiting_instructor;
+        const isReady = cls.status === 'ready';
+        const isFull = cls.status === 'full';
+        const maxSt = parseInt(cls.maxStudents) || '-';
+        return /*#__PURE__*/React.createElement("div", {
+          key: cls.id,
+          className: `flex items-center justify-between rounded-lg px-3 py-2 ${isReady ? 'bg-blue-50 border border-blue-200' : isFull ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'}`
+        }, /*#__PURE__*/React.createElement("div", {
+          className: "min-w-0"
+        }, /*#__PURE__*/React.createElement("div", {
+          className: "text-xs font-semibold text-gray-800 truncate"
+        }, getCourseLabel(cls)), /*#__PURE__*/React.createElement("div", {
+          className: "text-[10px] text-gray-500"
+        }, cls.timeSlot, " | max ", maxSt, " คน")), /*#__PURE__*/React.createElement("span", {
+          className: `flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-bold ${st.color}`
+        }, st.icon, " ", st.label));
+      })));
+    });
+  })()))), viewMode === 'avail' && /*#__PURE__*/React.createElement(React.Fragment, null, (() => {
+    const relevantInstructors = selectedInstructor === 'all' ? instructors : [selectedInstructor];
+    return /*#__PURE__*/React.createElement("div", {
+      className: "space-y-2"
+    }, relevantInstructors.map(inst => {
+      const s = monthStats[inst] || {
+        availDays: 0,
+        availSlots: 0,
+        matchingClasses: 0
+      };
+      return /*#__PURE__*/React.createElement("div", {
+        key: inst,
+        className: "bg-white rounded-xl border p-4"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "font-bold text-sm text-gray-800 mb-2"
+      }, inst), /*#__PURE__*/React.createElement("div", {
+        className: "grid grid-cols-3 gap-2 text-center"
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+        className: "text-lg font-bold text-emerald-600"
+      }, s.availDays), /*#__PURE__*/React.createElement("div", {
+        className: "text-[10px] text-gray-500"
+      }, "วันว่าง")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+        className: "text-lg font-bold text-blue-600"
+      }, s.availSlots), /*#__PURE__*/React.createElement("div", {
+        className: "text-[10px] text-gray-500"
+      }, "ช่วงเวลา")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+        className: "text-lg font-bold text-amber-600"
+      }, s.matchingClasses), /*#__PURE__*/React.createElement("div", {
+        className: "text-[10px] text-gray-500"
+      }, "คลาสตรงเวลา"))));
+    }));
+  })(), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border p-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-7 gap-1"
+  }, dayNames.map(d => /*#__PURE__*/React.createElement("div", {
+    key: d,
+    className: "text-center text-xs font-semibold text-gray-600 py-1"
+  }, d)), Array.from({
+    length: firstDay
+  }).map((_, i) => /*#__PURE__*/React.createElement("div", {
+    key: "e-" + i,
+    className: "min-h-[70px]"
+  })), days.map(d => {
+    const avail = getDateAvail(d.date);
+    const dateClasses = getDateClasses(d.date);
+    const hasAvail = avail.length > 0;
+    const hasClass = dateClasses.length > 0;
+    const isToday = d.date === today();
+    const byInstructor = {};
+    avail.forEach(a => {
+      if (!byInstructor[a.instructor]) byInstructor[a.instructor] = [];
+      byInstructor[a.instructor].push(a.timeSlot);
+    });
+    const instructorCount = Object.keys(byInstructor).length;
+    return /*#__PURE__*/React.createElement("div", {
+      key: d.date,
+      className: `border rounded p-1 min-h-[70px] transition-colors ${isToday ? 'border-emerald-400 bg-emerald-50' : hasAvail && hasClass ? 'bg-blue-50 border-blue-300' : hasAvail ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-200'}`
+    }, /*#__PURE__*/React.createElement("div", {
+      className: `text-xs font-semibold text-center mb-0.5 ${isToday ? 'text-emerald-700' : 'text-gray-700'}`
+    }, d.day), hasAvail && selectedInstructor === 'all' && /*#__PURE__*/React.createElement("div", {
+      className: "text-[8px] text-center text-green-700 font-medium"
+    }, instructorCount, " คน"), hasAvail && selectedInstructor !== 'all' && /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-col gap-0.5"
+    }, avail.map(a => /*#__PURE__*/React.createElement("div", {
+      key: a.timeSlot,
+      className: "text-[8px] bg-green-500 text-white rounded px-0.5 text-center truncate font-medium"
+    }, a.timeSlot))), hasClass && /*#__PURE__*/React.createElement("div", {
+      className: "text-[8px] text-center text-blue-600 font-medium mt-0.5"
+    }, dateClasses.length, " คลาส"));
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-3 justify-center mt-3 text-[10px] text-gray-500"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "w-3 h-3 rounded bg-green-50 border border-green-300 inline-block"
+  }), " ว่าง"), /*#__PURE__*/React.createElement("span", {
+    className: "flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "w-3 h-3 rounded bg-blue-50 border border-blue-300 inline-block"
+  }), " ว่าง+มีคลาส"), /*#__PURE__*/React.createElement("span", {
+    className: "flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "w-3 h-3 rounded bg-gray-50 border border-gray-200 inline-block"
+  }), " ไม่ว่าง"))), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border overflow-hidden"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "px-4 py-3 bg-emerald-50 border-b"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-bold text-sm text-emerald-800"
+  }, "รายละเอียดวันพร้อมสอน")), /*#__PURE__*/React.createElement("div", {
+    className: "divide-y max-h-[400px] overflow-y-auto"
+  }, days.filter(d => getDateAvail(d.date).length > 0).length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "p-6 text-center text-gray-400 text-sm"
+  }, "ไม่มีข้อมูลวันว่างในเดือนนี้") : days.filter(d => getDateAvail(d.date).length > 0).map(d => {
+    const avail = getDateAvail(d.date);
+    const dateClasses = getDateClasses(d.date);
+    const byInstructor = {};
+    avail.forEach(a => {
+      if (!byInstructor[a.instructor]) byInstructor[a.instructor] = [];
+      byInstructor[a.instructor].push(a.timeSlot);
+    });
+    return /*#__PURE__*/React.createElement("div", {
+      key: d.date,
+      className: "px-4 py-3"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex justify-between items-center mb-1"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "font-semibold text-sm text-gray-800"
+    }, fmt(d.date)), dateClasses.length > 0 && /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full"
+    }, dateClasses.length, " คลาส")), /*#__PURE__*/React.createElement("div", {
+      className: "space-y-1"
+    }, Object.entries(byInstructor).map(([inst, slots]) => /*#__PURE__*/React.createElement("div", {
+      key: inst,
+      className: "flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-xs font-medium text-gray-700 min-w-[60px]"
+    }, inst), /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-1 flex-wrap"
+    }, slots.sort().map(slot => /*#__PURE__*/React.createElement("span", {
+      key: slot,
+      className: "text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium"
+    }, slot)))))));
+  })))), instructors.length === 0 && viewMode === 'avail' && /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border p-8 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-4xl mb-2"
+  }, "👨‍🏫"), /*#__PURE__*/React.createElement("div", {
+    className: "text-gray-500"
+  }, "ยังไม่มีข้อมูลผู้สอน")));
 }
 
 // ═══════════════════════════════════════════════════════════
 // EARNINGS — รายได้ค่าคอมมิชชั่น
 // ═══════════════════════════════════════════════════════════
-function EarningsTab({ bookings, commissions, classes, userName }) {
+function EarningsTab({
+  bookings,
+  commissions,
+  classes,
+  userName
+}) {
   const [selectedMonth, setSelectedMonth] = useState(() => {
-    const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
   });
 
   // Fallback commission % (from settings) — ใช้กรณีคลาสไม่มี salesCommission
@@ -1885,7 +2186,7 @@ function EarningsTab({ bookings, commissions, classes, userName }) {
   }, [commissions, userName]);
 
   // Match booking → class → salesCommission %
-  const getCommissionPct = (bk) => {
+  const getCommissionPct = bk => {
     // 1) ถ้า booking มี classId → หาจาก class ตรงๆ
     if (bk.classId) {
       const cls = (classes || []).find(c => c.id === bk.classId);
@@ -1908,10 +2209,13 @@ function EarningsTab({ bookings, commissions, classes, userName }) {
     return monthBookings.map(b => {
       const price = parseFloat(b.finalPrice) || 0;
       const pct = getCommissionPct(b);
-      return { ...b, commPct: pct, commission: price * pct / 100 };
+      return {
+        ...b,
+        commPct: pct,
+        commission: price * pct / 100
+      };
     });
   }, [monthBookings, classes, fallbackPct]);
-
   const totalRevenue = bookingsWithComm.reduce((s, b) => s + (parseFloat(b.finalPrice) || 0), 0);
   const totalCommission = bookingsWithComm.reduce((s, b) => s + b.commission, 0);
   const totalBookings = bookingsWithComm.length;
@@ -1922,10 +2226,17 @@ function EarningsTab({ bookings, commissions, classes, userName }) {
     const opts = [];
     const d = new Date();
     for (let i = 0; i < 12; i++) {
-      const y = d.getFullYear(); const m = d.getMonth() + 1;
+      const y = d.getFullYear();
+      const m = d.getMonth() + 1;
       const val = y + '-' + String(m).padStart(2, '0');
-      const label = new Date(y, m - 1).toLocaleDateString('th-TH', { year: 'numeric', month: 'long' });
-      opts.push({ val, label });
+      const label = new Date(y, m - 1).toLocaleDateString('th-TH', {
+        year: 'numeric',
+        month: 'long'
+      });
+      opts.push({
+        val,
+        label
+      });
       d.setMonth(d.getMonth() - 1);
     }
     return opts;
@@ -1936,7 +2247,11 @@ function EarningsTab({ bookings, commissions, classes, userName }) {
     const map = {};
     bookingsWithComm.forEach(b => {
       const day = b.startDate || b.createdAt?.slice(0, 10) || 'ไม่ระบุ';
-      if (!map[day]) map[day] = { count: 0, revenue: 0, commission: 0 };
+      if (!map[day]) map[day] = {
+        count: 0,
+        revenue: 0,
+        commission: 0
+      };
       map[day].count++;
       map[day].revenue += parseFloat(b.finalPrice) || 0;
       map[day].commission += b.commission;
@@ -1950,18 +2265,24 @@ function EarningsTab({ bookings, commissions, classes, userName }) {
     bookingsWithComm.forEach(b => {
       const d = new Date(b.startDate || b.createdAt);
       if (isNaN(d)) return;
-      const weekStart = new Date(d); weekStart.setDate(d.getDate() - d.getDay());
+      const weekStart = new Date(d);
+      weekStart.setDate(d.getDate() - d.getDay());
       const key = weekStart.toISOString().slice(0, 10);
-      const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
       const label = fmt(key) + ' - ' + fmt(weekEnd.toISOString().slice(0, 10));
-      if (!map[key]) map[key] = { label, count: 0, revenue: 0, commission: 0 };
+      if (!map[key]) map[key] = {
+        label,
+        count: 0,
+        revenue: 0,
+        commission: 0
+      };
       map[key].count++;
       map[key].revenue += parseFloat(b.finalPrice) || 0;
       map[key].commission += b.commission;
     });
     return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]));
   }, [bookingsWithComm]);
-
   const [viewMode, setViewMode] = useState('course'); // course | day | week
 
   // Group by course type
@@ -1969,7 +2290,12 @@ function EarningsTab({ bookings, commissions, classes, userName }) {
     const map = {};
     bookingsWithComm.forEach(b => {
       const key = b.courseType || 'อื่นๆ';
-      if (!map[key]) map[key] = { count: 0, people: 0, revenue: 0, commission: 0 };
+      if (!map[key]) map[key] = {
+        count: 0,
+        people: 0,
+        revenue: 0,
+        commission: 0
+      };
       map[key].count++;
       map[key].people += parseInt(b.totalPeople) || 1;
       map[key].revenue += parseFloat(b.finalPrice) || 0;
@@ -1977,100 +2303,117 @@ function EarningsTab({ bookings, commissions, classes, userName }) {
     });
     return Object.entries(map).sort((a, b) => b[1].revenue - a[1].revenue);
   }, [bookingsWithComm]);
-
-  return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-bold">💰 รายได้ค่าคอมมิชชั่น</h2>
-
-      {/* Month Selector */}
-      <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
-        className="border rounded-xl p-2.5 text-sm bg-white w-full md:w-auto input-focus">
-        {monthOptions.map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
-      </select>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white rounded-xl border p-4 text-center">
-          <div className="text-xs text-gray-500">จำนวนจอง</div>
-          <div className="text-2xl font-bold text-gray-800">{totalBookings}</div>
-          <div className="text-xs text-gray-400">{totalPeople} คน</div>
-        </div>
-        <div className="bg-white rounded-xl border p-4 text-center">
-          <div className="text-xs text-gray-500">ยอดขายรวม</div>
-          <div className="text-2xl font-bold text-blue-600">฿{fmtPrice(totalRevenue)}</div>
-        </div>
-        <div className="col-span-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl p-5 text-center">
-          <div className="text-sm opacity-90">คอมมิชชั่นรวม</div>
-          <div className="text-3xl font-bold mt-1">฿{fmtPrice(totalCommission)}</div>
-        </div>
-      </div>
-
-      {/* View mode toggle */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-        {[{id:'course',label:'ตามคอร์ส'},{id:'day',label:'รายวัน'},{id:'week',label:'รายสัปดาห์'}].map(v => (
-          <button key={v.id} onClick={() => setViewMode(v.id)}
-            className={`flex-1 text-xs font-medium py-2 rounded-lg transition-all ${viewMode === v.id ? 'bg-white shadow text-emerald-700' : 'text-gray-500'}`}>
-            {v.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Breakdown by selected mode */}
-      {(() => {
-        const items = viewMode === 'course' ? byCourse.map(([k, d]) => ({ key: k, label: k, sub: d.count + ' จอง · ' + (d.people || '') + ' คน', ...d }))
-          : viewMode === 'day' ? byDay.map(([k, d]) => ({ key: k, label: fmt(k), sub: d.count + ' จอง', ...d }))
-          : byWeek.map(([k, d]) => ({ key: k, label: d.label, sub: d.count + ' จอง', ...d }));
-        return items.length > 0 ? (
-          <div className="bg-white rounded-xl border overflow-hidden">
-            <div className="px-4 py-3 bg-gray-50 border-b">
-              <h3 className="font-semibold text-sm">{viewMode === 'course' ? 'แยกตามคอร์ส' : viewMode === 'day' ? 'แยกรายวัน' : 'แยกรายสัปดาห์'}</h3>
-            </div>
-            <div className="divide-y">
-              {items.map(item => (
-                <div key={item.key} className="px-4 py-3 flex justify-between items-center">
-                  <div>
-                    <div className="font-medium text-sm">{item.label}</div>
-                    <div className="text-xs text-gray-400">{item.sub}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm text-gray-600">฿{fmtPrice(item.revenue)}</div>
-                    <div className="text-sm font-bold text-emerald-600">+฿{fmtPrice(item.commission)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl border p-8 text-center text-gray-400">ยังไม่มียอดจองในเดือนนี้</div>
-        );
-      })()}
-
-      {/* Booking Details */}
-      {bookingsWithComm.length > 0 && (
-        <div>
-          <h3 className="font-semibold text-sm mb-2 text-gray-600">📋 รายการจอง</h3>
-          <div className="space-y-2">
-            {bookingsWithComm.map(b => (
-              <div key={b.id} className="card-hover bg-white rounded-xl border p-3 flex justify-between items-center">
-                <div>
-                  <div className="font-medium text-sm">{b.name || 'ไม่ทราบชื่อ'}</div>
-                  <div className="text-xs text-gray-500">{b.courseType} · {fmt(b.startDate)} · {b.totalPeople || 1} คน</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-semibold">฿{fmtPrice(parseFloat(b.finalPrice) || 0)}</div>
-                  <div className="text-xs text-emerald-600 font-medium">+฿{fmtPrice(b.commission)} ({b.commPct}%)</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-xl font-bold"
+  }, "💰 รายได้ค่าคอมมิชชั่น"), /*#__PURE__*/React.createElement("select", {
+    value: selectedMonth,
+    onChange: e => setSelectedMonth(e.target.value),
+    className: "border rounded-xl p-2.5 text-sm bg-white w-full md:w-auto input-focus"
+  }, monthOptions.map(o => /*#__PURE__*/React.createElement("option", {
+    key: o.val,
+    value: o.val
+  }, o.label))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border p-4 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "จำนวนจอง"), /*#__PURE__*/React.createElement("div", {
+    className: "text-2xl font-bold text-gray-800"
+  }, totalBookings), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-400"
+  }, totalPeople, " คน")), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl border p-4 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, "ยอดขายรวม"), /*#__PURE__*/React.createElement("div", {
+    className: "text-2xl font-bold text-blue-600"
+  }, "฿", fmtPrice(totalRevenue))), /*#__PURE__*/React.createElement("div", {
+    className: "col-span-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl p-5 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm opacity-90"
+  }, "คอมมิชชั่นรวม"), /*#__PURE__*/React.createElement("div", {
+    className: "text-3xl font-bold mt-1"
+  }, "฿", fmtPrice(totalCommission)))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1 bg-gray-100 rounded-xl p-1"
+  }, [{
+    id: 'course',
+    label: 'ตามคอร์ส'
+  }, {
+    id: 'day',
+    label: 'รายวัน'
+  }, {
+    id: 'week',
+    label: 'รายสัปดาห์'
+  }].map(v => /*#__PURE__*/React.createElement("button", {
+    key: v.id,
+    onClick: () => setViewMode(v.id),
+    className: `flex-1 text-xs font-medium py-2 rounded-lg transition-all ${viewMode === v.id ? 'bg-white shadow text-emerald-700' : 'text-gray-500'}`
+  }, v.label))), (() => {
+    const items = viewMode === 'course' ? byCourse.map(([k, d]) => ({
+      key: k,
+      label: k,
+      sub: d.count + ' จอง · ' + (d.people || '') + ' คน',
+      ...d
+    })) : viewMode === 'day' ? byDay.map(([k, d]) => ({
+      key: k,
+      label: fmt(k),
+      sub: d.count + ' จอง',
+      ...d
+    })) : byWeek.map(([k, d]) => ({
+      key: k,
+      label: d.label,
+      sub: d.count + ' จอง',
+      ...d
+    }));
+    return items.length > 0 ? /*#__PURE__*/React.createElement("div", {
+      className: "bg-white rounded-xl border overflow-hidden"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "px-4 py-3 bg-gray-50 border-b"
+    }, /*#__PURE__*/React.createElement("h3", {
+      className: "font-semibold text-sm"
+    }, viewMode === 'course' ? 'แยกตามคอร์ส' : viewMode === 'day' ? 'แยกรายวัน' : 'แยกรายสัปดาห์')), /*#__PURE__*/React.createElement("div", {
+      className: "divide-y"
+    }, items.map(item => /*#__PURE__*/React.createElement("div", {
+      key: item.key,
+      className: "px-4 py-3 flex justify-between items-center"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      className: "font-medium text-sm"
+    }, item.label), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs text-gray-400"
+    }, item.sub)), /*#__PURE__*/React.createElement("div", {
+      className: "text-right"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-sm text-gray-600"
+    }, "฿", fmtPrice(item.revenue)), /*#__PURE__*/React.createElement("div", {
+      className: "text-sm font-bold text-emerald-600"
+    }, "+฿", fmtPrice(item.commission))))))) : /*#__PURE__*/React.createElement("div", {
+      className: "bg-white rounded-xl border p-8 text-center text-gray-400"
+    }, "ยังไม่มียอดจองในเดือนนี้");
+  })(), bookingsWithComm.length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    className: "font-semibold text-sm mb-2 text-gray-600"
+  }, "📋 รายการจอง"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, bookingsWithComm.map(b => /*#__PURE__*/React.createElement("div", {
+    key: b.id,
+    className: "card-hover bg-white rounded-xl border p-3 flex justify-between items-center"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "font-medium text-sm"
+  }, b.name || 'ไม่ทราบชื่อ'), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-gray-500"
+  }, b.courseType, " · ", fmt(b.startDate), " · ", b.totalPeople || 1, " คน")), /*#__PURE__*/React.createElement("div", {
+    className: "text-right"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-semibold"
+  }, "฿", fmtPrice(parseFloat(b.finalPrice) || 0)), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-emerald-600 font-medium"
+  }, "+฿", fmtPrice(b.commission), " (", b.commPct, "%)")))))));
 }
 
 // ─── Render ───
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(App, null));
 </script>
 <script>
 // ── Service Worker + Offline + Auto-refresh ──
