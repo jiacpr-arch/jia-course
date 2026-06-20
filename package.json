@@ -1,0 +1,21 @@
+{
+  "name": "jia-course",
+  "version": "1.0.0",
+  "description": "",
+  "main": "jia-supabase-api.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://local_proxy@127.0.0.1:44121/git/jiacpr-arch/jia-course"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@babel/core": "^8.0.1",
+    "@babel/preset-env": "^8.0.2",
+    "@babel/preset-react": "^8.0.1"
+  }
+}
